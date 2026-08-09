@@ -9,7 +9,7 @@ build/
 coverage/
 *.log
 .env*
-providers/
+/providers/
 
 # Native build output
 native/.build/
