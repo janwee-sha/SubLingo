@@ -161,7 +161,12 @@ window.iina?.onMessage("operation:error", () => {
 window.iina?.onMessage("state:update", (raw: unknown) => {
   const view = raw as {
     status?: SessionStatus;
-    source?: { format: string; cueCount: number; language: string | null } | null;
+    source?: {
+      format: string;
+      cueCount: number;
+      language: string | null;
+      detectedLanguage?: string | null;
+    } | null;
     cacheSize?: number;
     boundedWork?: string;
     profiles?: Array<{
@@ -187,7 +192,7 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
       view.source.format.toUpperCase();
     document.querySelector<HTMLElement>("#source-cues")!.textContent = String(view.source.cueCount);
     document.querySelector<HTMLElement>("#source-detected-language")!.textContent =
-      view.source.language ?? "Unknown";
+      view.source.detectedLanguage ?? "Unknown";
     if (!sourceLanguage.value && view.source.language) sourceLanguage.value = view.source.language;
   } else if (view.source === null) {
     sourceSummary.hidden = true;

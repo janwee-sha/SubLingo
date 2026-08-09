@@ -61,17 +61,26 @@ interface MainRuntime {
   mpv: IINA.API.MPV;
   preferences: IINA.API.Preferences;
   sidebar: IINA.API.SidebarView;
+  utils: IINA.API.Utils;
 }
 
 function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController {
   const provider = new GlobalProviderClient(runtime.global);
   const sourcePort = new IinaSubtitleSourcePort(runtime.core.subtitle, runtime.file);
   const generatedTrack = new GeneratedSubtitleTrackManager(
-    new IinaSubtitleTrackPort(runtime.core.subtitle, runtime.file, runtime.mpv),
+    new IinaSubtitleTrackPort(runtime.core.subtitle, runtime.file, runtime.mpv, runtime.utils),
     playerId,
     `session-${Date.now()}`,
   );
   const savedTarget = runtime.preferences.get("targetLanguage");
+  const savedSource = runtime.preferences.get("sourceLanguage");
+  const savedSourceMode = runtime.preferences.get("sourceLanguageMode");
+  let manualSourceLanguage =
+    savedSourceMode !== "track" && typeof savedSource === "string" && savedSource.trim()
+      ? savedSource.trim()
+      : null;
+  let selectedSourceTrackId: number | null = null;
+  let sourceSelectionTimer: ReturnType<typeof setTimeout> | null = null;
   const controller = new PlaybackController({
     playerId,
     provider,
@@ -120,13 +129,15 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   };
 
   const loadSource = (): void => {
+    selectedSourceTrackId = runtime.core.subtitle.id;
     const loaded = readSelectedSubtitle(sourcePort);
+    const effectiveLanguage = loaded.ok ? (manualSourceLanguage ?? loaded.source.language) : null;
     controller.setSource(
       loaded.ok
         ? {
             cues: loaded.source.cues,
             contentHash: loaded.source.contentHash,
-            language: loaded.source.language,
+            language: effectiveLanguage,
             format: loaded.source.format,
           }
         : null,
@@ -136,13 +147,16 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
         ? {
             format: loaded.source.format,
             cueCount: loaded.source.cues.length,
-            language: loaded.source.language,
+            language: effectiveLanguage,
+            detectedLanguage: loaded.source.language,
             warnings: loaded.source.decode.warnings,
           }
         : null,
     });
   };
 
+  // IINA clears the sidebar message hub when loadFile() is called, so load the
+  // webview before registering any of its message handlers.
   runtime.sidebar.loadFile("dist/ui/sidebar.html");
   runtime.sidebar.onMessage("ui:ready", () => {
     loadSource();
@@ -160,18 +174,24 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   runtime.sidebar.onMessage("translation:set-enabled", (raw: unknown) => {
     const enabled = Boolean((raw as { payload?: { enabled?: unknown } }).payload?.enabled);
     controller.setEnabled(enabled);
+    runtime.preferences.set("enabledByDefault", enabled);
+    runtime.preferences.sync();
     updateSidebarState();
     flushSidebar();
   });
   runtime.sidebar.onMessage("defaults:save", (raw: unknown) => {
     const payload = (raw as { payload?: Record<string, unknown> }).payload;
     if (payload && typeof payload.targetLanguage === "string") {
-      const sourceLanguage =
-        typeof payload.sourceLanguage === "string" ? payload.sourceLanguage : null;
+      manualSourceLanguage =
+        typeof payload.sourceLanguage === "string" && payload.sourceLanguage.trim()
+          ? payload.sourceLanguage.trim()
+          : null;
       runtime.preferences.set("targetLanguage", payload.targetLanguage);
-      runtime.preferences.set("sourceLanguage", sourceLanguage);
-      runtime.preferences.set("sourceLanguageMode", sourceLanguage ? "manual" : "track");
-      controller.setLanguages(payload.targetLanguage, sourceLanguage);
+      runtime.preferences.set("sourceLanguage", manualSourceLanguage);
+      runtime.preferences.set("sourceLanguageMode", manualSourceLanguage ? "manual" : "track");
+      runtime.preferences.sync();
+      controller.setLanguages(payload.targetLanguage, manualSourceLanguage);
+      loadSource();
     }
     runtime.global.postMessage("defaults:save", raw);
   });
@@ -245,7 +265,29 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   });
 
   runtime.event.on("iina.file-loaded", loadSource);
-  runtime.event.on("mpv.track-list.changed", loadSource);
+  runtime.event.on("mpv.sid.changed", () => {
+    const selectedId = runtime.core.subtitle.id;
+    if (
+      generatedTrack.isPublishing ||
+      generatedTrack.hasOwnedTrack ||
+      generatedTrack.ownsTrack(selectedId) ||
+      selectedId === selectedSourceTrackId
+    )
+      return;
+    if (sourceSelectionTimer !== null) clearTimeout(sourceSelectionTimer);
+    sourceSelectionTimer = setTimeout(() => {
+      sourceSelectionTimer = null;
+      const settledId = runtime.core.subtitle.id;
+      if (
+        generatedTrack.isPublishing ||
+        generatedTrack.hasOwnedTrack ||
+        generatedTrack.ownsTrack(settledId) ||
+        settledId === selectedSourceTrackId
+      )
+        return;
+      loadSource();
+    }, 250);
+  });
   runtime.event.on("mpv.seek", () =>
     controller.session.onSeek(
       finitePosition(
@@ -265,6 +307,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   }, 350);
   runtime.event.on("iina.window-will-close", () => {
     clearInterval(tickInterval);
+    if (sourceSelectionTimer !== null) clearTimeout(sourceSelectionTimer);
     if (currentSelection)
       runtime.global.postMessage("profile:release", {
         requestId: `release-${Date.now()}`,
@@ -281,4 +324,18 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
 // does not need a global round-trip before its main entry can initialize. The
 // global entry receives IINA's real player identifier with every later
 // message; this local session ID is used only for generated subtitle assets.
-wirePlayer(iina, `player-${Date.now()}`);
+//
+// sidebar.loadFile() is unavailable until the player window exists. Register
+// first and then re-check the state to avoid missing a window-loaded event that
+// fires between those two operations.
+let playerWired = false;
+const initializePlayer = (): void => {
+  if (playerWired || !iina.core.window.loaded) return;
+  playerWired = true;
+  wirePlayer(iina, `player-${Date.now()}`);
+};
+const scheduleInitializePlayer = (): void => {
+  setTimeout(initializePlayer, 100);
+};
+iina.event.on("iina.window-loaded", scheduleInitializePlayer);
+scheduleInitializePlayer();

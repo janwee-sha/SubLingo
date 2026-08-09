@@ -12,14 +12,12 @@
   "sidebarTab": {
     "name": "SubLingo"
   },
-  "permissions": ["network-request", "file-system", "show-alert", "subtitle", "preferences"],
+  "permissions": ["network-request", "file-system", "show-alert"],
   "allowedDomains": ["127.0.0.1"],
   "permissionDescriptions": {
     "network-request": "Connect to the bundled loopback helper, which contacts only the translation service you select.",
     "file-system": "Read the selected external subtitle and maintain an encrypted credential vault and temporary translated track.",
-    "show-alert": "Confirm destructive credential-vault reset operations.",
-    "subtitle": "Read the selected external subtitle and manage only SubLingo's translated secondary track.",
-    "preferences": "Save non-secret profile metadata, language choices, and sidebar settings."
+    "show-alert": "Confirm destructive credential-vault reset operations."
   },
   "preferenceDefaults": {
     "enabledByDefault": false,

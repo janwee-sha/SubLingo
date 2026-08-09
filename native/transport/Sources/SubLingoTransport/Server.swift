@@ -1,6 +1,12 @@
 import Foundation
 import Network
 
+enum HTTPRequestParseResult {
+    case incomplete
+    case invalid
+    case complete(path: String, authorization: String?, body: Data)
+}
+
 final class TransportServer: @unchecked Sendable {
     static let boundHost = "127.0.0.1"
 
@@ -54,32 +60,65 @@ final class TransportServer: @unchecked Sendable {
             return
         }
         connection.start(queue: queue)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: ProtocolLimits.maxRequestBytes + 16_384) { [weak self] data, _, _, error in
-            guard let self, error == nil, let data, let request = Self.parseRequest(data) else {
+        receiveRequest(connection, accumulated: Data())
+    }
+
+    private func receiveRequest(_ connection: NWConnection, accumulated: Data) {
+        let maximumFrameBytes = ProtocolLimits.maxRequestBytes + 16_384
+        guard accumulated.count < maximumFrameBytes else {
+            connection.cancel()
+            return
+        }
+        connection.receive(
+            minimumIncompleteLength: 1,
+            maximumLength: maximumFrameBytes - accumulated.count
+        ) { [weak self] data, _, isComplete, error in
+            guard let self, error == nil, let data else {
                 connection.cancel()
                 return
             }
-            self.liveness.touch()
-            Task {
-                let response = await self.handler.handle(path: request.path, authorization: request.authorization, body: request.body)
-                let bytes = Self.httpResponse(response)
-                connection.send(content: bytes, completion: .contentProcessed { _ in connection.cancel() })
+            var frame = accumulated
+            frame.append(data)
+            switch Self.parseRequest(frame) {
+            case .incomplete where !isComplete:
+                self.receiveRequest(connection, accumulated: frame)
+            case .complete(let path, let authorization, let body):
+                self.liveness.touch()
+                Task {
+                    let response = await self.handler.handle(
+                        path: path,
+                        authorization: authorization,
+                        body: body
+                    )
+                    let bytes = Self.httpResponse(response)
+                    connection.send(
+                        content: bytes,
+                        completion: .contentProcessed { _ in connection.cancel() }
+                    )
+                }
+            default:
+                connection.cancel()
             }
         }
     }
 
-    private static func parseRequest(_ data: Data) -> (path: String, authorization: String?, body: Data)? {
+    static func parseRequest(_ data: Data) -> HTTPRequestParseResult {
         let marker = Data("\r\n\r\n".utf8)
-        guard let headerRange = data.range(of: marker) else { return nil }
+        guard let headerRange = data.range(of: marker) else {
+            return data.count <= 16_384 ? .incomplete : .invalid
+        }
+        guard headerRange.lowerBound <= 16_384 else { return .invalid }
         let headerData = data[..<headerRange.lowerBound]
-        guard let headerText = String(data: headerData, encoding: .utf8) else { return nil }
+        guard let headerText = String(data: headerData, encoding: .utf8) else { return .invalid }
         let lines = headerText.components(separatedBy: "\r\n")
-        guard let first = lines.first else { return nil }
+        guard let first = lines.first else { return .invalid }
         let requestLine = first.split(separator: " ")
-        guard requestLine.count == 3, requestLine[0] == "POST", requestLine[2] == "HTTP/1.1" else { return nil }
+        guard requestLine.count == 3, requestLine[0] == "POST", requestLine[2] == "HTTP/1.1" else {
+            return .invalid
+        }
         var headers: [String: String] = [:]
         for line in lines.dropFirst() {
-            guard let separator = line.firstIndex(of: ":") else { return nil }
+            guard let separator = line.firstIndex(of: ":") else { return .invalid }
             let name = line[..<separator].trimmingCharacters(in: .whitespaces).lowercased()
             let value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
             headers[name] = value
@@ -87,10 +126,16 @@ final class TransportServer: @unchecked Sendable {
         guard headers["content-type"]?.lowercased().hasPrefix("application/json") == true,
               let lengthText = headers["content-length"], let length = Int(lengthText),
               length >= 0, length <= ProtocolLimits.maxRequestBytes
-        else { return nil }
+        else { return .invalid }
         let bodyStart = headerRange.upperBound
-        guard data.count - bodyStart == length else { return nil }
-        return (String(requestLine[1]), headers["authorization"], data[bodyStart...])
+        let receivedBodyBytes = data.distance(from: bodyStart, to: data.endIndex)
+        if receivedBodyBytes < length { return .incomplete }
+        guard receivedBodyBytes == length else { return .invalid }
+        return .complete(
+            path: String(requestLine[1]),
+            authorization: headers["authorization"],
+            body: Data(data[bodyStart...])
+        )
     }
 
     private static func httpResponse(_ response: ProtocolResponse) -> Data {

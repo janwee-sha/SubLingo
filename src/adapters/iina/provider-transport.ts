@@ -39,18 +39,30 @@ export class IinaProcessLauncher implements ProcessLauncher {
 }
 
 export class HelperProviderTransport implements ProviderTransport {
-  constructor(private readonly client: TransportClient) {}
+  private readonly helperJobs = new Map<string, string>();
+
+  constructor(
+    private readonly client: TransportClient,
+    private readonly createHelperJobId: () => string,
+  ) {}
 
   async request(request: ProviderTransportRequest): Promise<ProviderTransportResponse> {
-    const response = await this.client.request(request);
-    return {
-      statusCode: response.statusCode,
-      headers: response.headers,
-      bodyText: response.bodyText,
-    };
+    const helperJobId = this.createHelperJobId();
+    this.helperJobs.set(request.jobId, helperJobId);
+    try {
+      const response = await this.client.request({ ...request, jobId: helperJobId });
+      return {
+        statusCode: response.statusCode,
+        headers: response.headers,
+        bodyText: response.bodyText,
+      };
+    } finally {
+      if (this.helperJobs.get(request.jobId) === helperJobId) this.helperJobs.delete(request.jobId);
+    }
   }
 
   async cancel(jobId: string): Promise<void> {
-    await this.client.cancel(jobId);
+    const helperJobId = this.helperJobs.get(jobId);
+    if (helperJobId) await this.client.cancel(helperJobId);
   }
 }

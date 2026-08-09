@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseReadyFrame } from "../../src/adapters/iina/transport-process.js";
+import {
+  discoverHelperExecutable,
+  parseReadyFrame,
+  TransportProcess,
+} from "../../src/adapters/iina/transport-process.js";
+import { HelperProviderTransport } from "../../src/adapters/iina/provider-transport.js";
 import { TransportClient, type LocalHttpBridge } from "../../src/transport/client.js";
 
 class FakeBridge implements LocalHttpBridge {
@@ -39,6 +44,33 @@ describe("transport helper client", () => {
     ).toThrow();
   });
 
+  it("derives the absolute installed helper path from IINA's @data directory", () => {
+    const helper = discoverHelperExecutable({
+      resolvePath: () =>
+        "/Users/example/Library/Application Support/com.colliderli.iina/plugins/.data/io.sublingo.iina",
+      exists: (path) =>
+        path.endsWith("/io.sublingo.iina.iinaplugin/dist/native/sublingo-transport"),
+    });
+    expect(helper).toBe(
+      "/Users/example/Library/Application Support/com.colliderli.iina/plugins/io.sublingo.iina.iinaplugin/dist/native/sublingo-transport",
+    );
+  });
+
+  it("uses the ready frame and fails promptly when the helper exits during startup", async () => {
+    await expect(
+      TransportProcess.bootstrap({
+        launch: async (_executable, _args, onStdout) => {
+          onStdout('{"type":"ready","port":49152,"token":"abcDEF123_-","protocolVersion":1}\n');
+          return new Promise<{ status: number }>(() => undefined);
+        },
+      }),
+    ).resolves.toMatchObject({ port: 49152, token: "abcDEF123_-" });
+
+    await expect(
+      TransportProcess.bootstrap({ launch: async () => ({ status: 127 }) }),
+    ).rejects.toThrow("Helper exited during startup");
+  });
+
   it("sends bearer-authenticated random/request/cancel RPC to loopback", async () => {
     const bridge = new FakeBridge();
     const client = new TransportClient({ port: 49152, token: "session-token" }, bridge);
@@ -57,6 +89,22 @@ describe("transport helper client", () => {
     await expect(client.cancel("job-1")).resolves.toBe("cancelled");
     expect(bridge.calls.every((call) => call.token === "session-token")).toBe(true);
     expect(bridge.calls.every((call) => call.url.startsWith("http://127.0.0.1:49152/"))).toBe(true);
+  });
+
+  it("maps provider request labels to helper-required UUID job IDs", async () => {
+    const bridge = new FakeBridge();
+    const client = new TransportClient({ port: 49152, token: "session-token" }, bridge);
+    const helperJobId = "7a90a4e6-cc4f-4f59-99b7-8ff522f887ae";
+    const transport = new HelperProviderTransport(client, () => helperJobId);
+    await transport.request({
+      jobId: "probe-version",
+      method: "GET",
+      url: "http://127.0.0.1:11434/api/version",
+      headers: {},
+      timeoutMs: 1_000,
+      maxResponseBytes: 1_024,
+    });
+    expect(bridge.calls.at(-1)?.body).toMatchObject({ jobId: helperJobId });
   });
 
   it("normalizes unavailable-helper failures without leaking bridge messages", async () => {

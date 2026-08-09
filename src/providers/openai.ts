@@ -42,6 +42,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
   }
 
   async probe(): Promise<Capability> {
+    if (this.capability) return this.capability;
     for (const capability of ["strict-json-schema", "json-object", "prompt-json"] as const) {
       const response = await this.send(
         `probe-${capability}`,

@@ -64,12 +64,13 @@ export class PlaybackController {
 
   setSource(source: ControllerSource | null): void {
     this.session.onTrackChanged();
-    const hadSource = this.source !== null;
     this.source = source;
     this.translations.clear();
     this.cache.clear();
-    if (hadSource) this.options.track.cleanup();
-    this.status = source ? "preparing" : "waitingForSubtitle";
+    // IINA emits transient source-track changes while it attaches and selects
+    // an external secondary subtitle. Keep the currently published track
+    // visible through those events; the next successful swap replaces it.
+    this.status = this.nextIdleStatus();
   }
 
   setEnabled(enabled: boolean): void {
@@ -78,7 +79,7 @@ export class PlaybackController {
       this.options.track.cleanup();
       this.status = "disabled";
     } else {
-      this.status = this.source ? "preparing" : "waitingForSubtitle";
+      this.status = this.nextIdleStatus();
     }
   }
 
@@ -94,7 +95,7 @@ export class PlaybackController {
     this.translations.clear();
     this.cache.clear();
     this.options.track.cleanup();
-    this.status = this.source ? "preparing" : "waitingForSubtitle";
+    this.status = this.nextIdleStatus();
   }
 
   setProviderSelection(input: {
@@ -112,7 +113,12 @@ export class PlaybackController {
     this.translations.clear();
     this.cache.clear();
     this.options.track.cleanup();
-    this.status = this.source ? "preparing" : "waitingForSubtitle";
+    this.status = this.nextIdleStatus();
+  }
+
+  private nextIdleStatus(): SessionStatus {
+    if (!this.session.enabled) return "disabled";
+    return this.source ? "preparing" : "waitingForSubtitle";
   }
 
   tick(positionMs: number | null): void {
@@ -225,7 +231,14 @@ export class PlaybackController {
       }
       if (!this.session.accepts(fingerprint) || this.source === null) return;
       const rendered = renderSrt(this.source.cues, this.translations);
-      if (rendered) await this.options.track.swap(rendered);
+      if (rendered) {
+        try {
+          await this.options.track.swap(rendered);
+        } catch {
+          if (this.session.accepts(fingerprint)) this.status = "partialFailure";
+          return;
+        }
+      }
       if (this.session.accepts(fingerprint)) {
         if (remaining.length > 0)
           this.status = terminalError?.retryable ? "serviceUnavailable" : "partialFailure";

@@ -24,12 +24,72 @@ function localUuid(): string {
 
 const profiles = new ProviderProfiles(localUuid);
 let transportPromise: Promise<TransportClient> | null = null;
+const providerCache = new Map<string, Promise<TranslationProvider>>();
+
+function restoreProfileMetadata(): void {
+  const raw = iina.preferences.get("providerProfilesJson");
+  if (typeof raw !== "string") return;
+  try {
+    const saved: unknown = JSON.parse(raw);
+    if (!Array.isArray(saved)) return;
+    for (const item of saved) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      const value = item as Record<string, unknown>;
+      if (
+        typeof value.profileId !== "string" ||
+        !value.profileId ||
+        typeof value.displayName !== "string" ||
+        (value.kind !== "openai" && value.kind !== "ollama") ||
+        typeof value.endpoint !== "string" ||
+        typeof value.model !== "string"
+      )
+        continue;
+      try {
+        profiles.save({
+          profileId: value.profileId,
+          expectedRevision: 0,
+          displayName: value.displayName,
+          kind: value.kind,
+          endpoint: value.endpoint,
+          model: value.model,
+          ...(value.capability === "strict-json-schema" ||
+          value.capability === "json-object" ||
+          value.capability === "prompt-json"
+            ? { capability: value.capability }
+            : {}),
+        });
+      } catch {
+        /* Ignore one invalid preference entry without losing valid profiles. */
+      }
+    }
+  } catch {
+    /* Corrupt non-secret metadata is equivalent to no saved profiles. */
+  }
+}
+
+function persistProfileMetadata(): void {
+  const saved = profiles.listLatest().map((profile) => ({
+    profileId: profile.profileId,
+    displayName: profile.displayName,
+    kind: profile.kind,
+    endpoint: profile.endpoint,
+    model: profile.model ?? "",
+    ...(profile.capability ? { capability: profile.capability } : {}),
+  }));
+  iina.preferences.set("providerProfilesJson", JSON.stringify(saved));
+  iina.preferences.sync();
+}
+
+restoreProfileMetadata();
 
 async function transportClient(): Promise<TransportClient> {
   if (!transportPromise) {
     transportPromise = TransportProcess.bootstrap(
       new IinaProcessLauncher(iina.utils),
-      discoverHelperExecutable(iina.file),
+      discoverHelperExecutable({
+        exists: (path) => iina.file.exists(path),
+        resolvePath: (path) => iina.utils.resolvePath(path),
+      }),
     )
       .then((session) => new TransportClient(session, new IinaLocalHttpBridge(iina.http)))
       .catch((error) => {
@@ -50,9 +110,12 @@ const vault = new CredentialVaultStore({
 });
 void vault.reload();
 
-async function providerFor(profile: ProviderProfileSnapshot): Promise<TranslationProvider> {
-  const transport = new ProviderTransportAdapter(await transportClient());
-  const secret = await vault.getSecret(profile.profileId);
+function providerCacheKey(profile: ProviderProfileSnapshot): string {
+  return `${profile.profileId}\u0000${profile.revision}`;
+}
+
+async function buildProvider(profile: ProviderProfileSnapshot): Promise<TranslationProvider> {
+  const transport = new ProviderTransportAdapter(await transportClient(), localUuid);
   switch (profile.kind) {
     case "azure":
       throw {
@@ -61,7 +124,7 @@ async function providerFor(profile: ProviderProfileSnapshot): Promise<Translatio
         providerCode: "AZURE_UNSUPPORTED",
         userAction: "SELECT_PROFILE",
       };
-    case "openai":
+    case "openai": {
       if (!profile.model)
         throw {
           category: "model",
@@ -69,7 +132,8 @@ async function providerFor(profile: ProviderProfileSnapshot): Promise<Translatio
           providerCode: "MODEL_REQUIRED",
           userAction: "CHECK_MODEL",
         };
-      return new OpenAICompatibleProvider(
+      const secret = await vault.getSecret(profile.profileId);
+      const openai = new OpenAICompatibleProvider(
         {
           endpoint: profile.endpoint,
           model: profile.model,
@@ -78,7 +142,10 @@ async function providerFor(profile: ProviderProfileSnapshot): Promise<Translatio
         },
         transport,
       );
-    case "ollama":
+      await openai.probe();
+      return openai;
+    }
+    case "ollama": {
       if (!profile.model)
         throw {
           category: "model",
@@ -87,7 +154,20 @@ async function providerFor(profile: ProviderProfileSnapshot): Promise<Translatio
           userAction: "CHECK_MODEL",
         };
       return new OllamaProvider({ endpoint: profile.endpoint, model: profile.model }, transport);
+    }
   }
+}
+
+function providerFor(profile: ProviderProfileSnapshot): Promise<TranslationProvider> {
+  const key = providerCacheKey(profile);
+  const cached = providerCache.get(key);
+  if (cached) return cached;
+  const created = buildProvider(profile);
+  providerCache.set(key, created);
+  void created.catch(() => {
+    if (providerCache.get(key) === created) providerCache.delete(key);
+  });
+  return created;
 }
 
 const broker = new ProviderBroker(profiles, providerFor);
@@ -142,6 +222,7 @@ iina.global.onMessage("defaults:save", (raw: unknown, playerId?: string) => {
       if (typeof value === "string" || typeof value === "boolean" || value === null)
         iina.preferences.set(key, value);
     }
+    iina.preferences.sync();
     postToPlayer(playerId, "defaults:saved", { requestId: requestId(raw) });
   } catch {
     postToPlayer(playerId, "operation:error", {
@@ -175,6 +256,7 @@ iina.global.onMessage("profile:create-revision", async (raw: unknown, playerId?:
       ...(typeof values.model === "string" ? { model: values.model } : {}),
       ...(typeof values.region === "string" ? { region: values.region } : {}),
     });
+    persistProfileMetadata();
     postToPlayer(playerId, "profile:revision-created", {
       requestId: requestId(raw),
       profile: sanitizedProfileView(profile),
@@ -195,6 +277,7 @@ iina.global.onMessage("vault:set-secret", async (raw: unknown, playerId?: string
     if (!profile || profile.revision !== secret.expectedRevision)
       throw new Error("STALE_PROFILE_REVISION");
     await vault.setSecret(secret.profileId, secret.fields);
+    providerCache.delete(`${secret.profileId}\u0000${secret.expectedRevision}`);
     postToPlayer(playerId, "vault:result", {
       requestId: requestId(raw),
       state: "ready",
@@ -290,6 +373,7 @@ iina.global.onMessage("vault:reset", async (raw: unknown, playerId?: string) => 
   try {
     if (payload(raw).confirmed !== true) throw new Error("CONFIRMATION_REQUIRED");
     await vault.reset();
+    providerCache.clear();
     postToPlayer(playerId, "vault:state", { state: "ready" });
   } catch {
     postToPlayer(playerId, "vault:state", {

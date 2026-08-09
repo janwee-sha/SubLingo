@@ -48,6 +48,7 @@ export class TransportProcess {
     parentPid?: number,
   ): Promise<TransportSession> {
     let stdout = "";
+    let exitStatus: number | null = null;
     const completion = launcher.launch(
       executable,
       parentPid === undefined ? [] : ["--parent-pid", String(parentPid)],
@@ -55,8 +56,17 @@ export class TransportProcess {
         stdout += data;
       },
     );
-    for (let tries = 0; tries < 100 && !stdout.includes("\n"); tries += 1) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    void completion.then(
+      (result) => {
+        exitStatus = result.status;
+      },
+      () => {
+        exitStatus = -1;
+      },
+    );
+    for (let tries = 0; tries < 250 && !stdout.includes("\n"); tries += 1) {
+      if (exitStatus !== null) throw new Error(`Helper exited during startup (${exitStatus})`);
+      await new Promise<void>((resolve) => setTimeout(resolve, 20));
     }
     if (!stdout.includes("\n")) {
       void completion;
@@ -69,16 +79,25 @@ export class TransportProcess {
 
 export interface HelperExecutableLocator {
   exists(path: string): boolean;
+  resolvePath(path: string): string;
 }
 
-export function discoverHelperExecutable(locator: HelperExecutableLocator): string {
-  const candidates = ["dist/native/sublingo-transport", "@plugin/dist/native/sublingo-transport"];
-  for (const candidate of candidates) {
-    try {
-      if (locator.exists(candidate)) return candidate;
-    } catch {
-      /* Continue through IINA 1.4 path variants. */
-    }
+export function discoverHelperExecutable(
+  locator: HelperExecutableLocator,
+  pluginId = "io.sublingo.iina",
+): string {
+  // IINA's utils.exec rejects relative paths, and @plugin is not a supported
+  // pseudo-folder. @data lives at <plugins>/.data/<pluginId>, so derive the
+  // installed package root from the one absolute plugin path IINA exposes.
+  const dataDirectory = locator.resolvePath("@data/.").replace(/\/+$/, "");
+  const suffix = `/.data/${pluginId}`;
+  if (!dataDirectory.endsWith(suffix)) throw new Error("PLUGIN_DATA_PATH_UNEXPECTED");
+  const pluginsDirectory = dataDirectory.slice(0, -suffix.length);
+  const candidate = `${pluginsDirectory}/${pluginId}.iinaplugin/dist/native/sublingo-transport`;
+  try {
+    if (locator.exists(candidate)) return candidate;
+  } catch {
+    /* Fall through to a sanitized startup error. */
   }
   throw new Error("PACKAGED_HELPER_NOT_FOUND");
 }
