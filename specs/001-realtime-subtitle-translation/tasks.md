@@ -18,14 +18,14 @@
 
 **Purpose**: Create the reproducible TypeScript/IINA/Swift project skeleton required by every story.
 
-- [ ] T001 Initialize Node 24 workspace scripts and pin Parcel, TypeScript, Vitest, `iina-plugin-definition`, `@noble/hashes`, and `@noble/ciphers` in package.json and package-lock.json
-- [ ] T002 [P] Configure separate plugin and WebView TypeScript environments plus build outputs in tsconfig.json, tsconfig.plugin.json, and tsconfig.webview.json
-- [ ] T003 [P] Configure unit/contract/integration test discovery, linting, and formatting in vitest.config.ts, eslint.config.js, and .prettierrc.json
-- [ ] T004 [P] Define IINA main/global/sidebar entries, minimum version, loopback network access, filesystem permission, and user-facing permission descriptions in Info.json
-- [ ] T005 [P] Create bundle entry and sidebar shells in src/main.ts, src/global.ts, ui/sidebar.html, ui/sidebar.ts, and ui/sidebar.css
-- [ ] T006 [P] Create the universal Swift helper package and native build command in native/transport/Package.swift and scripts/build-native.sh
-- [ ] T007 [P] Exclude dependencies, build outputs, vault/runtime files, secrets, and validation artifacts from packages and source control in .gitignore and .npmignore
-- [ ] T008 [P] Add deterministic subtitle/provider fixtures in tests/fixtures/subtitles/sample.srt, tests/fixtures/subtitles/sample.ass, tests/fixtures/subtitles/invalid.srt, tests/fixtures/providers/azure-success.json, tests/fixtures/providers/openai-success.json, and tests/fixtures/providers/ollama-success.json
+- [X] T001 Initialize Node 24 workspace scripts and pin Parcel, TypeScript, Vitest, `iina-plugin-definition`, `@noble/hashes`, and `@noble/ciphers` in package.json and package-lock.json
+- [X] T002 [P] Configure separate plugin and WebView TypeScript environments plus build outputs in tsconfig.json, tsconfig.plugin.json, and tsconfig.webview.json
+- [X] T003 [P] Configure unit/contract/integration test discovery, linting, and formatting in vitest.config.ts, eslint.config.js, and .prettierrc.json
+- [X] T004 [P] Define IINA main/global/sidebar entries, minimum version, loopback network access, filesystem permission, and user-facing permission descriptions in Info.json
+- [X] T005 [P] Create bundle entry and sidebar shells in src/main.ts, src/global.ts, ui/sidebar.html, ui/sidebar.ts, and ui/sidebar.css
+- [X] T006 [P] Create the universal Swift helper package and native build command in native/transport/Package.swift and scripts/build-native.sh
+- [X] T007 [P] Exclude dependencies, build outputs, vault/runtime files, secrets, and validation artifacts from packages and source control in .gitignore and .npmignore
+- [X] T008 [P] Add deterministic subtitle/provider fixtures in tests/fixtures/subtitles/sample.srt, tests/fixtures/subtitles/sample.ass, tests/fixtures/subtitles/invalid.srt, tests/fixtures/providers/azure-success.json, tests/fixtures/providers/openai-success.json, and tests/fixtures/providers/ollama-success.json
 
 ---
 
@@ -35,20 +35,20 @@
 
 **⚠️ CRITICAL**: No user-story integration can begin until this phase is complete.
 
-- [ ] T009 Define shared opaque IDs, session/profile fingerprints, provider request/result types, and sanitized view-model primitives in src/domain/types.ts and src/providers/types.ts
-- [ ] T010 [P] Implement reusable fake IINA APIs, deterministic clock, and injected provider/transport doubles in tests/helpers/fake-iina.ts, tests/helpers/fake-clock.ts, and tests/helpers/fake-provider.ts
-- [ ] T011 [P] Write failing UTF-8/base64, canonical hashing, and redacted-diagnostic tests in tests/unit/codec-identity.test.ts and tests/security/redaction.test.ts
-- [ ] T012 Implement JavaScriptCore-safe UTF-8/base64 codecs, SHA-256 identity helpers, and allowlist-only diagnostics in src/domain/codec.ts, src/domain/identity.ts, and src/domain/logging.ts
-- [ ] T013 [P] Write failing Swift protocol tests for loopback binding, bearer auth, random bytes, bounded request/cancel, redirect rejection, header extraction, shutdown, and parent-loss exit in native/transport/Tests/SubLingoTransportTests/ServerTests.swift and native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift
-- [ ] T014 Implement framed startup, system entropy, authenticated loopback routing, size validation, shutdown, and parent/idle liveness in native/transport/Sources/SubLingoTransport/Protocol.swift, native/transport/Sources/SubLingoTransport/Server.swift, and native/transport/Sources/SubLingoTransport/main.swift
-- [ ] T015 Implement URLSession deadlines, exact-job cancellation, same-origin redirect handling, remote HTTPS/loopback HTTP enforcement, and selected response headers in native/transport/Sources/SubLingoTransport/HTTPClient.swift
-- [ ] T016 [P] Write failing TypeScript contract tests for helper startup framing, bearer RPC, random, request, cancellation, unavailable-helper, and redacted failures in tests/contract/transport-client.test.ts
-- [ ] T017 Implement helper process bootstrap and the typed local RPC client in src/adapters/iina/transport-process.ts and src/transport/client.ts
-- [ ] T018 [P] Write failing authoritative-player routing, stale revision, colliding request ID, and concurrent-window RPC tests in tests/contract/global-rpc.test.ts
-- [ ] T019 Implement strict Sidebar/Main/Global message schemas and host-player-ID routing in src/domain/messages.ts, src/adapters/iina/sidebar-rpc.ts, and src/adapters/iina/global-rpc.ts
-- [ ] T020 Implement the one-attempt provider interface and deterministic injected fake provider in src/providers/provider.ts and src/providers/fake.ts
-- [ ] T021 Add IINA 1.4 runtime type augmentation and null-safe wrappers for preferences, file handles, events, mpv, Keychain, and global messaging in src/types/iina-runtime.d.ts and src/adapters/iina/runtime.ts
-- [ ] T022 Implement stable session states, provider error categories, user-action codes, and redacted error normalization in src/domain/status.ts and src/domain/errors.ts
+- [X] T009 Define shared opaque IDs, session/profile fingerprints, provider request/result types, and sanitized view-model primitives in src/domain/types.ts and src/providers/types.ts
+- [X] T010 [P] Implement reusable fake IINA APIs, deterministic clock, and injected provider/transport doubles in tests/helpers/fake-iina.ts, tests/helpers/fake-clock.ts, and tests/helpers/fake-provider.ts
+- [X] T011 [P] Write failing UTF-8/base64, canonical hashing, and redacted-diagnostic tests in tests/unit/codec-identity.test.ts and tests/security/redaction.test.ts
+- [X] T012 Implement JavaScriptCore-safe UTF-8/base64 codecs, SHA-256 identity helpers, and allowlist-only diagnostics in src/domain/codec.ts, src/domain/identity.ts, and src/domain/logging.ts
+- [X] T013 [P] Write failing Swift protocol tests for loopback binding, bearer auth, random bytes, bounded request/cancel, redirect rejection, header extraction, shutdown, and parent-loss exit in native/transport/Tests/SubLingoTransportTests/ServerTests.swift and native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift
+- [X] T014 Implement framed startup, system entropy, authenticated loopback routing, size validation, shutdown, and parent/idle liveness in native/transport/Sources/SubLingoTransport/Protocol.swift, native/transport/Sources/SubLingoTransport/Server.swift, and native/transport/Sources/SubLingoTransport/main.swift
+- [X] T015 Implement URLSession deadlines, exact-job cancellation, same-origin redirect handling, remote HTTPS/loopback HTTP enforcement, and selected response headers in native/transport/Sources/SubLingoTransport/HTTPClient.swift
+- [X] T016 [P] Write failing TypeScript contract tests for helper startup framing, bearer RPC, random, request, cancellation, unavailable-helper, and redacted failures in tests/contract/transport-client.test.ts
+- [X] T017 Implement helper process bootstrap and the typed local RPC client in src/adapters/iina/transport-process.ts and src/transport/client.ts
+- [X] T018 [P] Write failing authoritative-player routing, stale revision, colliding request ID, and concurrent-window RPC tests in tests/contract/global-rpc.test.ts
+- [X] T019 Implement strict Sidebar/Main/Global message schemas and host-player-ID routing in src/domain/messages.ts, src/adapters/iina/sidebar-rpc.ts, and src/adapters/iina/global-rpc.ts
+- [X] T020 Implement the one-attempt provider interface and deterministic injected fake provider in src/providers/provider.ts and src/providers/fake.ts
+- [X] T021 Add IINA 1.4 runtime type augmentation and null-safe wrappers for preferences, file handles, events, mpv, Keychain, and global messaging in src/types/iina-runtime.d.ts and src/adapters/iina/runtime.ts
+- [X] T022 Implement stable session states, provider error categories, user-action codes, and redacted error normalization in src/domain/status.ts and src/domain/errors.ts
 
 **Checkpoint**: Native and TypeScript transport contracts pass; fakes can drive a player-scoped controller without any concrete provider.
 
@@ -62,25 +62,25 @@
 
 ### Tests for User Story 1
 
-- [ ] T023 [P] [US1] Write failing SRT parse/render tests for BOM, multiline cues, overlap, malformed entries, exact timing, ordering, escaping, and UTF-8 output in tests/unit/srt.test.ts
-- [ ] T024 [P] [US1] Write failing ASS event tests for dynamic Format columns, comma-containing dialogue, override tags, `\N`, speaker text, malformed rows, timing, and ordering in tests/unit/ass.test.ts
-- [ ] T025 [P] [US1] Write failing selected-track tests for `isExternal`, `@sub/<id>` bytes, BOM/encoding, unreadable/unsupported tracks, and content identity in tests/unit/subtitle-source.test.ts
-- [ ] T026 [P] [US1] Write failing playback-session tests for nullable position, pause/resume, file/track/seek epochs, delayed-result rejection, and player-specific temp identities in tests/unit/playback-session.test.ts
-- [ ] T027 [P] [US1] Write failing generated-track tests for full-file revision swap, primary preservation, exact owned-ID removal, user second-track changes, disable, end-file, and window-close cleanup in tests/integration/subtitle-track.test.ts
-- [ ] T028 [P] [US1] Write failing controller acceptance tests for first translations, no placeholders on delay/failure, disable cancellation, and two-window result/status/track isolation in tests/integration/us1-playback.test.ts
+- [X] T023 [P] [US1] Write failing SRT parse/render tests for BOM, multiline cues, overlap, malformed entries, exact timing, ordering, escaping, and UTF-8 output in tests/unit/srt.test.ts
+- [X] T024 [P] [US1] Write failing ASS event tests for dynamic Format columns, comma-containing dialogue, override tags, `\N`, speaker text, malformed rows, timing, and ordering in tests/unit/ass.test.ts
+- [X] T025 [P] [US1] Write failing selected-track tests for `isExternal`, `@sub/<id>` bytes, BOM/encoding, unreadable/unsupported tracks, and content identity in tests/unit/subtitle-source.test.ts
+- [X] T026 [P] [US1] Write failing playback-session tests for nullable position, pause/resume, file/track/seek epochs, delayed-result rejection, and player-specific temp identities in tests/unit/playback-session.test.ts
+- [X] T027 [P] [US1] Write failing generated-track tests for full-file revision swap, primary preservation, exact owned-ID removal, user second-track changes, disable, end-file, and window-close cleanup in tests/integration/subtitle-track.test.ts
+- [X] T028 [P] [US1] Write failing controller acceptance tests for first translations, no placeholders on delay/failure, disable cancellation, and two-window result/status/track isolation in tests/integration/us1-playback.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T029 [P] [US1] Implement BOM-aware byte decoding, encoding warnings, and safe unsupported-file results in src/subtitles/encoding.ts
-- [ ] T030 [P] [US1] Implement normalized SRT parsing and deterministic UTF-8 SRT rendering in src/subtitles/srt.ts
-- [ ] T031 [P] [US1] Implement ASS Events parsing, visible-text normalization, control-tag stripping, and cue ordering in src/subtitles/ass.ts
-- [ ] T032 [US1] Implement selected external-track validation, `@sub/<id>` binary reads, format detection, content hashing, and cue loading in src/subtitles/source.ts and src/adapters/iina/subtitle-source.ts
-- [ ] T033 [P] [US1] Implement player-local PlaybackSession state, session/window epochs, file/track/seek/close listeners, and timer/job invalidation in src/app/playback-session.ts and src/adapters/iina/playback-events.ts
-- [ ] T034 [US1] Implement nearby-cue selection and a single in-flight injected-provider pipeline that never awaits inside playback callbacks in src/app/scheduler.ts and src/app/translation-pipeline.ts
-- [ ] T035 [P] [US1] Implement complete-SRT revision writes, mpv track discovery/swap, secondID ownership, primary preservation, and cleanup in src/adapters/iina/subtitle-track.ts
-- [ ] T036 [US1] Orchestrate source loading, provider results, valid cue mapping, non-blocking status, generated-track revisions, disable, and stale-result rejection in src/app/controller.ts
-- [ ] T037 [US1] Wire one controller per IINA main instance, unique player/session paths, lifecycle cleanup, and Sidebar/Main/Global RPC in src/main.ts
-- [ ] T038 [US1] Implement mother/source language controls, enable/disable toggle, source summary, and non-blocking session status in ui/sidebar.html, ui/sidebar.ts, and ui/sidebar.css
+- [X] T029 [P] [US1] Implement BOM-aware byte decoding, encoding warnings, and safe unsupported-file results in src/subtitles/encoding.ts
+- [X] T030 [P] [US1] Implement normalized SRT parsing and deterministic UTF-8 SRT rendering in src/subtitles/srt.ts
+- [X] T031 [P] [US1] Implement ASS Events parsing, visible-text normalization, control-tag stripping, and cue ordering in src/subtitles/ass.ts
+- [X] T032 [US1] Implement selected external-track validation, `@sub/<id>` binary reads, format detection, content hashing, and cue loading in src/subtitles/source.ts and src/adapters/iina/subtitle-source.ts
+- [X] T033 [P] [US1] Implement player-local PlaybackSession state, session/window epochs, file/track/seek/close listeners, and timer/job invalidation in src/app/playback-session.ts and src/adapters/iina/playback-events.ts
+- [X] T034 [US1] Implement nearby-cue selection and a single in-flight injected-provider pipeline that never awaits inside playback callbacks in src/app/scheduler.ts and src/app/translation-pipeline.ts
+- [X] T035 [P] [US1] Implement complete-SRT revision writes, mpv track discovery/swap, secondID ownership, primary preservation, and cleanup in src/adapters/iina/subtitle-track.ts
+- [X] T036 [US1] Orchestrate source loading, provider results, valid cue mapping, non-blocking status, generated-track revisions, disable, and stale-result rejection in src/app/controller.ts
+- [X] T037 [US1] Wire one controller per IINA main instance, unique player/session paths, lifecycle cleanup, and Sidebar/Main/Global RPC in src/main.ts
+- [X] T038 [US1] Implement mother/source language controls, enable/disable toggle, source summary, and non-blocking session status in ui/sidebar.html, ui/sidebar.ts, and ui/sidebar.css
 
 **Checkpoint**: User Story 1 runs end-to-end with an injected provider and remains independently verifiable across two IINA player instances.
 
@@ -94,21 +94,21 @@
 
 ### Tests for User Story 2
 
-- [ ] T039 [P] [US2] Write failing BCP 47 normalization, base-language equality, explicit regional override, track/manual origin, and unknown-source gate tests in tests/unit/language.test.ts
-- [ ] T040 [P] [US2] Write failing 120-second/40-cue window, 30-second/10-cue refill, 25-cue/5,000-code-point split, pause, seek debounce, and long-cue tests in tests/unit/scheduler-bounds.test.ts
-- [ ] T041 [P] [US2] Write failing session-cache identity, provider/language/source isolation, partial success, backward-seek reuse, memory-only behavior, and close/reopen purge tests in tests/unit/session-cache.test.ts
-- [ ] T042 [P] [US2] Write failing retry classification, initial-plus-three attempt cap, 1s/2s/4s jitter, delta/date `Retry-After`, successful-ID exclusion, and stale timer/job cancellation tests in tests/unit/retry.test.ts
-- [ ] T043 [P] [US2] Write failing recording-provider integration tests for native zero calls, bounded ten-minute viewing, minimal request payloads, rapid seek, disable/backoff cancellation, video-close purge, and reopen non-reuse in tests/integration/us2-cost-privacy.test.ts
+- [X] T039 [P] [US2] Write failing BCP 47 normalization, base-language equality, explicit regional override, track/manual origin, and unknown-source gate tests in tests/unit/language.test.ts
+- [X] T040 [P] [US2] Write failing 120-second/40-cue window, 30-second/10-cue refill, 25-cue/5,000-code-point split, pause, seek debounce, and long-cue tests in tests/unit/scheduler-bounds.test.ts
+- [X] T041 [P] [US2] Write failing session-cache identity, provider/language/source isolation, partial success, backward-seek reuse, memory-only behavior, and close/reopen purge tests in tests/unit/session-cache.test.ts
+- [X] T042 [P] [US2] Write failing retry classification, initial-plus-three attempt cap, 1s/2s/4s jitter, delta/date `Retry-After`, successful-ID exclusion, and stale timer/job cancellation tests in tests/unit/retry.test.ts
+- [X] T043 [P] [US2] Write failing recording-provider integration tests for native zero calls, bounded ten-minute viewing, minimal request payloads, rapid seek, disable/backoff cancellation, video-close purge, and reopen non-reuse in tests/integration/us2-cost-privacy.test.ts
 
 ### Implementation for User Story 2
 
-- [ ] T044 [P] [US2] Implement BCP 47 normalization, reliable/manual source selection, native-language gating, and explicit regional overrides in src/domain/language.ts
-- [ ] T045 [P] [US2] Extend window selection with exact lookahead/refill bounds, stable-seek debounce, Unicode code-point batching, and one-active-batch flow control in src/app/scheduler.ts
-- [ ] T046 [US2] Build provider requests from untranslated IDs, language direction, human-readable text, and minimal adjacent context only in src/app/request-builder.ts
-- [ ] T047 [P] [US2] Implement the PlaybackSession-owned Map, semantic cache keys, partial-result insertion, successful reuse, and synchronous clear in src/app/session-cache.ts
-- [ ] T048 [P] [US2] Implement provider error classification and session-local retry timers using exponential jitter plus observable `Retry-After` in src/app/retry-policy.ts
-- [ ] T049 [US2] Integrate language gates, bounded refill, cache hits, partial retries, helper cancellation, seek epochs, and close/replacement purge into src/app/controller.ts
-- [ ] T050 [US2] Add no-translation, preparing, running, partial-failure, service-unavailable, bounded-work, and session-cache indicators in ui/sidebar.ts and ui/sidebar.html
+- [X] T044 [P] [US2] Implement BCP 47 normalization, reliable/manual source selection, native-language gating, and explicit regional overrides in src/domain/language.ts
+- [X] T045 [P] [US2] Extend window selection with exact lookahead/refill bounds, stable-seek debounce, Unicode code-point batching, and one-active-batch flow control in src/app/scheduler.ts
+- [X] T046 [US2] Build provider requests from untranslated IDs, language direction, human-readable text, and minimal adjacent context only in src/app/request-builder.ts
+- [X] T047 [P] [US2] Implement the PlaybackSession-owned Map, semantic cache keys, partial-result insertion, successful reuse, and synchronous clear in src/app/session-cache.ts
+- [X] T048 [P] [US2] Implement provider error classification and session-local retry timers using exponential jitter plus observable `Retry-After` in src/app/retry-policy.ts
+- [X] T049 [US2] Integrate language gates, bounded refill, cache hits, partial retries, helper cancellation, seek epochs, and close/replacement purge into src/app/controller.ts
+- [X] T050 [US2] Add no-translation, preparing, running, partial-failure, service-unavailable, bounded-work, and session-cache indicators in ui/sidebar.ts and ui/sidebar.html
 
 **Checkpoint**: User Story 2 proves cost/privacy constraints with a recording provider and leaves no translation cache on disk or across video sessions.
 
@@ -122,31 +122,31 @@
 
 ### Tests for User Story 3
 
-- [ ] T051 [P] [US3] Write failing AES-256-GCM vectors, unique nonce, wrong key/AAD/tag/ciphertext, A/B recovery, vault reset, and Keychain-unavailable tests in tests/contract/credential-vault.test.ts
-- [ ] T052 [P] [US3] Write failing immutable profile revision, endpoint fingerprint, explicit selection, lease/release, stale mutation, authoritative player routing, and concurrent-window tests in tests/contract/provider-profiles.test.ts
-- [ ] T053 [P] [US3] Write failing common output tests for unknown/duplicate/empty IDs, partial valid results, refusal, malformed JSON, usage, and redacted provider errors in tests/contract/provider-output.test.ts
-- [ ] T054 [P] [US3] Write failing Azure 2026-06-06 NMT request/auth/region, positional count/shape, language, deadline, request ID, and error-classification tests in tests/contract/azure.test.ts
-- [ ] T055 [P] [US3] Write failing OpenAI-compatible strict-schema/JSON/prompt probe, no real-batch fallback, ID mapping, model/auth, refusal/length/filter, quota, and error tests in tests/contract/openai.test.ts
-- [ ] T056 [P] [US3] Write failing Ollama version/tags/schema probe, local HTTP/remote HTTPS, non-stream chat, think/temperature, missing-model, cold-timeout, and error tests in tests/contract/ollama.test.ts
-- [ ] T057 [P] [US3] Write failing Sidebar/Main/Global message tests for write-only secrets, sanitized views, endpoint disclosure, selection authorization, stale revision rejection, provider test, and vault reset in tests/contract/ui-messages.test.ts
-- [ ] T058 [P] [US3] Write failing scans proving credentials, DEK, loopback token, auth headers, subtitle text, and provider bodies never enter preferences, `@data` plaintext, logs, status, or diagnostics in tests/security/credential-leakage.test.ts
-- [ ] T059 [P] [US3] Write failing end-to-end tests for all providers, connection failures, endpoint reselection, provider/language/model cache isolation, old-revision leases, helper failure, and two-window independent switching in tests/integration/us3-providers.test.ts
+- [X] T051 [P] [US3] Write failing AES-256-GCM vectors, unique nonce, wrong key/AAD/tag/ciphertext, A/B recovery, vault reset, and Keychain-unavailable tests in tests/contract/credential-vault.test.ts
+- [X] T052 [P] [US3] Write failing immutable profile revision, endpoint fingerprint, explicit selection, lease/release, stale mutation, authoritative player routing, and concurrent-window tests in tests/contract/provider-profiles.test.ts
+- [X] T053 [P] [US3] Write failing common output tests for unknown/duplicate/empty IDs, partial valid results, refusal, malformed JSON, usage, and redacted provider errors in tests/contract/provider-output.test.ts
+- [X] T054 [P] [US3] Write failing Azure 2026-06-06 NMT request/auth/region, positional count/shape, language, deadline, request ID, and error-classification tests in tests/contract/azure.test.ts
+- [X] T055 [P] [US3] Write failing OpenAI-compatible strict-schema/JSON/prompt probe, no real-batch fallback, ID mapping, model/auth, refusal/length/filter, quota, and error tests in tests/contract/openai.test.ts
+- [X] T056 [P] [US3] Write failing Ollama version/tags/schema probe, local HTTP/remote HTTPS, non-stream chat, think/temperature, missing-model, cold-timeout, and error tests in tests/contract/ollama.test.ts
+- [X] T057 [P] [US3] Write failing Sidebar/Main/Global message tests for write-only secrets, sanitized views, endpoint disclosure, selection authorization, stale revision rejection, provider test, and vault reset in tests/contract/ui-messages.test.ts
+- [X] T058 [P] [US3] Write failing scans proving credentials, DEK, loopback token, auth headers, subtitle text, and provider bodies never enter preferences, `@data` plaintext, logs, status, or diagnostics in tests/security/credential-leakage.test.ts
+- [X] T059 [P] [US3] Write failing end-to-end tests for all providers, connection failures, endpoint reselection, provider/language/model cache isolation, old-revision leases, helper failure, and two-window independent switching in tests/integration/us3-providers.test.ts
 
 ### Implementation for User Story 3
 
-- [ ] T060 [P] [US3] Implement canonical vault AAD, AES-256-GCM encrypt/decrypt, envelope schema checks, and authenticated revision comparison in src/vault/crypto.ts and src/vault/types.ts
-- [ ] T061 [US3] Implement Keychain-wrapped DEK creation/read, helper-supplied entropy, serialized A/B vault writes, write-read verification, recovery, fail-closed states, and reset in src/vault/store.ts and src/adapters/iina/keychain.ts
-- [ ] T062 [P] [US3] Implement normalized provider profiles, immutable revisions, endpoint fingerprints, exact-window selections, in-memory old-revision leases, and durable latest metadata in src/providers/profiles.ts
-- [ ] T063 [P] [US3] Implement common strict ID validation, Azure positional validation, sanitized usage/request IDs, and retryable/permanent provider errors in src/providers/validation.ts and src/providers/errors.ts
-- [ ] T064 [P] [US3] Implement Azure Translator 2026-06-06 standard-NMT request, conditional region auth, positional mapping, deadline, and error adapter in src/providers/azure.ts
-- [ ] T065 [P] [US3] Implement OpenAI-compatible Chat Completions capability probes, non-stream request construction, strict local mapping, and no-billing-duplicate fallback rules in src/providers/openai.ts
-- [ ] T066 [P] [US3] Implement local Ollama version/model/schema probes and native non-stream structured chat adapter in src/providers/ollama.ts
-- [ ] T067 [US3] Implement the global vault/profile/provider broker, one-attempt transport jobs, exact player reply routing, cancellation, helper liveness, and lease cleanup in src/providers/broker.ts and src/global.ts
-- [ ] T068 [US3] Integrate per-window profile selection, endpoint-change invalidation, provider revision fingerprints, connection results, switch cancellation, and cache isolation in src/app/controller.ts
-- [ ] T069 [US3] Implement Azure/OpenAI/Ollama profile forms, masked write-only credential input, exact kind/address disclosure, connection tests, explicit selection, and revision-aware switching in ui/sidebar.html, ui/sidebar.ts, and ui/sidebar.css
-- [ ] T070 [US3] Implement confirmed vault reset and actionable locked/corrupt/auth/model/quota/rate-limit/helper-unavailable states without sensitive diagnostics in src/vault/reset.ts and ui/sidebar.ts
+- [X] T060 [P] [US3] Implement canonical vault AAD, AES-256-GCM encrypt/decrypt, envelope schema checks, and authenticated revision comparison in src/vault/crypto.ts and src/vault/types.ts
+- [X] T061 [US3] Implement Keychain-wrapped DEK creation/read, helper-supplied entropy, serialized A/B vault writes, write-read verification, recovery, fail-closed states, and reset in src/vault/store.ts and src/adapters/iina/keychain.ts
+- [X] T062 [P] [US3] Implement normalized provider profiles, immutable revisions, endpoint fingerprints, exact-window selections, in-memory old-revision leases, and durable latest metadata in src/providers/profiles.ts
+- [X] T063 [P] [US3] Implement common strict ID validation, Azure positional validation, sanitized usage/request IDs, and retryable/permanent provider errors in src/providers/validation.ts and src/providers/errors.ts
+- [X] T064 [P] [US3] Implement Azure Translator 2026-06-06 standard-NMT request, conditional region auth, positional mapping, deadline, and error adapter in src/providers/azure.ts
+- [X] T065 [P] [US3] Implement OpenAI-compatible Chat Completions capability probes, non-stream request construction, strict local mapping, and no-billing-duplicate fallback rules in src/providers/openai.ts
+- [X] T066 [P] [US3] Implement local Ollama version/model/schema probes and native non-stream structured chat adapter in src/providers/ollama.ts
+- [X] T067 [US3] Implement the global vault/profile/provider broker, one-attempt transport jobs, exact player reply routing, cancellation, helper liveness, and lease cleanup in src/providers/broker.ts and src/global.ts
+- [X] T068 [US3] Integrate per-window profile selection, endpoint-change invalidation, provider revision fingerprints, connection results, switch cancellation, and cache isolation in src/app/controller.ts
+- [X] T069 [US3] Implement active OpenAI-compatible/Ollama profile forms, masked write-only credential input, exact kind/address/model disclosure, connection tests, explicit selection, and revision-aware switching in ui/sidebar.html, ui/sidebar.ts, and ui/sidebar.css; keep unvalidated Azure support out of the UI
+- [X] T070 [US3] Implement confirmed vault reset and actionable locked/corrupt/auth/model/quota/rate-limit/helper-unavailable states without sensitive diagnostics in src/vault/reset.ts and ui/sidebar.ts
 
-**Checkpoint**: All three provider categories can be configured and switched securely; each IINA window keeps an independent active revision, session, cache, status and result stream.
+**Checkpoint**: Both active provider categories can be configured and switched securely; each IINA window keeps an independent active revision, session, cache, status and result stream. Azure remains intentionally unavailable until separately validated.
 
 ---
 
@@ -154,15 +154,15 @@
 
 **Purpose**: Complete documentation, accessibility, performance evidence, native packaging, full validation and release packaging.
 
-- [ ] T071 [P] Document installation, permissions, encrypted vault behavior, provider privacy/cost, supported subtitle/provider boundaries, and troubleshooting in README.md
-- [ ] T072 [P] Implement package-content, universal-architecture, executable-permission, secret-pattern, and forbidden-runtime-file checks in scripts/verify-package.sh
-- [ ] T073 [P] Add keyboard navigation, accessible labels/status announcements, responsive narrow-sidebar layout, and reduced-motion styling in ui/sidebar.html and ui/sidebar.css
-- [ ] T074 [P] Add automated latency/readiness, 95%-before-display, zero-pause, cache-hit, bounded-call, and multi-window performance assertions in tests/integration/performance.test.ts
-- [ ] T075 [P] Add the controlled failure/Retry-After/provider simulator and full acceptance runner in tests/helpers/provider-server.ts and tests/integration/acceptance-metrics.test.ts
-- [ ] T076 Harden universal helper build, signature verification, parent-death cleanup, packaged executable discovery, and IINA 1.4 compatibility in scripts/build-native.sh and src/adapters/iina/transport-process.ts
-- [ ] T077 Run npm tests, typecheck, native tests, builds, package verification, and record exact results in docs/validation/automated.md
+- [X] T071 [P] Document installation, permissions, encrypted vault behavior, provider privacy/cost, supported subtitle/provider boundaries, and troubleshooting in README.md
+- [X] T072 [P] Implement package-content, universal-architecture, executable-permission, secret-pattern, and forbidden-runtime-file checks in scripts/verify-package.sh
+- [X] T073 [P] Add keyboard navigation, accessible labels/status announcements, responsive narrow-sidebar layout, and reduced-motion styling in ui/sidebar.html and ui/sidebar.css
+- [X] T074 [P] Add automated latency/readiness, 95%-before-display, zero-pause, cache-hit, bounded-call, and multi-window performance assertions in tests/integration/performance.test.ts
+- [X] T075 [P] Add the controlled failure/Retry-After/provider simulator and full acceptance runner in tests/helpers/provider-server.ts and tests/integration/acceptance-metrics.test.ts
+- [X] T076 Harden universal helper build, signature verification, parent-death cleanup, packaged executable discovery, and IINA 1.4 compatibility in scripts/build-native.sh and src/adapters/iina/transport-process.ts
+- [X] T077 Run npm tests, typecheck, native tests, builds, package verification, and record exact results in docs/validation/automated.md
 - [ ] T078 Execute quickstart.md on IINA 1.4.0 and 1.4.4 with SRT/ASS, all providers, vault tampering, Retry-After, close/reopen, and two windows, recording evidence in docs/validation/iina-matrix.md
-- [ ] T079 Pack the verified plugin with IINA's `iina-plugin`, inspect its permission/privacy presentation and contents, and record artifact path/hash in docs/validation/package.md
+- [X] T079 Pack the verified plugin with IINA's `iina-plugin`, inspect its permission/privacy presentation and contents, and record artifact path/hash in docs/validation/package.md
 
 ---
 

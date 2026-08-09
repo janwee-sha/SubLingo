@@ -5,9 +5,20 @@
 node_modules/
 .parcel-cache/
 dist/
+build/
 coverage/
 *.log
 .env*
+providers/
+
+# Native build output
+native/.build/
+
+# Plugin runtime state and validation artifacts
+@data/
+@tmp/
+*.vault.json
+docs/validation/artifacts/
 
 # macOS / editors
 .DS_Store
