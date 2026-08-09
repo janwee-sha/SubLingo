@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SubLingo</title>
+    <link rel="stylesheet" href="./sidebar.css" />
+  </head>
+  <body>
+    <main id="app">
+      <header>
+        <div>
+          <p class="eyebrow">IINA live translation</p>
+          <h1>SubLingo</h1>
+        </div>
+        <label class="switch">
+          <input id="enabled" type="checkbox" />
+          <span>Translate</span>
+        </label>
+      </header>
+
+      <section class="card" aria-labelledby="languages-heading">
+        <h2 id="languages-heading">Languages</h2>
+        <label>
+          Mother language
+          <select id="target-language">
+            <option value="zh-Hans">Chinese (Simplified)</option>
+            <option value="zh-Hant">Chinese (Traditional)</option>
+            <option value="en">English</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+          </select>
+        </label>
+        <label>
+          Subtitle language
+          <input
+            id="source-language"
+            type="text"
+            inputmode="text"
+            placeholder="e.g. en-US"
+            autocomplete="off"
+          />
+        </label>
+        <button id="save-languages" type="button">Save languages</button>
+      </section>
+
+      <section class="card" aria-labelledby="provider-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="provider-heading">Translation service</h2>
+            <p>Subtitle text is sent only to the service you explicitly select.</p>
+          </div>
+        </div>
+        <label class="field">
+          <span>Service type</span>
+          <select id="provider-kind">
+            <option value="openai">OpenAI-compatible</option>
+            <option value="ollama">Ollama</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Profile name</span>
+          <input id="profile-name" type="text" value="My translator" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Endpoint</span>
+          <input
+            id="provider-endpoint"
+            type="url"
+            value="https://api.openai.com/v1"
+            aria-describedby="endpoint-hint"
+            autocomplete="off"
+            required
+          />
+          <small id="endpoint-hint">OpenAI-compatible API root, usually ending in /v1.</small>
+        </label>
+        <label id="model-row" class="field">
+          <span>Model ID</span>
+          <input
+            id="provider-model"
+            type="text"
+            placeholder="e.g. gpt-4.1-mini"
+            autocomplete="off"
+            required
+          />
+          <small id="model-hint">Enter the exact model identifier exposed by this service.</small>
+        </label>
+        <label id="credential-row" class="field">
+          <span
+            >API key <span class="optional">write-only; optional when unauthenticated</span></span
+          >
+          <input
+            id="provider-key"
+            type="password"
+            autocomplete="new-password"
+            placeholder="Not shown after saving"
+          />
+        </label>
+        <button id="save-profile" type="button">Save profile</button>
+        <div id="profiles" class="profiles" aria-live="polite">
+          <p class="empty">No saved profiles yet.</p>
+        </div>
+      </section>
+
+      <section class="card status-card" aria-labelledby="status-heading">
+        <div class="status-line">
+          <span id="status-dot" aria-hidden="true"></span>
+          <div>
+            <h2 id="status-heading">Session</h2>
+            <p id="status" role="status" aria-live="polite">Waiting for IINA…</p>
+          </div>
+        </div>
+        <dl id="source-summary" hidden>
+          <div>
+            <dt>Format</dt>
+            <dd id="source-format">—</dd>
+          </div>
+          <div>
+            <dt>Cues</dt>
+            <dd id="source-cues">—</dd>
+          </div>
+          <div>
+            <dt>Detected language</dt>
+            <dd id="source-detected-language">—</dd>
+          </div>
+          <div>
+            <dt>Session cache</dt>
+            <dd id="cache-size">0 cues</dd>
+          </div>
+          <div>
+            <dt>Work bound</dt>
+            <dd id="work-bound">120 s / 40 cues</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="danger-zone" aria-labelledby="vault-heading">
+        <div>
+          <h2 id="vault-heading">Credential vault</h2>
+          <p id="vault-state">Credentials are encrypted locally.</p>
+        </div>
+        <button id="reset-vault" class="secondary danger" type="button">Reset vault</button>
+      </section>
+    </main>
+    <script src="./sidebar.ts"></script>
+  </body>
+</html>

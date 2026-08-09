@@ -1,0 +1,146 @@
+client:
+  name: basic
+  file-system: device-agnostic
+tools: {}
+targets:
+  "PackageStructure": ["<PackageStructure>"]
+  "SubLingoTransport-arm64-apple-macosx-debug.module": ["<SubLingoTransport-arm64-apple-macosx-debug.module>"]
+  "SubLingoTransportPackageTests-arm64-apple-macosx-debug.module": ["<SubLingoTransportPackageTests-arm64-apple-macosx-debug.module>"]
+  "SubLingoTransportPackageTests-arm64-apple-macosx-debug.test": ["<SubLingoTransportPackageTests-arm64-apple-macosx-debug.test>"]
+  "SubLingoTransportTests-arm64-apple-macosx-debug.module": ["<SubLingoTransportTests-arm64-apple-macosx-debug.module>"]
+  "main": ["<SubLingoTransport-arm64-apple-macosx-debug.module>","<sublingo-transport-arm64-apple-macosx-debug.exe>"]
+  "sublingo-transport-arm64-apple-macosx-debug.exe": ["<sublingo-transport-arm64-apple-macosx-debug.exe>"]
+  "test": ["<SubLingoTransport-arm64-apple-macosx-debug.module>","<SubLingoTransportPackageTests-arm64-apple-macosx-debug.test>","<SubLingoTransportTests-arm64-apple-macosx-debug.module>","<sublingo-transport-arm64-apple-macosx-debug.exe>"]
+default: "main"
+nodes:
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Tests/SubLingoTransportTests/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport":
+    is-mutated: true
+commands:
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/HTTPClient.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Protocol.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Server.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/main.swift"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/sources"]
+    description: "Write auxiliary file /Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/sources"
+
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.derived/runner.swift"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/sources"]
+    description: "Write auxiliary file /Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/sources"
+
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.derived/runner.swift":
+    tool: test-entry-point-tool
+    inputs: []
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.derived/runner.swift"]
+
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/HTTPClient.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Protocol.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Server.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/main.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/runner.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/HTTPClientTests.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/ServerTests.swift.o"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.product/Objects.LinkFileList"
+
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Tests/SubLingoTransportTests/ServerTests.swift"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/sources"]
+    description: "Write auxiliary file /Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/sources"
+
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport-entitlement.plist":
+    tool: write-auxiliary-file
+    inputs: ["<entitlement-plist>","<com.apple.security.get-task-allow>"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport-entitlement.plist"]
+    description: "Write auxiliary file /Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport-entitlement.plist"
+
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/HTTPClient.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Protocol.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Server.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/main.swift.o"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport.product/Objects.LinkFileList"
+
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt":
+    tool: write-auxiliary-file
+    inputs: ["<swift-get-version>","/Library/Developer/CommandLineTools/usr/bin/swiftc"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"]
+    always-out-of-date: "true"
+    description: "Write auxiliary file /Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+
+  "<SubLingoTransport-arm64-apple-macosx-debug.module>":
+    tool: phony
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/HTTPClient.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Protocol.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Server.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/main.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransport.swiftmodule"]
+    outputs: ["<SubLingoTransport-arm64-apple-macosx-debug.module>"]
+
+  "<SubLingoTransportPackageTests-arm64-apple-macosx-debug.module>":
+    tool: phony
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/runner.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransportPackageTests.swiftmodule"]
+    outputs: ["<SubLingoTransportPackageTests-arm64-apple-macosx-debug.module>"]
+
+  "<SubLingoTransportPackageTests-arm64-apple-macosx-debug.test>":
+    tool: phony
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.xctest/Contents/MacOS/SubLingoTransportPackageTests"]
+    outputs: ["<SubLingoTransportPackageTests-arm64-apple-macosx-debug.test>"]
+
+  "<SubLingoTransportTests-arm64-apple-macosx-debug.module>":
+    tool: phony
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/HTTPClientTests.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/ServerTests.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransportTests.swiftmodule"]
+    outputs: ["<SubLingoTransportTests-arm64-apple-macosx-debug.module>"]
+
+  "<sublingo-transport-arm64-apple-macosx-debug.exe>":
+    tool: phony
+    inputs: ["<sublingo-transport-arm64-apple-macosx-debug.exe-CodeSigning>"]
+    outputs: ["<sublingo-transport-arm64-apple-macosx-debug.exe>"]
+
+  "C.SubLingoTransport-arm64-apple-macosx-debug.module":
+    tool: shell
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/HTTPClient.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Protocol.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Server.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/main.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/sources"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/HTTPClient.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Protocol.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Server.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/main.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransport.swiftmodule"]
+    description: "Compiling Swift Module 'SubLingoTransport' (4 sources)"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","SubLingoTransport","-emit-dependencies","-emit-module","-emit-module-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransport.swiftmodule","-output-file-map","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/output-file-map.json","-incremental","-c","@/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/sources","-I","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx12.0","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-j15","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","SubLingoTransport_main","-swift-version","6","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","transport"]
+
+  "C.SubLingoTransportPackageTests-arm64-apple-macosx-debug.module":
+    tool: shell
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.derived/runner.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransportTests.swiftmodule","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/sources"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/runner.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransportPackageTests.swiftmodule"]
+    description: "Compiling Swift Module 'SubLingoTransportPackageTests' (1 sources)"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","SubLingoTransportPackageTests","-emit-dependencies","-emit-module","-emit-module-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransportPackageTests.swiftmodule","-output-file-map","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/output-file-map.json","-parse-as-library","-incremental","-c","@/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/sources","-I","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx12.0","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-Xfrontend","-enable-cross-import-overlays","-j15","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-emit-objc-header","-emit-objc-header-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/include/SubLingoTransportPackageTests-Swift.h","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","transport"]
+
+  "C.SubLingoTransportPackageTests-arm64-apple-macosx-debug.test":
+    tool: shell
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/HTTPClient.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Protocol.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Server.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/main.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/runner.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/HTTPClientTests.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/ServerTests.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.product/Objects.LinkFileList"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.xctest/Contents/MacOS/SubLingoTransportPackageTests"]
+    description: "Linking ./.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.xctest/Contents/MacOS/SubLingoTransportPackageTests"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-L","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug","-o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.xctest/Contents/MacOS/SubLingoTransportPackageTests","-module-name","SubLingoTransportPackageTests","-Xlinker","-no_warn_duplicate_libraries","-Xlinker","-bundle","-Xlinker","-rpath","-Xlinker","@loader_path/../../../","@/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Library/Developer/CommandLineTools/usr/lib/swift-6.2/macosx","-target","arm64-apple-macosx12.0","-Xlinker","-add_ast_path","-Xlinker","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransport.swiftmodule","-Xlinker","-add_ast_path","-Xlinker","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransportPackageTests.swiftmodule","-Xlinker","-add_ast_path","-Xlinker","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransportTests.swiftmodule","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g"]
+
+  "C.SubLingoTransportTests-arm64-apple-macosx-debug.module":
+    tool: shell
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Tests/SubLingoTransportTests/ServerTests.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/sources"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/HTTPClientTests.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/ServerTests.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransportTests.swiftmodule"]
+    description: "Compiling Swift Module 'SubLingoTransportTests' (2 sources)"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","SubLingoTransportTests","-emit-dependencies","-emit-module","-emit-module-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransportTests.swiftmodule","-output-file-map","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/output-file-map.json","-parse-as-library","-incremental","-c","@/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/sources","-I","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx12.0","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-Xfrontend","-enable-cross-import-overlays","-j15","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-swift-version","6","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","transport"]
+
+  "C.sublingo-transport-arm64-apple-macosx-debug.exe":
+    tool: shell
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/HTTPClient.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Protocol.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/Server.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransport.build/main.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport.product/Objects.LinkFileList"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport"]
+    description: "Linking ./.build/arm64-apple-macosx/debug/sublingo-transport"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-L","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug","-o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport","-module-name","sublingo_transport","-Xlinker","-no_warn_duplicate_libraries","-emit-executable","-Xlinker","-alias","-Xlinker","_SubLingoTransport_main","-Xlinker","_main","-Xlinker","-rpath","-Xlinker","@loader_path","@/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Library/Developer/CommandLineTools/usr/lib/swift-6.2/macosx","-target","arm64-apple-macosx12.0","-Xlinker","-add_ast_path","-Xlinker","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/Modules/SubLingoTransport.swiftmodule","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g"]
+
+  "C.sublingo-transport-arm64-apple-macosx-debug.exe-entitlements":
+    tool: shell
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport-entitlement.plist"]
+    outputs: ["<sublingo-transport-arm64-apple-macosx-debug.exe-CodeSigning>"]
+    description: "Applying debug entitlements to ./.build/arm64-apple-macosx/debug/sublingo-transport"
+    args: ["codesign","--force","--sign","-","--entitlements","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport-entitlement.plist","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/sublingo-transport"]
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Tests/SubLingoTransportTests/","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Package.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+

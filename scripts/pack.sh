@@ -1,0 +1,49 @@
+#!/bin/sh
+set -eu
+
+ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+STAGE_PARENT="$ROOT_DIR/build/package"
+STAGE_DIR="$STAGE_PARENT/SubLingo"
+PLUGIN_CLI=${IINA_PLUGIN_BIN:-/Applications/IINA.app/Contents/MacOS/iina-plugin}
+ARTIFACT="$STAGE_PARENT/SubLingo-0.1.0.iinaplgz"
+
+if [ ! -x "$PLUGIN_CLI" ]; then
+  echo "IINA plugin CLI not found or not executable: $PLUGIN_CLI" >&2
+  exit 1
+fi
+
+case "$STAGE_DIR" in
+  "$ROOT_DIR"/build/package/SubLingo) ;;
+  *) echo "Refusing to clean unexpected staging path: $STAGE_DIR" >&2; exit 1 ;;
+esac
+case "$ARTIFACT" in
+  "$ROOT_DIR"/build/package/SubLingo-0.1.0.iinaplgz) ;;
+  *) echo "Refusing to replace unexpected artifact path: $ARTIFACT" >&2; exit 1 ;;
+esac
+
+mkdir -p "$STAGE_DIR"
+find "$STAGE_DIR" -mindepth 1 -delete
+cp -p "$ROOT_DIR/Info.json" "$ROOT_DIR/README.md" "$STAGE_DIR/"
+cp -R "$ROOT_DIR/dist" "$STAGE_DIR/dist"
+
+"$ROOT_DIR/scripts/verify-package.sh" "$STAGE_DIR"
+rm -f "$ARTIFACT"
+
+(
+  cd "$STAGE_PARENT"
+  "$PLUGIN_CLI" pack SubLingo
+)
+
+for required in Info.json dist/main.js dist/global.js dist/ui/sidebar.html dist/native/sublingo-transport; do
+  if ! unzip -Z1 "$ARTIFACT" | grep -Fqx "$required"; then
+    echo "Packed artifact is missing $required" >&2
+    exit 1
+  fi
+done
+
+if unzip -Z1 "$ARTIFACT" | grep -Eq '(^|/)(node_modules|\.git|\.parcel-cache|specs|tests|src|native/transport|@data|@tmp)(/|$)|\.vault\.json$|(^|/)\.env'; then
+  echo "Packed artifact contains a forbidden development or runtime path" >&2
+  exit 1
+fi
+
+echo "Packed artifact: $ARTIFACT"

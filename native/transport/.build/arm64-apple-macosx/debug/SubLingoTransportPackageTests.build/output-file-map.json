@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/primary.swiftdeps"
+  },
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.derived/runner.swift": {
+    "dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/runner.d",
+    "object": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/runner.swift.o",
+    "swiftmodule": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/runner~partial.swiftmodule",
+    "swift-dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/runner.swiftdeps",
+    "diagnostics": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportPackageTests.build/runner.dia"
+  }
+}

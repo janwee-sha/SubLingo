@@ -1,0 +1,253 @@
+:root {
+  color-scheme: light dark;
+  font:
+    13px/1.45 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  --accent: #6d5dfc;
+  --surface: color-mix(in srgb, Canvas 88%, CanvasText 12%);
+  --border: color-mix(in srgb, CanvasText 15%, transparent);
+  --muted: color-mix(in srgb, CanvasText 62%, transparent);
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  color: CanvasText;
+  background: Canvas;
+}
+#app {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+h1,
+h2,
+p,
+dl,
+dd {
+  margin: 0;
+}
+h1 {
+  font-size: 1.45rem;
+  letter-spacing: -0.03em;
+}
+h2 {
+  font-size: 0.95rem;
+}
+.eyebrow {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.card {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.field {
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+}
+.field > span:first-child {
+  display: block;
+  line-height: 1.35;
+}
+.field small {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+[hidden] {
+  display: none !important;
+}
+input,
+select,
+button {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.4rem 0.55rem;
+  font: inherit;
+  color: CanvasText;
+  background: Canvas;
+}
+button {
+  border-color: transparent;
+  color: white;
+  background: var(--accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+button.secondary {
+  border-color: var(--border);
+  color: CanvasText;
+  background: Canvas;
+}
+.optional {
+  color: var(--muted);
+  font-weight: 400;
+}
+.section-heading p,
+.danger-zone p {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.profiles {
+  display: grid;
+  gap: 0.55rem;
+}
+.profile {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: Canvas;
+}
+.profile > div:first-child {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.profile span,
+.empty {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.profile code {
+  overflow: hidden;
+  color: var(--muted);
+  font:
+    0.72rem/1.4 ui-monospace,
+    SFMono-Regular,
+    monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+.danger-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.25rem 0.1rem;
+}
+.danger-zone button {
+  width: auto;
+  white-space: nowrap;
+}
+.danger-zone button.danger {
+  color: #d83b3e;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 260px) {
+  #app {
+    padding: 0.7rem;
+  }
+  header,
+  .danger-zone {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .danger-zone button {
+    width: 100%;
+  }
+  .profile-actions {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: CanvasText;
+}
+.switch input {
+  width: auto;
+  min-height: auto;
+  accent-color: var(--accent);
+}
+.status-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+#status-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 0.35rem;
+  border-radius: 50%;
+  background: #8a8a8f;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #8a8a8f 18%, transparent);
+}
+#status-dot[data-state="running"] {
+  background: #30b870;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #30b870 18%, transparent);
+}
+#status-dot[data-state="partialFailure"],
+#status-dot[data-state="serviceUnavailable"] {
+  background: #ef9f27;
+}
+#status {
+  margin-top: 0.15rem;
+  color: var(--muted);
+}
+dl {
+  display: grid;
+  gap: 0.4rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+dt {
+  color: var(--muted);
+}
+dd {
+  text-align: right;
+  font-weight: 650;
+}

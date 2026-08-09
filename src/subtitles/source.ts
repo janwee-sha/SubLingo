@@ -1,0 +1,60 @@
+import { sha256Hex } from "../domain/identity.js";
+import { parseAss } from "./ass.js";
+import { decodeSubtitleBytes } from "./encoding.js";
+import { parseSrt } from "./srt.js";
+import type { SubtitleSource } from "./types.js";
+
+export interface SubtitleTrackDescriptor {
+  id: number;
+  isExternal: boolean;
+  title?: string;
+  lang?: string;
+}
+
+export type SubtitleSourceResult =
+  | { ok: true; source: SubtitleSource }
+  | {
+      ok: false;
+      reason:
+        "not-external" | "unreadable" | "unsupported-format" | "unsupported-encoding" | "empty";
+    };
+
+function detectFormat(title: string | undefined, text: string): "srt" | "ass" | null {
+  const normalizedTitle = title?.toLowerCase() ?? "";
+  if (normalizedTitle.endsWith(".srt")) return "srt";
+  if (normalizedTitle.endsWith(".ass") || normalizedTitle.endsWith(".ssa")) return "ass";
+  if (/^\s*\[Script Info\]/im.test(text) && /^\s*\[Events\]/im.test(text)) return "ass";
+  if (/\d{1,2}:\d{2}:\d{2}[,.]\d{3}\s*-->/m.test(text)) return "srt";
+  return null;
+}
+
+export function loadSubtitleSource(
+  track: SubtitleTrackDescriptor,
+  bytes: Uint8Array | null,
+): SubtitleSourceResult {
+  if (!track.isExternal) return { ok: false, reason: "not-external" };
+  if (!bytes) return { ok: false, reason: "unreadable" };
+  const decoded = decodeSubtitleBytes(bytes);
+  if (!decoded) return { ok: false, reason: "unsupported-encoding" };
+  const format = detectFormat(track.title, decoded.text);
+  if (!format) return { ok: false, reason: "unsupported-format" };
+  const parsed = format === "srt" ? parseSrt(decoded.text) : parseAss(decoded.text);
+  if (parsed.cues.length === 0) return { ok: false, reason: "empty" };
+  return {
+    ok: true,
+    source: {
+      trackId: track.id,
+      isExternal: true,
+      format,
+      contentHash: sha256Hex(bytes),
+      language: track.lang?.trim() || null,
+      languageOrigin: track.lang?.trim() ? "track" : "unknown",
+      decode: {
+        encoding: decoded.encoding,
+        bom: decoded.bom,
+        warnings: [...decoded.warnings, ...parsed.warnings],
+      },
+      cues: parsed.cues,
+    },
+  };
+}

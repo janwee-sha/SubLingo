@@ -1,0 +1,66 @@
+client:
+  name: basic
+  file-system: device-agnostic
+tools: {}
+targets:
+  "PackageStructure": ["<PackageStructure>"]
+  "SubLingoTransport-x86_64-apple-macosx-release.module": ["<SubLingoTransport-x86_64-apple-macosx-release.module>"]
+  "main": ["<SubLingoTransport-x86_64-apple-macosx-release.module>","<sublingo-transport-x86_64-apple-macosx-release.exe>"]
+  "sublingo-transport-x86_64-apple-macosx-release.exe": ["<sublingo-transport-x86_64-apple-macosx-release.exe>"]
+  "test": ["<SubLingoTransport-x86_64-apple-macosx-release.module>","<sublingo-transport-x86_64-apple-macosx-release.exe>"]
+default: "main"
+nodes:
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+commands:
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/HTTPClient.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Protocol.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Server.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/main.swift"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/sources"]
+    description: "Write auxiliary file /Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/sources"
+
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/sublingo-transport.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/HTTPClient.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/Protocol.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/Server.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/main.swift.o"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/sublingo-transport.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/sublingo-transport.product/Objects.LinkFileList"
+
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt":
+    tool: write-auxiliary-file
+    inputs: ["<swift-get-version>","/Library/Developer/CommandLineTools/usr/bin/swiftc"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"]
+    always-out-of-date: "true"
+    description: "Write auxiliary file /Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"
+
+  "<SubLingoTransport-x86_64-apple-macosx-release.module>":
+    tool: phony
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/HTTPClient.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/Protocol.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/Server.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/main.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/Modules/SubLingoTransport.swiftmodule"]
+    outputs: ["<SubLingoTransport-x86_64-apple-macosx-release.module>"]
+
+  "<sublingo-transport-x86_64-apple-macosx-release.exe>":
+    tool: phony
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/sublingo-transport"]
+    outputs: ["<sublingo-transport-x86_64-apple-macosx-release.exe>"]
+
+  "C.SubLingoTransport-x86_64-apple-macosx-release.module":
+    tool: shell
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/HTTPClient.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Protocol.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Server.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/main.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/sources"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/HTTPClient.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/Protocol.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/Server.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/main.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/Modules/SubLingoTransport.swiftmodule"]
+    description: "Compiling Swift Module 'SubLingoTransport' (4 sources)"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","SubLingoTransport","-emit-dependencies","-emit-module","-emit-module-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/Modules/SubLingoTransport.swiftmodule","-output-file-map","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/output-file-map.json","-whole-module-optimization","-num-threads","15","-c","@/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/sources","-I","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/Modules","-target","x86_64-apple-macosx12.0","-whole-module-optimization","-num-threads","15","-serialize-diagnostics","-O","-j15","-DSWIFT_PACKAGE","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","SubLingoTransport_main","-swift-version","6","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","transport"]
+
+  "C.sublingo-transport-x86_64-apple-macosx-release.exe":
+    tool: shell
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/HTTPClient.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/Protocol.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/Server.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/SubLingoTransport.build/main.swift.o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/sublingo-transport.product/Objects.LinkFileList"]
+    outputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/sublingo-transport"]
+    description: "Linking ./.build/x86_64-apple-macosx/release/sublingo-transport"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-L","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release","-o","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/sublingo-transport","-module-name","sublingo_transport","-Xlinker","-no_warn_duplicate_libraries","-emit-executable","-Xlinker","-dead_strip","-Xlinker","-alias","-Xlinker","_SubLingoTransport_main","-Xlinker","_main","-Xlinker","-rpath","-Xlinker","@loader_path","@/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/x86_64-apple-macosx/release/sublingo-transport.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Library/Developer/CommandLineTools/usr/lib/swift-6.2/macosx","-target","x86_64-apple-macosx12.0","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g"]
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Package.swift","/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+

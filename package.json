@@ -1,0 +1,65 @@
+{
+  "name": "sublingo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Real-time bilingual subtitle translation for IINA 1.4+",
+  "entry": "dist/main.js",
+  "globalEntry": "dist/global.js",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "scripts": {
+    "build": "./scripts/build-plugin.sh",
+    "build:native": "./scripts/build-native.sh",
+    "pack": "./scripts/pack.sh",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:native": "./scripts/test-native.sh",
+    "typecheck": "tsc -p tsconfig.plugin.json --noEmit && tsc -p tsconfig.webview.json --noEmit",
+    "lint": "eslint src ui tests vitest.config.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify:package": "./scripts/verify-package.sh"
+  },
+  "targets": {
+    "entry": {
+      "source": "src/main.ts",
+      "distDir": "dist",
+      "isLibrary": false,
+      "includeNodeModules": true,
+      "sourceMap": false,
+      "optimize": false
+    },
+    "globalEntry": {
+      "source": "src/global.ts",
+      "distDir": "dist",
+      "isLibrary": false,
+      "includeNodeModules": true,
+      "sourceMap": false,
+      "optimize": false
+    },
+    "sidebar": {
+      "source": "ui/sidebar.html",
+      "distDir": "dist/ui",
+      "publicUrl": "./",
+      "sourceMap": false,
+      "optimize": false
+    }
+  },
+  "dependencies": {
+    "@noble/ciphers": "2.3.0",
+    "@noble/hashes": "2.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "24.10.1",
+    "eslint": "9.39.5",
+    "iina-plugin-definition": "0.99.4",
+    "parcel": "2.16.4",
+    "prettier": "3.9.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.48.1",
+    "vitest": "3.2.7"
+  }
+}

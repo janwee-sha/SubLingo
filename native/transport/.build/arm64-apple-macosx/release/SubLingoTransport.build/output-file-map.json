@@ -1,0 +1,31 @@
+{
+  "": {
+    "dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/SubLingoTransport.d",
+    "object": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/SubLingoTransport.o",
+    "swift-dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/primary.swiftdeps"
+  },
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/HTTPClient.swift": {
+    "object": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/HTTPClient.swift.o",
+    "swiftmodule": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/HTTPClient~partial.swiftmodule",
+    "swift-dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/HTTPClient.swiftdeps",
+    "diagnostics": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/HTTPClient.dia"
+  },
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Protocol.swift": {
+    "object": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Protocol.swift.o",
+    "swiftmodule": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Protocol~partial.swiftmodule",
+    "swift-dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Protocol.swiftdeps",
+    "diagnostics": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Protocol.dia"
+  },
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Server.swift": {
+    "object": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Server.swift.o",
+    "swiftmodule": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Server~partial.swiftmodule",
+    "swift-dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Server.swiftdeps",
+    "diagnostics": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Server.dia"
+  },
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/main.swift": {
+    "object": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/main.swift.o",
+    "swiftmodule": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/main~partial.swiftmodule",
+    "swift-dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/main.swiftdeps",
+    "diagnostics": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/main.dia"
+  }
+}

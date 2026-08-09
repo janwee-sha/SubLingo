@@ -1,0 +1,217 @@
+import Foundation
+import Security
+
+enum ProtocolLimits {
+    static let maxRequestBytes = 2 * 1_024 * 1_024
+    static let maxResponseBytes = 4 * 1_024 * 1_024
+    static let minTimeoutMilliseconds = 100
+    static let maxTimeoutMilliseconds = 120_000
+}
+
+struct ReadyFrame: Encodable, Sendable {
+    let type: String
+    let port: UInt16
+    let token: String
+    let protocolVersion: Int
+
+    init(port: UInt16, token: String) {
+        self.type = "ready"
+        self.port = port
+        self.token = token
+        self.protocolVersion = 1
+    }
+
+    func encodedLine() throws -> String {
+        var data = try JSONEncoder().encode(self)
+        data.append(0x0A)
+        return String(decoding: data, as: UTF8.self)
+    }
+}
+
+enum SecureRandom {
+    static func bytes(count: Int) throws -> Data {
+        guard (1...4_096).contains(count) else { throw TransportProtocolError.invalidRequest }
+        var data = Data(count: count)
+        let status = data.withUnsafeMutableBytes { buffer in
+            SecRandomCopyBytes(kSecRandomDefault, count, buffer.baseAddress!)
+        }
+        guard status == errSecSuccess else { throw TransportProtocolError.entropyUnavailable }
+        return data
+    }
+
+    static func token() throws -> String {
+        try bytes(count: 32).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+}
+
+enum TransportProtocolError: Error, Equatable {
+    case invalidRequest
+    case entropyUnavailable
+    case forbiddenDestination
+    case duplicateJob
+    case responseTooLarge
+    case timedOut
+}
+
+enum CancelState: String, Codable, Sendable {
+    case cancelled
+    case alreadyCompleted = "already-completed"
+    case unknown
+}
+
+struct TransportRequest: Sendable {
+    let jobID: String
+    let method: String
+    let url: String
+    let headers: [String: String]
+    let body: Data
+    let timeoutMilliseconds: Int
+    let maxResponseBytes: Int
+
+    func validated() throws -> TransportRequest {
+        guard UUID(uuidString: jobID) != nil,
+              ["GET", "POST"].contains(method),
+              let parsedURL = URL(string: url),
+              body.count <= ProtocolLimits.maxRequestBytes,
+              (ProtocolLimits.minTimeoutMilliseconds...ProtocolLimits.maxTimeoutMilliseconds).contains(timeoutMilliseconds),
+              (1...ProtocolLimits.maxResponseBytes).contains(maxResponseBytes),
+              headers.count <= 32,
+              headers.allSatisfy({ $0.key.count <= 128 && $0.value.count <= 8_192 })
+        else { throw TransportProtocolError.invalidRequest }
+        try UpstreamPolicy.validate(parsedURL)
+        return self
+    }
+}
+
+struct TransportResponse: Sendable {
+    let jobID: String
+    let transportState: String
+    let statusCode: Int
+    let headers: [String: String]
+    let body: Data
+}
+
+struct ProtocolResponse: Sendable {
+    let statusCode: Int
+    let body: Data
+
+    static func json(statusCode: Int, _ object: Any) -> ProtocolResponse {
+        let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data("{}".utf8)
+        return ProtocolResponse(statusCode: statusCode, body: data)
+    }
+}
+
+final class LivenessState: @unchecked Sendable {
+    private let parentPID: Int32?
+    private let idleTimeout: TimeInterval
+    private let lock = NSLock()
+    private var lastActivity = Date()
+    private var shuttingDown = false
+
+    init(parentPID: Int32?, idleTimeout: TimeInterval = 300) {
+        self.parentPID = parentPID
+        self.idleTimeout = idleTimeout
+    }
+
+    func touch(now: Date = Date()) {
+        lock.withLock { lastActivity = now }
+    }
+
+    func requestShutdown() {
+        lock.withLock { shuttingDown = true }
+    }
+
+    func shouldExit(parentIsAlive: Bool, activeJobs: Int = 0, now: Date = Date()) -> Bool {
+        lock.withLock {
+            shuttingDown || !parentIsAlive || (activeJobs == 0 && now.timeIntervalSince(lastActivity) >= idleTimeout)
+        }
+    }
+
+    func actualParentIsAlive() -> Bool {
+        guard let parentPID else { return true }
+        return kill(parentPID, 0) == 0 || errno == EPERM
+    }
+}
+
+actor ProtocolHandler {
+    private let token: String
+    private let httpClient: HTTPClient
+    private let shutdown: @Sendable () -> Void
+
+    init(token: String, httpClient: HTTPClient = HTTPClient(), shutdown: @escaping @Sendable () -> Void = {}) {
+        self.token = token
+        self.httpClient = httpClient
+        self.shutdown = shutdown
+    }
+
+    func handle(path: String, authorization: String?, body: Data) async -> ProtocolResponse {
+        guard authorization == "Bearer \(token)" else { return .json(statusCode: 401, ["error": "unauthorized"]) }
+        guard body.count <= ProtocolLimits.maxRequestBytes else { return .json(statusCode: 413, ["error": "request-too-large"]) }
+
+        switch path {
+        case "/v1/random":
+            guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+                  let count = json["bytes"] as? Int,
+                  let purpose = json["purpose"] as? String,
+                  (count == 12 && purpose == "vault-nonce") || (count == 32 && purpose == "vault-dek"),
+                  let random = try? SecureRandom.bytes(count: count)
+            else { return .json(statusCode: 400, ["error": "invalid-random-request"]) }
+            return .json(statusCode: 200, ["bytesB64": random.base64EncodedString()])
+
+        case "/v1/cancel":
+            guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+                  let jobID = json["jobId"] as? String
+            else { return .json(statusCode: 400, ["error": "invalid-cancel-request"]) }
+            let state = await httpClient.cancel(jobID: jobID)
+            return .json(statusCode: 200, ["state": state.rawValue])
+
+        case "/v1/shutdown":
+            shutdown()
+            return .json(statusCode: 200, ["state": "shutting-down"])
+
+        case "/v1/request":
+            do {
+                let request = try Self.decodeRequest(body).validated()
+                let result = try await httpClient.perform(request)
+                let responseBody: [String: Any] = [
+                    "jobId": result.jobID,
+                    "transportState": result.transportState,
+                    "statusCode": result.statusCode,
+                    "headers": result.headers,
+                    "bodyText": String(decoding: result.body, as: UTF8.self),
+                ]
+                return .json(statusCode: 200, responseBody)
+            } catch TransportProtocolError.duplicateJob {
+                return .json(statusCode: 409, ["error": "duplicate-job"])
+            } catch TransportProtocolError.forbiddenDestination {
+                return .json(statusCode: 403, ["error": "forbidden-destination"])
+            } catch {
+                return .json(statusCode: 400, ["error": "request-failed"])
+            }
+
+        default:
+            return .json(statusCode: 404, ["error": "not-found"])
+        }
+    }
+
+    private static func decodeRequest(_ body: Data) throws -> TransportRequest {
+        guard let json = try JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let jobID = json["jobId"] as? String,
+              let method = json["method"] as? String,
+              let url = json["url"] as? String,
+              let headers = json["headers"] as? [String: String],
+              let timeout = json["timeoutMs"] as? Int,
+              let maxResponse = json["maxResponseBytes"] as? Int
+        else { throw TransportProtocolError.invalidRequest }
+        let requestBody: Data
+        if let object = json["body"] {
+            requestBody = try JSONSerialization.data(withJSONObject: object, options: [])
+        } else {
+            requestBody = Data()
+        }
+        return TransportRequest(jobID: jobID, method: method, url: url, headers: headers, body: requestBody, timeoutMilliseconds: timeout, maxResponseBytes: maxResponse)
+    }
+}

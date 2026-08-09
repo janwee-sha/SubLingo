@@ -1,0 +1,19 @@
+{
+  "": {
+    "swift-dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/primary.swiftdeps"
+  },
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift": {
+    "dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/HTTPClientTests.d",
+    "object": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/HTTPClientTests.swift.o",
+    "swiftmodule": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/HTTPClientTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/HTTPClientTests.swiftdeps",
+    "diagnostics": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/HTTPClientTests.dia"
+  },
+  "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Tests/SubLingoTransportTests/ServerTests.swift": {
+    "dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/ServerTests.d",
+    "object": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/ServerTests.swift.o",
+    "swiftmodule": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/ServerTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/ServerTests.swiftdeps",
+    "diagnostics": "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/debug/SubLingoTransportTests.build/ServerTests.dia"
+  }
+}

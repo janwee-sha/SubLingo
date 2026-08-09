@@ -1,0 +1,29 @@
+{
+  "name": "SubLingo",
+  "version": "0.1.0",
+  "identifier": "io.sublingo.iina",
+  "description": "Translate nearby external SRT/ASS cues into an IINA second subtitle track.",
+  "author": {
+    "name": "SubLingo Contributors"
+  },
+  "entry": "dist/main.js",
+  "globalEntry": "dist/global.js",
+  "minIINAVersion": "1.4.0",
+  "sidebarTab": {
+    "name": "SubLingo"
+  },
+  "permissions": ["network-request", "file-system", "show-alert", "subtitle", "preferences"],
+  "allowedDomains": ["127.0.0.1"],
+  "permissionDescriptions": {
+    "network-request": "Connect to the bundled loopback helper, which contacts only the translation service you select.",
+    "file-system": "Read the selected external subtitle and maintain an encrypted credential vault and temporary translated track.",
+    "show-alert": "Confirm destructive credential-vault reset operations.",
+    "subtitle": "Read the selected external subtitle and manage only SubLingo's translated secondary track.",
+    "preferences": "Save non-secret profile metadata, language choices, and sidebar settings."
+  },
+  "preferenceDefaults": {
+    "enabledByDefault": false,
+    "targetLanguage": "zh-Hans",
+    "sourceLanguageMode": "track"
+  }
+}
