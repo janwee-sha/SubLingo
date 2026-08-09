@@ -1,0 +1,9 @@
+{
+  "model": "fixture-model",
+  "message": {
+    "role": "assistant",
+    "content": "{\"translations\":[{\"id\":\"c1\",\"text\":\"你好，世界！\"}]}"
+  },
+  "prompt_eval_count": 10,
+  "eval_count": 8
+}
