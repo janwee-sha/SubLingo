@@ -1,2 +1,19 @@
 # IDE
 .idea/
+
+# Node / build
+node_modules/
+.parcel-cache/
+dist/
+coverage/
+*.log
+.env*
+
+# macOS / editors
+.DS_Store
+*.tmp
+*.swp
+.vscode/
+
+# IINA packages
+*.iinaplgz

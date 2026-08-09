@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sublingo.local/schemas/cache-entry.json",
+  "title": "SubLingo Translation Cache Entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "cacheKey", "translation", "createdAt", "lastUsedAt"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "cacheKey": { "type": "string", "minLength": 64, "maxLength": 64 },
+    "translation": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "lastUsedAt": { "type": "string", "format": "date-time" }
+  }
+}
