@@ -1,15 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sublingo.local/schemas/cache-entry.json",
-  "title": "SubLingo Translation Cache Entry",
+  "$id": "https://sublingo.local/schemas/session-cache-entry.json",
+  "title": "SubLingo In-Memory Session Cache Entry",
+  "description": "Internal test contract. Instances MUST remain in the owning PlaybackSession and MUST NOT be persisted.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "cacheKey", "translation", "createdAt", "lastUsedAt"],
+  "required": [
+    "sessionId",
+    "cacheKey",
+    "cueId",
+    "sourceContentHash",
+    "sourceLanguage",
+    "targetLanguage",
+    "providerSemanticFingerprint",
+    "translation"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "cacheKey": { "type": "string", "minLength": 64, "maxLength": 64 },
-    "translation": { "type": "string", "minLength": 1 },
-    "createdAt": { "type": "string", "format": "date-time" },
-    "lastUsedAt": { "type": "string", "format": "date-time" }
+    "sessionId": { "type": "string", "format": "uuid" },
+    "cacheKey": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "cueId": { "type": "string", "minLength": 1 },
+    "sourceContentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceLanguage": { "type": "string", "minLength": 2 },
+    "targetLanguage": { "type": "string", "minLength": 2 },
+    "providerSemanticFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "translation": { "type": "string", "minLength": 1 }
   }
 }
