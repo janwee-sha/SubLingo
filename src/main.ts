@@ -7,6 +7,7 @@ import {
 } from "./adapters/iina/subtitle-track.js";
 import type { TranslationProvider } from "./providers/provider.js";
 import type { TranslationBatchRequest, TranslationBatchResult } from "./providers/types.js";
+import { confirmVaultReset } from "./vault/reset.js";
 
 class GlobalProviderClient implements TranslationProvider {
   private readonly pending = new Map<
@@ -80,7 +81,10 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       ? savedSource.trim()
       : null;
   let selectedSourceTrackId: number | null = null;
+  let selectedSourceContentHash: string | null = null;
+  let selectedSourceLanguage: string | null = null;
   let sourceSelectionTimer: ReturnType<typeof setTimeout> | null = null;
+  let sourceReloadAttempt = 0;
   const controller = new PlaybackController({
     playerId,
     provider,
@@ -100,6 +104,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     cacheSize: controller.cacheSize,
     boundedWork,
     source: null,
+    sourceIssue: "unreadable",
   };
   const sidebarMessages: Array<{ name: string; data: unknown }> = [];
 
@@ -128,38 +133,73 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     }
   };
 
-  const loadSource = (): void => {
+  const clearSource = (reason: string): void => {
     selectedSourceTrackId = runtime.core.subtitle.id;
+    selectedSourceContentHash = null;
+    selectedSourceLanguage = null;
+    controller.setSource(null);
+    updateSidebarState({ source: null, sourceIssue: reason });
+  };
+
+  const loadSource = (commitFailure = true): boolean => {
     const loaded = readSelectedSubtitle(sourcePort);
-    const effectiveLanguage = loaded.ok ? (manualSourceLanguage ?? loaded.source.language) : null;
-    controller.setSource(
-      loaded.ok
-        ? {
-            cues: loaded.source.cues,
-            contentHash: loaded.source.contentHash,
-            language: effectiveLanguage,
-            format: loaded.source.format,
-          }
-        : null,
-    );
+    if (!loaded.ok) {
+      if (commitFailure) clearSource(loaded.reason);
+      return false;
+    }
+    const effectiveLanguage = manualSourceLanguage ?? loaded.source.language;
+    const unchanged =
+      selectedSourceTrackId === loaded.source.trackId &&
+      selectedSourceContentHash === loaded.source.contentHash &&
+      selectedSourceLanguage === effectiveLanguage;
+    selectedSourceTrackId = loaded.source.trackId;
+    selectedSourceContentHash = loaded.source.contentHash;
+    selectedSourceLanguage = effectiveLanguage;
+    if (!unchanged)
+      controller.setSource({
+        cues: loaded.source.cues,
+        contentHash: loaded.source.contentHash,
+        language: effectiveLanguage,
+        format: loaded.source.format,
+      });
     updateSidebarState({
-      source: loaded.ok
-        ? {
-            format: loaded.source.format,
-            cueCount: loaded.source.cues.length,
-            language: effectiveLanguage,
-            detectedLanguage: loaded.source.language,
-            warnings: loaded.source.decode.warnings,
-          }
-        : null,
+      source: {
+        format: loaded.source.format,
+        cueCount: loaded.source.cues.length,
+        language: effectiveLanguage,
+        detectedLanguage: loaded.source.language,
+        warnings: loaded.source.decode.warnings,
+      },
+      sourceIssue: null,
     });
+    return true;
+  };
+
+  const attemptSourceReload = (): void => {
+    sourceSelectionTimer = null;
+    const settledId = runtime.core.subtitle.id;
+    if (generatedTrack.isPublishing || generatedTrack.ownsTrack(settledId)) return;
+    const finalAttempt = sourceReloadAttempt >= 4;
+    if (loadSource(finalAttempt) || finalAttempt) return;
+    sourceReloadAttempt += 1;
+    sourceSelectionTimer = setTimeout(attemptSourceReload, 250);
+  };
+
+  const scheduleSourceReload = (invalidateChangedSelection = false): void => {
+    const selectedId = runtime.core.subtitle.id;
+    if (generatedTrack.isPublishing || generatedTrack.ownsTrack(selectedId)) return;
+    if (invalidateChangedSelection && selectedId !== selectedSourceTrackId)
+      clearSource("unreadable");
+    if (sourceSelectionTimer !== null) clearTimeout(sourceSelectionTimer);
+    sourceReloadAttempt = 0;
+    sourceSelectionTimer = setTimeout(attemptSourceReload, 250);
   };
 
   // IINA clears the sidebar message hub when loadFile() is called, so load the
   // webview before registering any of its message handlers.
   runtime.sidebar.loadFile("dist/ui/sidebar.html");
   runtime.sidebar.onMessage("ui:ready", () => {
-    loadSource();
+    if (!loadSource(false)) scheduleSourceReload();
     runtime.global.postMessage("profiles:list", {
       requestId: `profiles-${Date.now()}`,
       revision: 1,
@@ -191,7 +231,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       runtime.preferences.set("sourceLanguageMode", manualSourceLanguage ? "manual" : "track");
       runtime.preferences.sync();
       controller.setLanguages(payload.targetLanguage, manualSourceLanguage);
-      loadSource();
+      if (!loadSource(false)) scheduleSourceReload();
     }
     runtime.global.postMessage("defaults:save", raw);
   });
@@ -201,13 +241,26 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     ["secret:set", "vault:set-secret"],
     ["profile:select", "profile:select"],
     ["provider:test", "provider:test"],
-    ["vault:reset", "vault:reset"],
   ];
   for (const [sidebarName, globalName] of forward) {
     runtime.sidebar.onMessage(sidebarName, (raw: unknown) =>
       runtime.global.postMessage(globalName, raw),
     );
   }
+  runtime.sidebar.onMessage("vault:reset-request", (raw: unknown) => {
+    if (!confirmVaultReset(runtime.utils)) {
+      queueSidebarMessage("vault:state", { state: "cancelled" });
+      flushSidebar();
+      return;
+    }
+    const source = raw as { requestId?: unknown; revision?: unknown };
+    runtime.global.postMessage("vault:reset", {
+      requestId:
+        typeof source?.requestId === "string" ? source.requestId : `vault-reset-${Date.now()}`,
+      revision: typeof source?.revision === "number" ? source.revision : 1,
+      payload: { confirmed: true },
+    });
+  });
   runtime.global.onMessage("profiles:result", (raw: unknown) => {
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       updateSidebarState(raw as Record<string, unknown>);
@@ -219,9 +272,15 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   runtime.global.onMessage("vault:result", (raw: unknown) =>
     queueSidebarMessage("vault:state", raw),
   );
-  runtime.global.onMessage("vault:state", (raw: unknown) =>
-    queueSidebarMessage("vault:state", raw),
-  );
+  runtime.global.onMessage("vault:state", (raw: unknown) => {
+    const state = raw as { selectionInvalidated?: unknown };
+    if (state.selectionInvalidated === true) {
+      currentSelection = null;
+      controller.clearProviderSelection();
+      updateSidebarState({ selection: null });
+    }
+    queueSidebarMessage("vault:state", raw);
+  });
   runtime.global.onMessage("provider:test-result", (raw: unknown) =>
     queueSidebarMessage("provider:test-result", raw),
   );
@@ -264,30 +323,21 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     payload: {},
   });
 
-  runtime.event.on("iina.file-loaded", loadSource);
+  runtime.event.on("iina.file-loaded", () => {
+    clearSource("unreadable");
+    scheduleSourceReload();
+  });
   runtime.event.on("mpv.sid.changed", () => {
     const selectedId = runtime.core.subtitle.id;
     if (
       generatedTrack.isPublishing ||
-      generatedTrack.hasOwnedTrack ||
       generatedTrack.ownsTrack(selectedId) ||
       selectedId === selectedSourceTrackId
     )
       return;
-    if (sourceSelectionTimer !== null) clearTimeout(sourceSelectionTimer);
-    sourceSelectionTimer = setTimeout(() => {
-      sourceSelectionTimer = null;
-      const settledId = runtime.core.subtitle.id;
-      if (
-        generatedTrack.isPublishing ||
-        generatedTrack.hasOwnedTrack ||
-        generatedTrack.ownsTrack(settledId) ||
-        settledId === selectedSourceTrackId
-      )
-        return;
-      loadSource();
-    }, 250);
+    scheduleSourceReload(true);
   });
+  runtime.event.on("mpv.track-list.changed", () => scheduleSourceReload());
   runtime.event.on("mpv.seek", () =>
     controller.session.onSeek(
       finitePosition(
@@ -316,7 +366,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       });
     controller.close();
   });
-  loadSource();
+  if (!loadSource(false)) scheduleSourceReload();
   return controller;
 }
 

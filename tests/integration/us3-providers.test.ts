@@ -118,4 +118,40 @@ describe("US3 provider broker integration", () => {
     expect(bResult.translations[0]?.text).toContain("B:");
     expect(aResult.translations[0]?.text).not.toBe(bResult.translations[0]?.text);
   });
+
+  it("cancels every in-flight provider job during a vault reset", async () => {
+    const profiles = new ProviderProfiles(() => "00000000-0000-4000-8000-000000000001");
+    let rejectAttempt: ((reason: unknown) => void) | undefined;
+    const cancellations: string[] = [];
+    const provider: TranslationProvider = {
+      attempt: () =>
+        new Promise((_resolve, reject) => {
+          rejectAttempt = reject;
+        }),
+      cancel: async (requestId) => {
+        cancellations.push(requestId);
+        rejectAttempt?.({ category: "cancelled", retryable: false });
+      },
+    };
+    const broker = new ProviderBroker(profiles, () => provider);
+    const saved = profiles.save({
+      displayName: "Remote",
+      kind: "openai",
+      endpoint: "https://example.test/v1",
+      model: "m",
+    });
+    broker.select("window-A", saved.profileId, saved.revision, saved.endpointFingerprint);
+    const pending = broker.attempt("window-A", {
+      ...makeProviderRequest(),
+      requestId: "reset-me" as ReturnType<typeof makeProviderRequest>["requestId"],
+      profileId: saved.profileId,
+      profileRevision: saved.revision,
+      endpointFingerprint: saved.endpointFingerprint,
+    });
+
+    await Promise.resolve();
+    await broker.cancelAll();
+    expect(cancellations).toEqual(["reset-me"]);
+    await expect(pending).rejects.toMatchObject({ category: "cancelled" });
+  });
 });

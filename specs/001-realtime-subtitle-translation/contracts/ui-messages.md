@@ -11,7 +11,7 @@ All messages use `{ requestId, revision, payload }`. Unknown fields or stale rev
 - `profile:select` — after displaying provider kind and normalized endpoint, authorize the exact `{profileId, revision, endpointFingerprint}` for this window.
 - `provider:test` — run provider-specific version/model/schema probe using fixed non-subtitle text.
 - `translation:set-enabled` — enable or disable the current PlaybackSession.
-- `vault:reset` — explicit destructive reset after confirmation; overwrites wrapping material and deletes ciphertext slots.
+- `vault:reset-request` — request Main to show IINA's native destructive-action confirmation. The WebView cannot confirm or perform reset itself.
 
 There is no `cache:clear` command: translations are an in-memory video-session resource and are synchronously cleared on video close/replacement/window close.
 
@@ -19,7 +19,7 @@ There is no `cache:clear` command: translations are an in-memory video-session r
 
 - `state:update` — sanitized defaults, profile metadata, exact endpoint disclosure, current selection, source summary, session status, in-memory cache counts and connection result.
 - `operation:error` — stable error code, user-action code and localized message; no secrets, subtitle/translation text, raw provider body or headers.
-- `vault:state` — `ready | locked | unavailable | corrupt`; never contains DEK/ciphertext/credential.
+- `vault:state` — `ready | cancelled | locked | unavailable | corrupt`, plus safe reset/selection flags; never contains DEK/ciphertext/credential.
 
 Secret values are always represented as `configured: boolean`; masked placeholders are display-only and MUST NOT be submitted as replacements.
 
@@ -45,6 +45,7 @@ Every provider message includes a main-generated request ID and session/profile 
 - `provider:attempt-result`
 - `provider:attempt-error`
 - `provider:cancelled`
+- `vault:state` — after confirmed reset, broadcast to every affected player so Main clears its selection and in-memory provider authorization; profile metadata is retained.
 
 Global targets the authoritative IINA player ID. Main discards replies that do not match its current request plus full session/window/profile identity, even if global/helper reports success.
 

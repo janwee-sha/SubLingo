@@ -54,6 +54,7 @@ enum TransportProtocolError: Error, Equatable {
     case duplicateJob
     case responseTooLarge
     case timedOut
+    case upstreamNetwork
 }
 
 enum CancelState: String, Codable, Sendable {
@@ -184,16 +185,33 @@ actor ProtocolHandler {
                     "bodyText": String(decoding: result.body, as: UTF8.self),
                 ]
                 return .json(statusCode: 200, responseBody)
-            } catch TransportProtocolError.duplicateJob {
-                return .json(statusCode: 409, ["error": "duplicate-job"])
-            } catch TransportProtocolError.forbiddenDestination {
-                return .json(statusCode: 403, ["error": "forbidden-destination"])
             } catch {
-                return .json(statusCode: 400, ["error": "request-failed"])
+                return Self.errorResponse(for: error)
             }
 
         default:
             return .json(statusCode: 404, ["error": "not-found"])
+        }
+    }
+
+    nonisolated static func errorResponse(for error: Error) -> ProtocolResponse {
+        switch error {
+        case TransportProtocolError.duplicateJob:
+            return .json(statusCode: 409, ["error": "duplicate-job"])
+        case TransportProtocolError.forbiddenDestination:
+            return .json(statusCode: 403, ["error": "forbidden-destination"])
+        case TransportProtocolError.timedOut:
+            return .json(statusCode: 504, ["error": "upstream-timeout"])
+        case TransportProtocolError.upstreamNetwork:
+            return .json(statusCode: 502, ["error": "upstream-network"])
+        case TransportProtocolError.responseTooLarge:
+            return .json(statusCode: 413, ["error": "response-too-large"])
+        case TransportProtocolError.invalidRequest:
+            return .json(statusCode: 400, ["error": "invalid-request"])
+        case is CancellationError:
+            return .json(statusCode: 409, ["error": "request-cancelled"])
+        default:
+            return .json(statusCode: 400, ["error": "request-failed"])
         }
     }
 

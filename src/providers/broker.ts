@@ -14,7 +14,11 @@ export class ProviderBrokerError extends Error {
 }
 
 export class ProviderBroker {
-  private readonly active = new Map<string, TranslationProvider>();
+  private readonly active = new Map<
+    string,
+    { provider: TranslationProvider; requestId: string }
+  >();
+  private authorizationEpoch = 0;
 
   constructor(
     private readonly profiles: ProviderProfiles,
@@ -50,10 +54,13 @@ export class ProviderBroker {
     }
     const profile = this.profiles.get(selection.profileId, selection.revision);
     if (!profile) throw new ProviderBrokerError("PROFILE_NOT_FOUND");
+    const epoch = this.authorizationEpoch;
     const provider = await this.createProvider(profile);
+    if (epoch !== this.authorizationEpoch)
+      throw new ProviderBrokerError("REQUEST_CANCELLED");
     const key = `${authoritativePlayerId}\u0000${request.requestId}`;
     if (this.active.has(key)) throw new ProviderBrokerError("DUPLICATE_REQUEST");
-    this.active.set(key, provider);
+    this.active.set(key, { provider, requestId: request.requestId });
     try {
       return await provider.attempt({ ...request, playerId: authoritativePlayerId as PlayerId });
     } finally {
@@ -63,8 +70,17 @@ export class ProviderBroker {
 
   async cancel(authoritativePlayerId: string, requestId: string): Promise<void> {
     const key = `${authoritativePlayerId}\u0000${requestId}`;
-    const provider = this.active.get(key);
-    await provider?.cancel?.(requestId);
+    const active = this.active.get(key);
+    await active?.provider.cancel?.(requestId);
     this.active.delete(key);
+  }
+
+  async cancelAll(): Promise<void> {
+    this.authorizationEpoch += 1;
+    const active = [...this.active.entries()];
+    this.active.clear();
+    await Promise.allSettled(
+      active.map(([, request]) => request.provider.cancel?.(request.requestId)),
+    );
   }
 }

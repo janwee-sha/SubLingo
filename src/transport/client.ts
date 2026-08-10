@@ -5,6 +5,55 @@ export interface LocalHttpBridge {
   post<T>(url: string, bearerToken: string, body: unknown): Promise<T>;
 }
 
+export const TRANSPORT_RPC_ERROR_CODES = [
+  "upstream-timeout",
+  "upstream-network",
+  "forbidden-destination",
+  "duplicate-job",
+  "invalid-request",
+  "response-too-large",
+  "request-cancelled",
+  "request-failed",
+  "unauthorized",
+  "request-too-large",
+  "not-found",
+  "invalid-random-request",
+  "invalid-cancel-request",
+  "helper-rpc-failed",
+] as const;
+
+export type TransportRpcErrorCode = (typeof TRANSPORT_RPC_ERROR_CODES)[number];
+
+export function isTransportRpcErrorCode(value: unknown): value is TransportRpcErrorCode {
+  return (
+    typeof value === "string" && TRANSPORT_RPC_ERROR_CODES.includes(value as TransportRpcErrorCode)
+  );
+}
+
+export class TransportRpcError extends Error {
+  constructor(readonly code: TransportRpcErrorCode) {
+    super(code);
+    this.name = "TransportRpcError";
+  }
+}
+
+function rpcError(error: TransportRpcError): SubLingoError {
+  switch (error.code) {
+    case "upstream-timeout":
+      return new SubLingoError("PROVIDER_TIMEOUT", "timeout", "CHECK_NETWORK", true, 504);
+    case "upstream-network":
+      return new SubLingoError("PROVIDER_NETWORK", "network", "CHECK_NETWORK", true, 502);
+    case "forbidden-destination":
+      return new SubLingoError("FORBIDDEN_DESTINATION", "configuration", "CHECK_ENDPOINT");
+    case "request-cancelled":
+      return new SubLingoError("REQUEST_CANCELLED", "cancelled", "NONE");
+    case "response-too-large":
+      return new SubLingoError("HELPER_RESPONSE_TOO_LARGE", "protocol", "CHECK_ENDPOINT");
+    default:
+      return new SubLingoError("HELPER_PROTOCOL", "protocol", "RESTART_IINA");
+  }
+}
+
 export interface TransportRequest {
   jobId: string;
   method: "GET" | "POST";
@@ -46,7 +95,9 @@ export class TransportClient {
         this.session.token,
         body,
       );
-    } catch {
+    } catch (error) {
+      if (error instanceof SubLingoError) throw error;
+      if (error instanceof TransportRpcError) throw rpcError(error);
       throw new SubLingoError("HELPER_UNAVAILABLE", "network", "RESTART_IINA", true);
     }
   }

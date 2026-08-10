@@ -1,4 +1,9 @@
-import type { LocalHttpBridge, TransportClient } from "../../transport/client.js";
+import {
+  isTransportRpcErrorCode,
+  TransportRpcError,
+  type LocalHttpBridge,
+  type TransportClient,
+} from "../../transport/client.js";
 import type {
   ProviderTransport,
   ProviderTransportRequest,
@@ -15,8 +20,21 @@ export class IinaLocalHttpBridge implements LocalHttpBridge {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearerToken}` },
       data: body as Record<string, unknown>,
     });
-    if (response.statusCode < 200 || response.statusCode >= 300)
-      throw new Error("HELPER_RPC_FAILED");
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      let code: unknown =
+        response.data && typeof response.data === "object"
+          ? (response.data as Record<string, unknown>).error
+          : undefined;
+      if (!isTransportRpcErrorCode(code)) {
+        try {
+          const parsed = JSON.parse(response.text) as Record<string, unknown>;
+          code = parsed.error;
+        } catch {
+          code = undefined;
+        }
+      }
+      throw new TransportRpcError(isTransportRpcErrorCode(code) ? code : "helper-rpc-failed");
+    }
     if (response.data && typeof response.data === "object") return response.data as T;
     try {
       return JSON.parse(response.text) as T;

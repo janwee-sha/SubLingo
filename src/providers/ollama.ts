@@ -22,6 +22,7 @@ const OUTPUT_SCHEMA = {
 
 export class OllamaProvider implements TranslationProvider {
   private readonly endpoint: string;
+  private readonly activeJobs = new Set<string>();
   constructor(
     private readonly config: { endpoint: string; model: string },
     private readonly transport: ProviderTransport,
@@ -78,46 +79,63 @@ export class OllamaProvider implements TranslationProvider {
     );
   }
 
-  private get(jobId: string, path: string): Promise<ProviderTransportResponse> {
-    return this.transport.request({
-      jobId,
-      method: "GET",
-      url: `${this.endpoint}${path}`,
-      headers: {},
-      timeoutMs: 10_000,
-      maxResponseBytes: 1_048_576,
-    });
+  async cancel(requestId: string): Promise<void> {
+    const jobs = [...this.activeJobs].filter(
+      (jobId) => jobId === requestId || jobId.startsWith("probe-"),
+    );
+    await Promise.allSettled(jobs.map((jobId) => this.transport.cancel?.(jobId)));
   }
 
-  private chat(
+  private async get(jobId: string, path: string): Promise<ProviderTransportResponse> {
+    this.activeJobs.add(jobId);
+    try {
+      return await this.transport.request({
+        jobId,
+        method: "GET",
+        url: `${this.endpoint}${path}`,
+        headers: {},
+        timeoutMs: 10_000,
+        maxResponseBytes: 1_048_576,
+      });
+    } finally {
+      this.activeJobs.delete(jobId);
+    }
+  }
+
+  private async chat(
     jobId: string,
     items: Array<{ id: string; text: string; context?: string }>,
     sourceLanguage: string,
     targetLanguage: string,
     timeoutMs: number,
   ): Promise<ProviderTransportResponse> {
-    return this.transport.request({
-      jobId,
-      method: "POST",
-      url: `${this.endpoint}/api/chat`,
-      headers: { "Content-Type": "application/json" },
-      body: {
-        model: this.config.model,
-        stream: false,
-        think: false,
-        format: OUTPUT_SCHEMA,
-        options: { temperature: 0 },
-        messages: [
-          {
-            role: "system",
-            content: `Translate JSON subtitle items from ${sourceLanguage} to ${targetLanguage}. Return only matching IDs.`,
-          },
-          { role: "user", content: JSON.stringify({ items }) },
-        ],
-      },
-      timeoutMs,
-      maxResponseBytes: 1_048_576,
-    });
+    this.activeJobs.add(jobId);
+    try {
+      return await this.transport.request({
+        jobId,
+        method: "POST",
+        url: `${this.endpoint}/api/chat`,
+        headers: { "Content-Type": "application/json" },
+        body: {
+          model: this.config.model,
+          stream: false,
+          think: false,
+          format: OUTPUT_SCHEMA,
+          options: { temperature: 0 },
+          messages: [
+            {
+              role: "system",
+              content: `Translate JSON subtitle items from ${sourceLanguage} to ${targetLanguage}. Return only matching IDs.`,
+            },
+            { role: "user", content: JSON.stringify({ items }) },
+          ],
+        },
+        timeoutMs,
+        maxResponseBytes: 1_048_576,
+      });
+    } finally {
+      this.activeJobs.delete(jobId);
+    }
   }
 
   private json(text: string): Record<string, unknown> {

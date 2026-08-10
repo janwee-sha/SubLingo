@@ -1,9 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
+  SIDEBAR_MESSAGE_NAMES,
   parseProfileSelection,
   parseSecretSet,
   sanitizedProfileView,
 } from "../../src/domain/messages.js";
+import { normalizeProviderError } from "../../src/domain/errors.js";
+import "../../ui/provider-status.js";
+
+const providerTestStatusMessage = (
+  globalThis as typeof globalThis & {
+    sublingoProviderTestStatusMessage(result: {
+      ok?: boolean;
+      category?: string;
+      userAction?: string;
+    }): string;
+  }
+).sublingoProviderTestStatusMessage;
 
 describe("Sidebar/Main/Global security messages", () => {
   const profile = {
@@ -57,5 +70,53 @@ describe("Sidebar/Main/Global security messages", () => {
         endpointFingerprint: "fingerprint",
       }),
     ).toMatchObject({ revision: 2 });
+  });
+
+  it("uses a Main-owned reset request and preserves only allowlisted provider errors", () => {
+    expect(SIDEBAR_MESSAGE_NAMES).toContain("vault:reset-request");
+    expect(SIDEBAR_MESSAGE_NAMES).not.toContain("vault:reset");
+    expect(
+      normalizeProviderError({
+        category: "authentication",
+        retryable: false,
+        statusCode: 401,
+        providerCode: "invalid_api_key",
+        userAction: "CHECK_CREDENTIALS",
+        privateBody: "must-not-cross-rpc",
+      }),
+    ).toEqual({
+      category: "authentication",
+      retryable: false,
+      statusCode: 401,
+      providerCode: "invalid_api_key",
+      userAction: "CHECK_CREDENTIALS",
+    });
+    expect(
+      normalizeProviderError({
+        category: "made-up",
+        retryable: false,
+        providerCode: "bad code with spaces",
+        userAction: "LEAK_SECRET",
+      }),
+    ).toMatchObject({ providerCode: "UNKNOWN_PROVIDER_ERROR" });
+  });
+
+  it("turns safe provider classifications into actionable sidebar guidance", () => {
+    expect(
+      providerTestStatusMessage({
+        ok: false,
+        category: "authentication",
+        userAction: "CHECK_CREDENTIALS",
+      }),
+    ).toMatch(/API key/i);
+    expect(
+      providerTestStatusMessage({ ok: false, category: "model", userAction: "CHECK_MODEL" }),
+    ).toMatch(/model/i);
+    expect(
+      providerTestStatusMessage({ ok: false, category: "quota", userAction: "CHECK_QUOTA" }),
+    ).toMatch(/quota|billing/i);
+    expect(
+      providerTestStatusMessage({ ok: false, category: "timeout", userAction: "CHECK_NETWORK" }),
+    ).toMatch(/timed out/i);
   });
 });

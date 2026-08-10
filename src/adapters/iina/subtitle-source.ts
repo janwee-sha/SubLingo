@@ -3,6 +3,7 @@ import {
   type SubtitleSourceResult,
   type SubtitleTrackDescriptor,
 } from "../../subtitles/source.js";
+import { utf8Encode } from "../../domain/codec.js";
 
 export interface SubtitleSourcePort {
   selectedTrack(): SubtitleTrackDescriptor | null;
@@ -24,7 +25,14 @@ export class IinaSubtitleSourcePort implements SubtitleSourcePort {
   selectedTrack(): SubtitleTrackDescriptor | null {
     const id = this.subtitle.id;
     if (id === null) return null;
-    const track = this.subtitle.tracks.find((candidate) => candidate.id === id);
+    let track = this.subtitle.tracks.find((candidate) => candidate.id === id);
+    if (!track) {
+      try {
+        if (this.subtitle.currentTrack?.id === id) track = this.subtitle.currentTrack;
+      } catch {
+        /* IINA can expose the selected ID before currentTrack is ready. */
+      }
+    }
     if (!track) return null;
     return {
       id: track.id,
@@ -38,11 +46,18 @@ export class IinaSubtitleSourcePort implements SubtitleSourcePort {
     let handle: IINA.API.FileHandle | null = null;
     try {
       handle = this.file.handle(path, "read");
-      return handle.readToEnd() ?? null;
+      const bytes = handle.readToEnd();
+      if (bytes) return bytes;
     } catch {
-      return null;
+      /* Fall through to IINA's text reader for UTF-8 subtitles. */
     } finally {
       handle?.close();
+    }
+    try {
+      const text = this.file.read(path);
+      return typeof text === "string" ? utf8Encode(text) : null;
+    } catch {
+      return null;
     }
   }
 }

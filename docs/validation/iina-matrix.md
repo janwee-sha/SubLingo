@@ -4,9 +4,9 @@
 
 - Installed IINA version: 1.4.4 at `/Applications/IINA.app`.
 - IINA 1.4.0 was not installed, so that compatibility row could not be executed locally.
-- The user supplied temporary OpenAI-compatible and Ollama test configuration under the ignored `providers/` directory. Both production provider adapters completed a live probe and translation without logging secrets.
+- The user supplied temporary OpenAI-compatible and Ollama test configuration under the ignored `providers/` directory. Both production provider adapters completed a live probe and translation without logging secrets; this does not by itself prove the IINA UI/playback path.
 - Azure Translator is intentionally unavailable in this release because its setup and credentials were not manually validated.
-- The verified package is installed at `~/Library/Application Support/com.colliderli.iina/plugins/io.sublingo.iina.iinaplugin`. A recoverable copy of the prior installation is stored at `/private/tmp/io.sublingo.iina.iinaplugin.backup-20260810-0250`.
+- The current workspace is linked by IINA's official CLI as `SubLingo.iinaplugin-dev`. The duplicate 05:51 installed copy was moved, not deleted, to `/private/tmp/io.sublingo.iina.iinaplugin.pre-convergence-20260810-1239`.
 
 ## Evidence from IINA 1.4.4
 
@@ -20,20 +20,23 @@
 8. In the actual IINA sidebar, OpenAI-compatible and Ollama were the only service choices. Switching changed endpoint defaults and hints, preserved a required Model ID field for both services, hid the API key for Ollama, and restored it for OpenAI-compatible. CSS cards, labels, and controls rendered aligned at the narrow sidebar width.
 9. A real 1,438-cue external SRT was selected as primary track `#4` and translated through the saved local Ollama `translategemma:12b` profile. The session cache advanced continuously beyond 73 cues while playback continued.
 10. Runtime inspection during continuous updates reported primary `id=4`, generated `secondID=16`, and exactly one owned `sublingo-…-12.srt` track. A later IINA subtitle menu showed the rotated generated track `#18`; mpv logged successful string property writes (`sid="4" -> 1`, `secondary-sid="19" -> 1`) and removal of only the previous generated track.
+11. The convergence build loaded from the workspace link and displayed the new API-root-or-full-URL hint. A previously saved full `/v1/chat/completions` profile was shown as canonical `/v1`, confirming metadata normalization in the real sidebar.
+12. Before the subtitle-resynchronization fix, a manual run reproduced a loaded external subtitle remaining at `Select a readable external SRT or ASS subtitle`. After the code began listening to `mpv.track-list.changed`, removed the over-broad generated-track guard, retried delayed IINA track exposure, and added a safe UTF-8 text-read fallback, the user reloaded an external subtitle in IINA and confirmed that Session displayed its cue count.
 
 ## Quickstart matrix
 
-| IINA  | Scenario                                                        | Status         | Evidence / remaining requirement                                                                                                                |
-| ----- | --------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1.4.4 | Discovery, declared permissions, installed package              | PASS           | Plugin, global/main developer contexts, installed package, sidebar tab, and permission manifest were discovered.                                |
-| 1.4.4 | Sidebar renders and remains keyboard-accessible at narrow width | PASS           | Actual WebView exposed labelled controls through accessibility APIs; visual inspection confirmed aligned narrow-width cards/fields.             |
-| 1.4.4 | External SRT selection and generated second track               | PASS           | Real 1,438-cue external SRT remained primary while a single rotating SubLingo SRT remained selected as `secondID`.                              |
-| 1.4.4 | UTF-16 SRT and ASS selection                                    | NOT RUN        | Parser/decoder/track integration tests pass; remaining real IINA format rows are deferred.                                                      |
-| 1.4.4 | OpenAI-compatible and Ollama                                    | PASS           | Both production adapters passed live probe+translation; Ollama also passed full IINA playback, caching, rotation, and second-track publication. |
-| 1.4.4 | Azure Translator                                                | NOT APPLICABLE | Temporarily unsupported by product decision; it is absent from the UI and rejected by profile creation.                                         |
-| 1.4.4 | Vault write, restart, tamper lockout, confirmed reset           | NOT RUN        | Vault/security tests pass; real Keychain and `@data` lifecycle remains.                                                                         |
-| 1.4.4 | Reload and close/reopen lifecycle                               | PASS           | Final build survived plugin reload and player close/reopen with the polling WebView attached and no new crash report.                           |
-| 1.4.4 | Retry-After, seek, and two windows                              | NOT RUN        | Automated acceptance/performance suites pass; full live IINA matrix remains.                                                                    |
-| 1.4.0 | All quickstart scenarios                                        | NOT RUN        | IINA 1.4.0 is not installed on this machine.                                                                                                    |
+| IINA  | Scenario                                                        | Status         | Evidence / remaining requirement                                                                                                                                              |
+| ----- | --------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.4.4 | Discovery, declared permissions, installed package              | PASS           | Plugin, global/main developer contexts, installed package, sidebar tab, and permission manifest were discovered.                                                              |
+| 1.4.4 | Sidebar renders and remains keyboard-accessible at narrow width | PASS           | Actual WebView exposed labelled controls through accessibility APIs; visual inspection confirmed aligned narrow-width cards/fields.                                           |
+| 1.4.4 | External SRT selection and generated second track               | PASS           | Earlier build generated the secondary track from a real 1,438-cue SRT; after the convergence resync fix, the user confirmed Session displays the external subtitle cue count. |
+| 1.4.4 | UTF-16 SRT and ASS selection                                    | NOT RUN        | Parser/decoder/track integration tests pass; remaining real IINA format rows are deferred.                                                                                    |
+| 1.4.4 | OpenAI-compatible adapter                                       | PASS (ADAPTER) | Production adapter passed authorized live probe+translation; successful connection and subtitle playback inside IINA remain pending manual re-test.                           |
+| 1.4.4 | Ollama                                                          | RECHECK        | Production adapter passed live probe+translation and an earlier build passed full IINA playback; current convergence build awaits manual re-test.                             |
+| 1.4.4 | Azure Translator                                                | NOT APPLICABLE | Temporarily unsupported by product decision; it is absent from the UI and rejected by profile creation.                                                                       |
+| 1.4.4 | Vault write, restart, tamper lockout, confirmed reset           | NOT RUN        | Vault/security/native-confirmation tests pass; real IINA confirmation, Keychain and `@data` lifecycle remain for user testing.                                                |
+| 1.4.4 | Reload and close/reopen lifecycle                               | PASS           | Final build survived plugin reload and player close/reopen with the polling WebView attached and no new crash report.                                                         |
+| 1.4.4 | Retry-After, seek, and two windows                              | NOT RUN        | Automated acceptance/performance suites pass; full live IINA matrix remains.                                                                                                  |
+| 1.4.0 | All quickstart scenarios                                        | NOT RUN        | IINA 1.4.0 is not installed on this machine.                                                                                                                                  |
 
 T078 remains open in `tasks.md` until the archive is exercised on IINA 1.4.0 and the remaining SRT/ASS, profile/vault, Retry-After, seek, and multi-window rows are completed.

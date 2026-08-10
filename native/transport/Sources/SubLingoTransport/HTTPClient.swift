@@ -68,6 +68,10 @@ final class HTTPClient: @unchecked Sendable {
     private var active: [String: ActiveJob] = [:]
     private var completed: Set<String> = []
 
+    static func classify(_ error: URLError) -> TransportProtocolError {
+        error.code == .timedOut ? .timedOut : .upstreamNetwork
+    }
+
     func perform(_ rawRequest: TransportRequest) async throws -> TransportResponse {
         let request = try rawRequest.validated()
         guard let url = URL(string: request.url) else { throw TransportProtocolError.invalidRequest }
@@ -90,12 +94,16 @@ final class HTTPClient: @unchecked Sendable {
                     guard let self else { return }
                     self.finish(jobID: request.jobID)
                     defer { session.finishTasksAndInvalidate() }
-                    if let error = error as? URLError, error.code == .cancelled {
-                        continuation.resume(throwing: CancellationError())
+                    if let error = error as? URLError {
+                        continuation.resume(
+                            throwing: error.code == .cancelled
+                                ? CancellationError()
+                                : Self.classify(error)
+                        )
                         return
                     }
-                    if let error {
-                        continuation.resume(throwing: error)
+                    if error != nil {
+                        continuation.resume(throwing: TransportProtocolError.upstreamNetwork)
                         return
                     }
                     guard let http = response as? HTTPURLResponse else {

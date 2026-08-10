@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { utf8Encode } from "../../src/domain/codec.js";
+import {
+  IinaSubtitleSourcePort,
+  readSelectedSubtitle,
+} from "../../src/adapters/iina/subtitle-source.js";
 import { loadSubtitleSource } from "../../src/subtitles/source.js";
 
 describe("selected subtitle source", () => {
@@ -35,5 +39,28 @@ describe("selected subtitle source", () => {
         Uint8Array.from([0xc0, 0xaf]),
       ),
     ).toEqual({ ok: false, reason: "unsupported-encoding" });
+  });
+
+  it("recovers from lagging track lists and unavailable binary handles using IINA's current track and text read", () => {
+    const subtitle = {
+      id: 7,
+      tracks: [],
+      currentTrack: {
+        id: 7,
+        title: "movie.srt",
+        lang: "en",
+        isExternal: true,
+      },
+    } as unknown as IINA.API.SubtitleAPI;
+    const file = {
+      handle: () => {
+        throw new Error("binary handle not ready");
+      },
+      read: (path: string) => (path === "@sub/7" ? content : undefined),
+    } as unknown as IINA.API.File;
+
+    const loaded = readSelectedSubtitle(new IinaSubtitleSourcePort(subtitle, file));
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) expect(loaded.source).toMatchObject({ trackId: 7, format: "srt" });
   });
 });

@@ -1,4 +1,5 @@
 import { sha256Hex } from "./domain/identity.js";
+import { normalizeProviderError } from "./domain/errors.js";
 import { sanitizedProfileView, parseProfileSelection, parseSecretSet } from "./domain/messages.js";
 import { IinaVaultKeychain } from "./adapters/iina/keychain.js";
 import { createDeferredPlayerPost } from "./adapters/iina/deferred-post.js";
@@ -25,6 +26,7 @@ function localUuid(): string {
 const profiles = new ProviderProfiles(localUuid);
 let transportPromise: Promise<TransportClient> | null = null;
 const providerCache = new Map<string, Promise<TranslationProvider>>();
+const activeProviderTests = new Set<TranslationProvider>();
 
 function restoreProfileMetadata(): void {
   const raw = iina.preferences.get("providerProfilesJson");
@@ -142,7 +144,6 @@ async function buildProvider(profile: ProviderProfileSnapshot): Promise<Translat
         },
         transport,
       );
-      await openai.probe();
       return openai;
     }
     case "ollama": {
@@ -308,26 +309,35 @@ iina.global.onMessage("profile:select", (raw: unknown, playerId?: string) => {
 
 iina.global.onMessage("provider:test", async (raw: unknown, playerId?: string) => {
   if (!playerId) return;
+  let provider: (TranslationProvider & { probe?: () => Promise<unknown> }) | null = null;
   try {
     const values = payload(raw);
     const profile = profiles.get(String(values.profileId), Number(values.revision));
     if (!profile) throw new Error("PROFILE_NOT_FOUND");
-    const provider = (await providerFor(profile)) as TranslationProvider & {
+    provider = (await providerFor(profile)) as TranslationProvider & {
       probe?: () => Promise<unknown>;
     };
+    activeProviderTests.add(provider);
     const result = provider.probe ? await provider.probe() : { ok: true };
     postToPlayer(playerId, "provider:test-result", {
       requestId: requestId(raw),
       ok: true,
       result,
     });
-  } catch {
+  } catch (error) {
+    const safe = normalizeProviderError(error);
     postToPlayer(playerId, "provider:test-result", {
       requestId: requestId(raw),
       ok: false,
-      code: "CONNECTION_TEST_FAILED",
-      userAction: "CHECK_ENDPOINT",
+      category: safe.category,
+      retryable: safe.retryable,
+      ...(safe.statusCode === undefined ? {} : { statusCode: safe.statusCode }),
+      ...(safe.providerCode ? { code: safe.providerCode } : {}),
+      ...(safe.retryAfterMs === undefined ? {} : { retryAfterMs: safe.retryAfterMs }),
+      userAction: safe.userAction,
     });
+  } finally {
+    if (provider) activeProviderTests.delete(provider);
   }
 });
 
@@ -341,16 +351,10 @@ iina.global.onMessage("provider:attempt", async (raw: unknown, playerId?: string
     );
     postToPlayer(playerId, "provider:attempt-result", { requestId: id, result });
   } catch (error) {
-    const safe = error && typeof error === "object" ? (error as Record<string, unknown>) : {};
+    const safe = normalizeProviderError(error);
     postToPlayer(playerId, "provider:attempt-error", {
       requestId: id,
-      error: {
-        category: typeof safe.category === "string" ? safe.category : "configuration",
-        retryable: safe.retryable === true,
-        providerCode:
-          typeof safe.providerCode === "string" ? safe.providerCode : "PROVIDER_ATTEMPT_FAILED",
-        userAction: typeof safe.userAction === "string" ? safe.userAction : "SELECT_PROFILE",
-      },
+      error: safe,
     });
   }
 });
@@ -370,15 +374,31 @@ iina.global.onMessage("profile:release", (raw: unknown, playerId?: string) => {
 
 iina.global.onMessage("vault:reset", async (raw: unknown, playerId?: string) => {
   if (!playerId) return;
+  if (payload(raw).confirmed !== true) {
+    postToPlayer(playerId, "vault:state", { state: "cancelled" });
+    return;
+  }
+  const targets = new Set([playerId]);
   try {
-    if (payload(raw).confirmed !== true) throw new Error("CONFIRMATION_REQUIRED");
-    await vault.reset();
+    await broker.cancelAll();
+    await Promise.allSettled(
+      [...activeProviderTests].map((provider) => provider.cancel?.("provider-test")),
+    );
     providerCache.clear();
-    postToPlayer(playerId, "vault:state", { state: "ready" });
+    for (const affectedPlayerId of profiles.clearAuthorizations()) targets.add(affectedPlayerId);
+    await vault.reset();
+    for (const target of targets)
+      postToPlayer(target, "vault:state", {
+        state: "ready",
+        credentialsCleared: true,
+        selectionInvalidated: true,
+      });
   } catch {
-    postToPlayer(playerId, "vault:state", {
-      state: "locked",
-      code: "VAULT_RESET_FAILED",
-    });
+    for (const target of targets)
+      postToPlayer(target, "vault:state", {
+        state: "locked",
+        code: "VAULT_RESET_FAILED",
+        selectionInvalidated: true,
+      });
   }
 });

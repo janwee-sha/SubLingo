@@ -32,7 +32,7 @@ npm run pack
 ## 首次配置
 
 1. 在 Languages 中设置母语；确认字幕语言。语言未知时 SubLingo 不会发送字幕。
-2. 创建 OpenAI-compatible 或 Ollama profile，填写精确 Model ID。界面会完整展示服务类别与规范化 endpoint。
+2. 创建 OpenAI-compatible 或 Ollama profile，填写精确 Model ID。OpenAI-compatible 可填写 API root（如 `/v1`）或完整 `/chat/completions` URL；两者会规范化为同一 endpoint。界面会完整展示服务类别与规范化 endpoint。
 3. 对远程服务填写 API key。密钥输入是 write-only：保存后只显示“已配置”，不会回显。
 4. 运行连接测试，然后点击 Select。选择该确切 profile revision 即表示授权向显示的 endpoint 发送当前有限范围内的字幕文字；endpoint 变化后必须重新选择。
 5. 打开 Translate。原字幕仍为 primary，译文由插件拥有的 second subtitle track 显示。
@@ -47,15 +47,15 @@ Swift helper 只监听 `127.0.0.1` 临时端口，使用内存 bearer token，�
 
 ## Provider 配置
 
-- **OpenAI-compatible**：API root、model 必填；Bearer key 可选。连接测试按 strict JSON Schema、JSON object、prompt JSON 顺序协商；真实字幕批次不会因格式失败而自动换格式重发，避免重复计费。
+- **OpenAI-compatible**：API root 或完整 `/chat/completions` URL、model 必填；Bearer key 可选。连接测试只在服务明确不支持当前 response format 时按 strict JSON Schema、JSON object、prompt JSON 顺序协商；认证、模型、配额、网络和超时错误会立即停止并给出对应操作。真实字幕批次不会因格式失败而自动换格式重发，避免重复计费。
 - **Ollama**：默认 `http://127.0.0.1:11434`，model 必填。连接测试检查 `/api/version`、`/api/tags` 和 structured-output chat；插件不下载或启动模型。
 
 ## 故障排查
 
-- **Select a readable external SRT or ASS subtitle**：当前没有字幕、轨道不是外部文本轨，或 `@sub/<id>` 不可读。
+- **Select a readable external SRT or ASS subtitle**：当前没有字幕、轨道不是外部文本轨，或 `@sub/<id>` 不可读。插件会监听 `sid` 与 `track-list` 变化并短暂重试 IINA 的异步轨道加载；若仍提示 unreadable，请重新选中外部主字幕。
 - **Confirm the subtitle language**：轨道未提供可靠语言；手动填写 BCP 47 标签（如 `en-US`）。
 - **Translation service unavailable**：检查 endpoint、网络、Ollama 进程或 helper；视频和原字幕不受影响。临时错误最多在初次调用后重试 3 次，并遵守 `Retry-After`。
-- **Credential vault locked/corrupt**：Keychain 或密文认证失败。确认重置 vault 后重新输入密钥；重置会永久删除已保存凭据。
+- **Credential vault locked/corrupt**：Keychain 或密文认证失败。Reset Vault 使用 IINA 原生确认框；确认后会永久删除已保存凭据、取消在途 provider 工作、清除 provider 实例并让所有窗口重新选择 profile，但保留不含秘密的 profile 元数据。
 - **Authentication/model/quota**：按侧边栏提示检查 key、模型名称或余额。永久配置/认证/配额错误不会自动重试。
 - **没有第二字幕**：确认 profile 已测试并 Select、源语言与母语不同、Translate 已启用，且 IINA 没有在加载后手动切换 second subtitle。插件只删除自己拥有的轨道，不覆盖用户后续选择。
 

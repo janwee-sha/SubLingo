@@ -153,16 +153,26 @@ export class CredentialVaultStore {
   }
 
   async reset(): Promise<void> {
+    const operation = this.mutation.then(() => this.resetVault());
+    this.mutation = operation.catch(() => undefined);
+    return operation;
+  }
+
+  private async resetVault(): Promise<void> {
     this.state = "rewriting";
     for (const slot of this.slots) this.options.files.delete(slot);
-    const replacement = await this.options.random(32);
-    if (!this.options.keychain.write(base64Encode(replacement))) {
-      this.state = "locked";
-      throw new VaultStoreError("KEYCHAIN_UNAVAILABLE");
-    }
-    this.key = replacement;
+    this.key = null;
     this.envelope = null;
     this.secrets = {};
-    this.state = "unlocked";
+    try {
+      const replacement = await this.options.random(32);
+      if (!this.options.keychain.write(base64Encode(replacement)))
+        throw new VaultStoreError("KEYCHAIN_UNAVAILABLE");
+      this.key = replacement;
+      this.state = "unlocked";
+    } catch (error) {
+      this.state = "locked";
+      throw error;
+    }
   }
 }

@@ -10,6 +10,7 @@ import {
   type VaultFilePort,
   type VaultKeychainPort,
 } from "../../src/vault/store.js";
+import { confirmVaultReset } from "../../src/vault/reset.js";
 
 const key = Uint8Array.from({ length: 32 }, (_, index) => index);
 const nonce = Uint8Array.from({ length: 12 }, (_, index) => index + 32);
@@ -113,5 +114,76 @@ describe("AES-256-GCM credential vault", () => {
       store.setSecret("00000000-0000-4000-8000-000000000002", { apiKey: "never-written" }),
     ).rejects.toMatchObject({ code: "KEYCHAIN_UNAVAILABLE" });
     expect(files.files.size).toBe(0);
+  });
+
+  it("uses IINA's native confirmation and fails closed when it is unavailable", () => {
+    const prompts: string[] = [];
+    expect(
+      confirmVaultReset({
+        ask: (prompt: string) => {
+          prompts.push(prompt);
+          return true;
+        },
+      }),
+    ).toBe(true);
+    expect(prompts[0]).toMatch(/permanently removed/i);
+    expect(confirmVaultReset({ ask: () => false })).toBe(false);
+    expect(
+      confirmVaultReset({
+        ask: () => {
+          throw new Error("unavailable");
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("serializes reset after an in-progress credential write so secrets cannot reappear", async () => {
+    const files = new MemoryFiles();
+    const keychain = new MemoryKeychain();
+    const profileId = "00000000-0000-4000-8000-000000000002";
+    let blockNonce = false;
+    let releaseNonce!: () => void;
+    const nonceGate = new Promise<void>((resolve) => {
+      releaseNonce = resolve;
+    });
+    const store = new CredentialVaultStore({
+      pluginId: "io.sublingo.iina",
+      files,
+      keychain,
+      random: async (length) => {
+        if (length === 12 && blockNonce) await nonceGate;
+        return new Uint8Array(length);
+      },
+      id: () => "00000000-0000-4000-8000-000000000001",
+    });
+    await store.setSecret(profileId, { apiKey: "first" });
+    blockNonce = true;
+    const pendingWrite = store.setSecret(profileId, { apiKey: "second" });
+    await Promise.resolve();
+    const pendingReset = store.reset();
+    releaseNonce();
+    await Promise.all([pendingWrite, pendingReset]);
+
+    expect(files.files.size).toBe(0);
+    expect(await store.getSecret(profileId)).toBeNull();
+  });
+
+  it("clears in-memory secrets even when reset cannot replace the Keychain key", async () => {
+    const files = new MemoryFiles();
+    const keychain = new MemoryKeychain();
+    const profileId = "00000000-0000-4000-8000-000000000002";
+    const store = new CredentialVaultStore({
+      pluginId: "io.sublingo.iina",
+      files,
+      keychain,
+      random: async (length) => new Uint8Array(length),
+      id: () => "00000000-0000-4000-8000-000000000001",
+    });
+    await store.setSecret(profileId, { apiKey: "first" });
+    keychain.available = false;
+
+    await expect(store.reset()).rejects.toMatchObject({ code: "KEYCHAIN_UNAVAILABLE" });
+    expect(files.files.size).toBe(0);
+    expect(await store.getSecret(profileId)).toBeNull();
   });
 });

@@ -40,7 +40,8 @@ export function normalizeProviderEndpoint(kind: Kind, value: string): string {
     : authority.split(":")[0]!.toLowerCase();
   const loopback = ["127.0.0.1", "::1", "localhost"].includes(hostname);
   if (scheme !== "https" && !(kind === "ollama" && loopback)) throw new Error("INSECURE_ENDPOINT");
-  const path = (match[3] ?? "").replace(/\/+$/, "");
+  let path = (match[3] ?? "").replace(/\/+$/, "");
+  if (kind === "openai") path = path.replace(/\/chat\/completions$/i, "");
   return `${scheme}://${authority.toLowerCase()}${path}`;
 }
 
@@ -128,5 +129,13 @@ export class ProviderProfiles {
 
   release(windowId: string, profileId: string, revision: number): void {
     this.leases.delete(`${windowId}\u0000${profileId}\u0000${revision}`);
+  }
+
+  clearAuthorizations(): string[] {
+    const windowIds = new Set(this.selections.keys());
+    for (const lease of this.leases) windowIds.add(lease.split("\u0000", 1)[0]!);
+    this.selections.clear();
+    this.leases.clear();
+    return [...windowIds].sort();
   }
 }

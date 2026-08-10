@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ProviderProfiles } from "../../src/providers/profiles.js";
+import { normalizeProviderEndpoint, ProviderProfiles } from "../../src/providers/profiles.js";
 
 describe("immutable provider profile revisions", () => {
   it("normalizes endpoints, fingerprints semantic fields and creates immutable revisions", () => {
@@ -86,5 +86,49 @@ describe("immutable provider profile revisions", () => {
     expect(() => profiles.select("window", valid.profileId, 1, "forged")).toThrow(
       /SELECTION_MISMATCH/,
     );
+  });
+
+  it("canonicalizes a full OpenAI chat-completions URL to the same API root", () => {
+    expect(
+      normalizeProviderEndpoint("openai", "https://api.example.test/v1/chat/completions/"),
+    ).toBe("https://api.example.test/v1");
+
+    const profiles = new ProviderProfiles(() => "unused");
+    const root = profiles.save({
+      profileId: "root",
+      expectedRevision: 0,
+      displayName: "Root",
+      kind: "openai",
+      endpoint: "https://api.example.test/v1",
+      model: "model",
+    });
+    const full = profiles.save({
+      profileId: "full",
+      expectedRevision: 0,
+      displayName: "Full",
+      kind: "openai",
+      endpoint: "https://api.example.test/v1/chat/completions",
+      model: "model",
+    });
+    expect(full.endpoint).toBe(root.endpoint);
+    expect(full.endpointFingerprint).toBe(root.endpointFingerprint);
+  });
+
+  it("clears every window selection and lease without deleting profile metadata", () => {
+    const profiles = new ProviderProfiles(() => "00000000-0000-4000-8000-000000000001");
+    const saved = profiles.save({
+      displayName: "Remote",
+      kind: "openai",
+      endpoint: "https://api.example.test/v1",
+      model: "model",
+    });
+    profiles.select("window-A", saved.profileId, saved.revision, saved.endpointFingerprint);
+    profiles.select("window-B", saved.profileId, saved.revision, saved.endpointFingerprint);
+    profiles.lease("window-A", saved.profileId, saved.revision);
+
+    expect(profiles.clearAuthorizations()).toEqual(["window-A", "window-B"]);
+    expect(profiles.selection("window-A")).toBeNull();
+    expect(profiles.selection("window-B")).toBeNull();
+    expect(profiles.get(saved.profileId, saved.revision)).toEqual(saved);
   });
 });

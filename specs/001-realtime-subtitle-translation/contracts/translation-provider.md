@@ -59,10 +59,10 @@ Azure is positional rather than ID-based. It accepts results only when the respo
 
 ## OpenAI-compatible Chat Completions
 
-- `POST {apiRoot}/chat/completions`
+- Accept either `{apiRoot}` or a full `{apiRoot}/chat/completions` configuration, canonicalize both to the same API root/fingerprint, and send exactly `POST {apiRoot}/chat/completions`.
 - Optional standard `Authorization: Bearer <key>` only.
 - `stream:false`; subtitle items are JSON-encoded untrusted data, never interpolated as instructions.
-- Capability selected by explicit connection probe: strict `json_schema` -> `json_object` -> prompt-only JSON.
+- Capability selected by explicit connection probe: strict `json_schema` -> `json_object` -> prompt-only JSON. Fallback is permitted only for recognized response-format incompatibility; authentication, model, quota/rate-limit, timeout, network and other endpoint errors stop immediately.
 - A real subtitle batch MUST NOT be resent under a fallback response format.
 - Output: `{ "translations": [{ "id": "c1", "text": "..." }] }`.
 - Suggested logical deadline: 30 seconds unless the saved profile explicitly changes it within a safe range.

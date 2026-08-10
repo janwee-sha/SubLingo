@@ -21,6 +21,14 @@ const labels: Record<SessionStatus, string> = {
   serviceUnavailable: "Translation service unavailable; playback continues",
 };
 
+const sourceIssueLabels: Record<string, string> = {
+  "not-external": "Select an external SRT or ASS subtitle track.",
+  unreadable: "IINA has not exposed readable subtitle data yet; reselect the external subtitle.",
+  "unsupported-format": "The selected external subtitle is not readable SRT or ASS text.",
+  "unsupported-encoding": "The selected subtitle encoding is not supported.",
+  empty: "The selected subtitle contains no readable cues.",
+};
+
 const statusMessage = document.querySelector<HTMLParagraphElement>("#status")!;
 const statusDot = document.querySelector<HTMLSpanElement>("#status-dot")!;
 const enabled = document.querySelector<HTMLInputElement>("#enabled")!;
@@ -53,7 +61,7 @@ function updateProviderFields(): void {
   document.querySelector<HTMLElement>("#credential-row")!.hidden = kind === "ollama";
   document.querySelector<HTMLElement>("#endpoint-hint")!.textContent =
     kind === "openai"
-      ? "OpenAI-compatible API root, usually ending in /v1."
+      ? "OpenAI-compatible API root or full /chat/completions URL."
       : "Ollama server root; local HTTP loopback is allowed.";
   document.querySelector<HTMLElement>("#model-hint")!.textContent =
     kind === "openai"
@@ -111,13 +119,7 @@ profilesElement.addEventListener("click", (event) => {
 });
 
 document.querySelector("#reset-vault")?.addEventListener("click", () => {
-  if (
-    window.confirm(
-      "Reset the encrypted credential vault? Saved API keys will be permanently removed.",
-    )
-  ) {
-    window.iina?.postMessage("vault:reset", envelope({ confirmed: true }));
-  }
+  window.iina?.postMessage("vault:reset-request", envelope({}));
 });
 
 window.iina?.onMessage("profile:revision-created", (raw: unknown) => {
@@ -138,18 +140,22 @@ window.iina?.onMessage("profile:revision-created", (raw: unknown) => {
 });
 
 window.iina?.onMessage("provider:test-result", (raw: unknown) => {
-  const result = raw as { ok?: boolean; code?: string };
-  statusMessage.textContent = result.ok
-    ? "Connection test passed. Select this profile to authorize translation."
-    : "Connection test failed. Check the endpoint, credentials, model, and service status.";
+  statusMessage.textContent = window.sublingoProviderTestStatusMessage(
+    raw as { ok?: boolean; category?: string; userAction?: string },
+  );
 });
 
 window.iina?.onMessage("vault:state", (raw: unknown) => {
-  const state = (raw as { state?: string }).state ?? "unavailable";
+  const result = raw as { state?: string; credentialsCleared?: boolean };
+  const state = result.state ?? "unavailable";
   document.querySelector<HTMLElement>("#vault-state")!.textContent =
-    state === "ready"
-      ? "Encrypted credential vault ready."
-      : "Credential vault is locked or corrupt. Reset it, then re-enter credentials.";
+    state === "cancelled"
+      ? "Reset cancelled. Saved credentials were not changed."
+      : state === "ready"
+        ? result.credentialsCleared
+          ? "Saved credentials cleared. Provider profiles were kept."
+          : "Encrypted credential vault ready."
+        : "Credential vault is locked or corrupt. Reset it, then re-enter credentials.";
   if (state === "ready") window.iina?.postMessage("ui:ready", envelope({}));
 });
 
@@ -180,12 +186,19 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
       credentialConfigured: boolean;
     }>;
     selection?: { profileId: string; revision: number };
+    sourceIssue?: string | null;
   };
   if (view.status && labels[view.status]) {
     statusMessage.textContent = labels[view.status];
     statusDot.dataset.state = view.status;
     enabled.checked = view.status !== "disabled";
   }
+  if (
+    view.status === "waitingForSubtitle" &&
+    view.sourceIssue &&
+    sourceIssueLabels[view.sourceIssue]
+  )
+    statusMessage.textContent = sourceIssueLabels[view.sourceIssue]!;
   if (view.source) {
     sourceSummary.hidden = false;
     document.querySelector<HTMLElement>("#source-format")!.textContent =

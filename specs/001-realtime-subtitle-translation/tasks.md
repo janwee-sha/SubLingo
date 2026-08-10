@@ -256,3 +256,11 @@ Ordered integration: T060 -> T061; T061/T062/T064/T065/T066 -> T067 -> T068 -> T
 - The native helper performs one attempt; main entry owns retry policy and per-player cancellation.
 - Translation caches are memory-only and must never be written to preferences or `@data`.
 - Existing uncommitted spec/design changes are inputs to these tasks and must be preserved.
+
+## Phase 7: Convergence
+
+- [X] T080 Accept and canonicalize both OpenAI-compatible API roots and full `/chat/completions` URLs, and preserve capability-specific fallback without duplicating real translation attempts per FR-015 / US3-AC2 (partial)
+- [X] T081 Propagate sanitized authentication, endpoint, model, quota/rate-limit, timeout, network, protocol, and helper errors through native transport, Global/Main RPC, and actionable sidebar status per FR-016 / US3-AC4 (partial)
+- [X] T082 Replace WebView confirmation with IINA-native confirmed vault reset, then clear encrypted credentials, cached providers, in-flight work, and window selections while retaining sanitized profile metadata per FR-017 / T070 (partial)
+- [ ] T083 Add regression coverage and rerun authorized OpenAI-compatible plus Ollama IINA acceptance, correcting validation evidence so only completed end-to-end scenarios are marked passed per SC-006 / T078 (partial)
+- [X] T084 Resynchronize external subtitle discovery on IINA `sid` and `track-list` changes, retry delayed `@sub` exposure, and retain specific safe source failure states without resetting an unchanged source

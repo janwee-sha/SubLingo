@@ -116,6 +116,18 @@ export class PlaybackController {
     this.status = this.nextIdleStatus();
   }
 
+  clearProviderSelection(): void {
+    delete this.options.profileId;
+    delete this.options.profileRevision;
+    delete this.options.endpointFingerprint;
+    delete this.options.providerSemanticFingerprint;
+    this.session.onTrackChanged();
+    this.translations.clear();
+    this.cache.clear();
+    this.options.track.cleanup();
+    this.status = this.session.enabled ? "waitingForConfiguration" : "disabled";
+  }
+
   private nextIdleStatus(): SessionStatus {
     if (!this.session.enabled) return "disabled";
     return this.source ? "preparing" : "waitingForSubtitle";

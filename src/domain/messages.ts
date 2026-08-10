@@ -13,7 +13,7 @@ export const SIDEBAR_MESSAGE_NAMES = [
   "profile:select",
   "provider:test",
   "translation:set-enabled",
-  "vault:reset",
+  "vault:reset-request",
 ] as const;
 
 export const GLOBAL_MESSAGE_NAMES = [

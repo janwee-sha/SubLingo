@@ -7,13 +7,21 @@ export function providerHttpError(
   providerCode?: string,
 ): ProviderAttemptError {
   const code = providerCode?.toLowerCase();
-  if (statusCode === 401 || statusCode === 403)
+  if (statusCode === 401 || statusCode === 403 || (code && /(auth|api.?key|credential)/.test(code)))
     return {
       category: "authentication",
       retryable: false,
       statusCode,
       ...(providerCode ? { providerCode } : {}),
       userAction: "CHECK_CREDENTIALS",
+    };
+  if (code && /(model|deployment)/.test(code))
+    return {
+      category: "model",
+      retryable: false,
+      statusCode,
+      providerCode: providerCode!,
+      userAction: "CHECK_MODEL",
     };
   if (code && /(quota|billing|spend)/.test(code))
     return {

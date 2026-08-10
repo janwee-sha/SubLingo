@@ -64,6 +64,7 @@ Restart IINA, grant the declared plugin permissions, and open the SubLingo sideb
 2. Verify Azure positional count/shape mismatch caches zero items; verify OpenAI/Ollama unknown/duplicate/empty IDs are rejected while unambiguous valid IDs may be retained.
 3. Change endpoint or semantic profile settings. The current window becomes unselected and sends nothing until the new kind/address is shown and explicitly selected.
 4. Exercise missing configuration, bad credentials, missing model, unreachable endpoint, quota and malformed output; each shows an actionable non-blocking state without logging sensitive content.
+5. Save one OpenAI-compatible profile with an API root and one with the equivalent full `/chat/completions` URL; both must display the same canonical root and each real subtitle batch must produce only one billed translation attempt.
 
 ### Retry and transport
 
@@ -82,6 +83,7 @@ Use a controlled endpoint that returns temporary failures:
 3. Corrupt ciphertext, tag, nonce and AAD independently; each fails closed and requests credential reset/re-entry.
 4. Simulate an interrupted A/B write; the highest valid authenticated revision recovers.
 5. Make Keychain unavailable; no provider request is sent and there is no plaintext fallback.
+6. Click Reset Vault and cancel the IINA-native confirmation; credentials and selections remain unchanged. Confirm once in a multi-window run; credentials are removed, provider jobs/caches are cancelled, every window becomes unselected, and sanitized profile metadata remains available.
 
 ### Multi-window isolation
 

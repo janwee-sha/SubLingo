@@ -4,8 +4,15 @@ import {
   parseReadyFrame,
   TransportProcess,
 } from "../../src/adapters/iina/transport-process.js";
-import { HelperProviderTransport } from "../../src/adapters/iina/provider-transport.js";
-import { TransportClient, type LocalHttpBridge } from "../../src/transport/client.js";
+import {
+  HelperProviderTransport,
+  IinaLocalHttpBridge,
+} from "../../src/adapters/iina/provider-transport.js";
+import {
+  TransportClient,
+  TransportRpcError,
+  type LocalHttpBridge,
+} from "../../src/transport/client.js";
 
 class FakeBridge implements LocalHttpBridge {
   readonly calls: Array<{ url: string; token: string; body: unknown }> = [];
@@ -113,5 +120,55 @@ describe("transport helper client", () => {
     const client = new TransportClient({ port: 49152, token: "secret-token" }, bridge);
     await expect(client.cancel("job-1")).rejects.toMatchObject({ code: "HELPER_UNAVAILABLE" });
     await expect(client.cancel("job-1")).rejects.not.toThrow(/private body|secret-token/);
+  });
+
+  it("preserves safe upstream timeout and network classifications from the helper", async () => {
+    for (const [rpcCode, expected] of [
+      [
+        "upstream-timeout",
+        { code: "PROVIDER_TIMEOUT", category: "timeout", userAction: "CHECK_NETWORK" },
+      ],
+      [
+        "upstream-network",
+        { code: "PROVIDER_NETWORK", category: "network", userAction: "CHECK_NETWORK" },
+      ],
+      [
+        "forbidden-destination",
+        { code: "FORBIDDEN_DESTINATION", category: "configuration", userAction: "CHECK_ENDPOINT" },
+      ],
+    ] as const) {
+      const bridge: LocalHttpBridge = {
+        post: async () => {
+          throw new TransportRpcError(rpcCode);
+        },
+      };
+      const client = new TransportClient({ port: 49152, token: "session-token" }, bridge);
+      await expect(
+        client.request({
+          jobId: "job-1",
+          method: "POST",
+          url: "https://example.test",
+          headers: {},
+          timeoutMs: 1_000,
+          maxResponseBytes: 1_024,
+        }),
+      ).rejects.toMatchObject(expected);
+    }
+  });
+
+  it("extracts only the helper's allowlisted RPC error code", async () => {
+    const bridge = new IinaLocalHttpBridge({
+      post: async () => ({
+        statusCode: 504,
+        data: { error: "upstream-timeout", detail: "private provider response" },
+        text: '{"error":"upstream-timeout","detail":"private provider response"}',
+      }),
+    } as unknown as IINA.API.HTTP);
+    await expect(
+      bridge.post("http://127.0.0.1:49152/v1/request", "token", {}),
+    ).rejects.toMatchObject({ code: "upstream-timeout" });
+    await expect(bridge.post("http://127.0.0.1:49152/v1/request", "token", {})).rejects.not.toThrow(
+      /private provider response|token/,
+    );
   });
 });

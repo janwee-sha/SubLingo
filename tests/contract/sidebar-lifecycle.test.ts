@@ -26,9 +26,19 @@ describe("IINA sidebar lifecycle contract", () => {
 
   it("debounces IINA's transient primary-subtitle changes during generated-track publication", () => {
     expect(mainSource).toContain('runtime.event.on("mpv.sid.changed"');
-    expect(mainSource).toContain("generatedTrack.hasOwnedTrack");
+    expect(mainSource).toContain('runtime.event.on("mpv.track-list.changed"');
+    expect(mainSource).toContain("generatedTrack.isPublishing");
     expect(mainSource).toContain("generatedTrack.ownsTrack(settledId)");
-    expect(mainSource).toContain("}, 250)");
+    expect(mainSource).toContain("setTimeout(attemptSourceReload, 250)");
+  });
+
+  it("reloads user subtitle changes even while an older generated track exists", () => {
+    const eventStart = mainSource.indexOf('runtime.event.on("mpv.sid.changed"');
+    const eventEnd = mainSource.indexOf('runtime.event.on("mpv.seek"', eventStart);
+    const eventSource = mainSource.slice(eventStart, eventEnd);
+    expect(eventSource).toContain("scheduleSourceReload");
+    expect(eventSource).not.toContain("generatedTrack.hasOwnedTrack");
+    expect(mainSource).toContain("sourceReloadAttempt >= 4");
   });
 
   it("waits for IINA's player window before loading the sidebar webview", () => {
@@ -49,5 +59,12 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(mainSource.indexOf('runtime.sidebar.loadFile("dist/ui/sidebar.html")')).toBeLessThan(
       mainSource.indexOf('runtime.sidebar.onMessage("ui:ready"'),
     );
+  });
+
+  it("requests reset from Main and uses IINA's native confirmation UI", () => {
+    expect(sidebarSource).toContain('postMessage("vault:reset-request"');
+    expect(sidebarSource).not.toContain("window.confirm");
+    expect(mainSource).toContain('runtime.sidebar.onMessage("vault:reset-request"');
+    expect(mainSource).toContain("confirmVaultReset(runtime.utils)");
   });
 });

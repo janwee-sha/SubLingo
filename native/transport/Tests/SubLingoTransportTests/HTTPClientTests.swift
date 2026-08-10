@@ -39,4 +39,19 @@ func runHTTPClientTests() async throws {
             maxResponseBytes: 1_024
         ).validated()
     }
+
+    try check(
+        HTTPClient.classify(URLError(.timedOut)) == .timedOut,
+        "upstream timeouts must retain a safe timeout classification"
+    )
+    try check(
+        HTTPClient.classify(URLError(.cannotConnectToHost)) == .upstreamNetwork,
+        "upstream connection failures must retain a safe network classification"
+    )
+    let timeoutResponse = ProtocolHandler.errorResponse(for: TransportProtocolError.timedOut)
+    try check(timeoutResponse.statusCode == 504, "timeout RPC responses must use 504")
+    try check(
+        String(decoding: timeoutResponse.body, as: UTF8.self).contains("upstream-timeout"),
+        "timeout RPC responses must expose only the stable safe code"
+    )
 }

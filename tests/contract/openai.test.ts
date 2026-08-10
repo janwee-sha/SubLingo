@@ -76,6 +76,85 @@ describe("OpenAI-compatible provider", () => {
     expect(result.translations).toEqual([{ id: "c1", text: "一" }]);
   });
 
+  it("accepts a full chat-completions endpoint without duplicating the path", async () => {
+    let requestedUrl = "";
+    const provider = new OpenAICompatibleProvider(
+      {
+        endpoint: "https://example.test/v1/chat/completions",
+        model: "model",
+        capability: "prompt-json",
+      },
+      {
+        request: async (request) => {
+          requestedUrl = request.url;
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: JSON.stringify({
+              choices: [
+                {
+                  finish_reason: "stop",
+                  message: { content: '{"translations":[{"id":"c1","text":"一"}]}' },
+                },
+              ],
+            }),
+          };
+        },
+      },
+    );
+    await provider.attempt(makeProviderRequest());
+    expect(requestedUrl).toBe("https://example.test/v1/chat/completions");
+  });
+
+  it("does not hide authentication, model or quota failures behind capability fallback", async () => {
+    for (const scenario of [
+      {
+        statusCode: 401,
+        bodyText: JSON.stringify({ error: { code: "invalid_api_key", message: "private" } }),
+        expected: {
+          category: "authentication",
+          providerCode: "invalid_api_key",
+          userAction: "CHECK_CREDENTIALS",
+        },
+      },
+      {
+        statusCode: 400,
+        bodyText: JSON.stringify({ error: { code: "model_not_found", message: "private" } }),
+        expected: {
+          category: "model",
+          providerCode: "model_not_found",
+          userAction: "CHECK_MODEL",
+        },
+      },
+      {
+        statusCode: 429,
+        bodyText: JSON.stringify({ error: { code: "insufficient_quota", message: "private" } }),
+        expected: {
+          category: "quota",
+          providerCode: "insufficient_quota",
+          userAction: "CHECK_QUOTA",
+        },
+      },
+    ] as const) {
+      let calls = 0;
+      const provider = new OpenAICompatibleProvider(
+        { endpoint: "https://example.test/v1", model: "model", apiKey: "secret" },
+        {
+          request: async () => {
+            calls += 1;
+            return { statusCode: scenario.statusCode, headers: {}, bodyText: scenario.bodyText };
+          },
+        },
+      );
+      await expect(provider.probe()).rejects.toMatchObject({
+        ...scenario.expected,
+        retryable: false,
+      });
+      expect(calls).toBe(1);
+      await expect(provider.probe()).rejects.not.toThrow(/private|secret/);
+    }
+  });
+
   it("classifies refusal, length/filter, quota and malformed output as permanent", async () => {
     for (const response of [
       { choices: [{ finish_reason: "content_filter", message: { content: "" } }] },

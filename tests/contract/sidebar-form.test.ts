@@ -9,8 +9,10 @@ describe("IINA sidebar bundle contract", () => {
 
   it("uses relative classic-script assets that IINA can load", () => {
     expect(packageJson.targets?.sidebar?.publicUrl).toBe("./");
+    expect(html).toContain('<script src="./provider-status.ts"></script>');
     expect(html).toContain('<script src="./sidebar.ts"></script>');
     expect(html).not.toContain('type="module"');
+    expect(html.indexOf("./provider-status.ts")).toBeLessThan(html.indexOf("./sidebar.ts"));
   });
 
   it("offers only active providers and always exposes a required model ID", () => {
