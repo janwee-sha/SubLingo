@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateAzureOutput, validateIdOutput } from "../../src/providers/validation.js";
+import { validateIdOutput } from "../../src/providers/validation.js";
 import { providerOutputSchema } from "../../src/providers/wire-items.js";
 
 describe("strict provider output", () => {
@@ -26,15 +26,6 @@ describe("strict provider output", () => {
         usage: { input: 3, output: 4, secret: "drop" },
       }).usage,
     ).toEqual({ input: 3, output: 4 });
-  });
-
-  it("accepts Azure only with exact positional count and shape", () => {
-    expect(validateAzureOutput(["c1"], { value: [{ translations: [{ text: "one" }] }] })).toEqual([
-      { id: "c1", text: "one" },
-    ]);
-    expect(() =>
-      validateAzureOutput(["c1", "c2"], { value: [{ translations: [{ text: "one" }] }] }),
-    ).toThrow(/AZURE_POSITIONAL_MISMATCH/);
   });
 
   it("requires exactly one structured translation per requested wire ID", () => {

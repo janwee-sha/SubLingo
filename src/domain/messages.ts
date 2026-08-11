@@ -51,7 +51,7 @@ export function sanitizedProfileView(profile: {
   profileId: string;
   revision: number;
   displayName: string;
-  kind: "azure" | "openai" | "ollama";
+  kind: "openai" | "ollama";
   endpoint: string;
   endpointFingerprint: string;
   proxyMode?: "system" | "direct";
@@ -61,7 +61,7 @@ export function sanitizedProfileView(profile: {
   profileId: string;
   revision: number;
   displayName: string;
-  kind: "azure" | "openai" | "ollama";
+  kind: "openai" | "ollama";
   endpoint: string;
   endpointFingerprint: string;
   proxyMode: "system" | "direct";

@@ -1,89 +1,50 @@
 # Translation Provider Contract
 
-## Internal one-attempt interface
+## One-attempt boundary
 
-```ts
-interface TranslationBatchRequest {
-  playerId: string;
-  requestId: string;
-  batchId: string;
-  sessionId: string;
-  sessionEpoch: number;
-  windowEpoch: number;
-  profileId: string;
-  profileRevision: number;
-  endpointFingerprint: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  items: Array<{ id: string; text: string; context?: string }>;
-}
+Global performs exactly one provider attempt for each request. Main owns retry timing, cache mutation and stale-result rejection.
 
-interface TranslationBatchResult {
-  translations: Array<{ id: string; text: string }>;
-  providerRequestId?: string;
-  usage?: { input?: number; output?: number; characters?: number };
-}
+Every request carries:
 
-interface ProviderAttemptError {
-  category:
-    | "network" | "timeout" | "http" | "authentication"
-    | "configuration" | "model" | "quota" | "refusal"
-    | "protocol" | "cancelled";
-  retryable: boolean;
-  statusCode?: number;
-  providerCode?: string;
-  retryAfterMs?: number;
-  providerRequestId?: string;
-  userAction: string;
-}
-```
+- player, request, batch and session identities;
+- session/window epochs;
+- Profile ID, revision and endpoint fingerprint;
+- source/target languages;
+- ordered `{ id, text, context? }` items.
 
-Global entry MUST perform exactly one attempt per request. It MUST NOT schedule retries, cache results, mutate a player session, or apply a shared circuit breaker. Main entry alone applies the initial-attempt-plus-three-retries rule and rejects any result whose complete session/profile/batch identity is stale.
+Every result contains translations keyed by requested ID and may include sanitized request ID or usage metadata. Errors expose a stable category, retryable flag, optional status/`retryAfterMs`, and user action; they never expose credentials, headers or raw bodies.
 
-Provider requests MUST contain no video bytes or unrelated user data. Adapters and helper MUST never log credentials, authorization headers, subtitle/translation bodies, or raw model output. Diagnostic errors expose stable codes and redacted request IDs only.
+## Common output rules
 
-## Common output validation
+- Use short wire IDs (`c1`, `c2`, ...) and restore original cue IDs only after validation.
+- Accept only requested, unique IDs with non-empty text.
+- Unknown, duplicate, empty or invalid results remain uncached.
+- A valid subset may succeed; only unresolved IDs may be retried.
+- Structured schemas set exact `minItems` and `maxItems` for each wire request.
+- Provider requests contain no video bytes or unrelated user data.
 
-All ID-based providers use [provider-output.schema.json](./provider-output.schema.json). Application validation accepts only unique requested IDs with trim-non-empty text; unknown, duplicate, empty or invalid results remain uncached. Partial valid ID results MAY succeed independently, and only missing IDs MAY be retried.
-
-For structured-output requests, the dynamically generated schema sets `minItems` and `maxItems` to the number of wire IDs in that split request, and the prompt requires every ID exactly once. Local validation still treats provider non-compliance as a partial result so one unambiguous translation is never discarded because a sibling item is missing or invalid.
-
-Azure is positional rather than ID-based. It accepts results only when the response count exactly equals request count and every position contains one valid target-language result. Any positional shape/count ambiguity makes the entire attempt a protocol failure and caches zero entries.
-
-## Azure Translator 2026-06-06
-
-- Standard `general` NMT only; no automatic LLM routing.
-- `POST {endpoint}/translate?api-version=2026-06-06`
-- Headers: `Content-Type: application/json`, `Ocp-Apim-Subscription-Key`, conditional `Ocp-Apim-Subscription-Region`, `X-ClientTraceId`.
-- Body uses current `inputs[]` with one target language.
-- Map `value[i].translations[0].text` to `request.items[i]` only after full positional validation.
-- Suggested logical deadline: 15 seconds.
+See [provider-output.schema.json](./provider-output.schema.json).
 
 ## OpenAI-compatible Chat Completions
 
-- Treat the saved endpoint literally as `{apiRoot}`, preserve it for disclosure/fingerprinting, trim only trailing `/` while composing a request, and send exactly `POST {apiRoot}/chat/completions`.
-- A value already ending in `/chat/completions` is still treated as an API root and therefore requests `/chat/completions/chat/completions`; the UI MUST preview that address instead of silently rewriting the saved value.
-- Optional standard `Authorization: Bearer <key>` only.
-- `stream:false`; subtitle items are JSON-encoded untrusted data, never interpolated as instructions.
-- Capability selected by explicit connection probe: strict `json_schema` -> `json_object` -> prompt-only JSON. Fallback is permitted only for recognized response-format incompatibility; authentication, model, quota/rate-limit, timeout, network and other endpoint errors stop immediately.
-- A real subtitle batch MUST NOT be resent under a fallback response format.
-- Split a logical batch into ordered chat requests of at most two items. Each source item is sent exactly once; results are restored to the original cue IDs and usage is aggregated.
-- Output: `{ "translations": [{ "id": "c1", "text": "..." }] }`.
-- Suggested logical deadline: 30 seconds unless the saved profile explicitly changes it within a safe range.
+- Persist and display the API root literally; compose `POST {apiRoot}/chat/completions` after trimming trailing `/` only.
+- Preview the composed address in the UI; do not silently rewrite a root that already contains the suffix.
+- Use optional bearer credential, `stream: false`, and JSON-encoded subtitle data.
+- Connection Test may negotiate strict schema, JSON object, then prompt JSON only for recognized format incompatibility.
+- Real subtitle work never retries under another response format.
+- Split a logical batch into ordered requests of at most two items and aggregate validated results/usage.
 
 ## Ollama native API
 
-- Local default `http://127.0.0.1:11434`; non-loopback HTTP is rejected.
-- Probe `GET /api/version`, `GET /api/tags`, then a one-item schema generation.
-- `POST /api/chat` with `stream:false`, common JSON Schema `format`, temperature 0, and `think:false` when supported.
-- Split a logical batch into ordered chat requests of at most two items. Each source item is sent exactly once; results are restored to the original cue IDs and usage is aggregated.
-- Parse and validate JSON in `message.content` using the common ID contract.
-- Suggested logical deadline: 60 seconds to permit local cold model loading.
+- Default to `http://127.0.0.1:11434`; non-loopback HTTP is rejected.
+- Test `/api/version`, `/api/tags`, then one structured chat item.
+- Use `/api/chat` with `stream: false`, JSON Schema format, deterministic temperature and disabled thinking when supported.
+- Split a logical batch into ordered requests of at most two items and aggregate validated results/usage.
 
-## Error and retry classification
+## Retry classification
 
-Retryable: network failure, transport deadline, HTTP 408, temporary 429, 500, 502, 503, or provider-typed transient error.
+Retryable conditions are network failure, transport deadline, HTTP 408, temporary 429, HTTP 500/502/503, or an explicitly transient provider error.
 
-Not retryable: invalid endpoint/configuration, authentication/authorization, missing model, unsupported language, billing/spend/usage quota, refusal/content policy, malformed successful response, or ordinary permanent 4xx.
+Configuration, authentication, missing model, quota, refusal, malformed success and ordinary permanent 4xx errors are not retryable.
 
-The transport parses `Retry-After` as delta seconds or HTTP-date. When valid, it returns `retryAfterMs`; main waits `max(1s/2s/4s + jitter, retryAfterMs)`. Invalid/negative values are ignored. Timer fire and every completion revalidate session/window/profile/batch identity.
+Main performs at most three retries after the initial attempt using increasing delays. A valid `Retry-After` raises the delay. Every timer and completion revalidates the full session/window/Profile/batch identity.

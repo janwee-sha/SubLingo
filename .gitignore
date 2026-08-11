@@ -17,7 +17,6 @@ native/.build/
 # Plugin runtime state and validation artifacts
 @data/
 @tmp/
-*.vault.json
 credentials.json
 *.credentials.json
 docs/validation/artifacts/

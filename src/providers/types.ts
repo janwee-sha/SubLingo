@@ -7,7 +7,7 @@ import type {
   SessionId,
 } from "../domain/types.js";
 
-export type ProviderKind = "azure" | "openai" | "ollama" | "fake";
+export type ProviderKind = "openai" | "ollama" | "fake";
 
 export interface TranslationItem {
   id: string;
@@ -67,7 +67,6 @@ export interface ProviderProfileSnapshot {
   endpointFingerprint: EndpointFingerprint;
   proxyMode?: "system" | "direct";
   model?: string;
-  region?: string;
   capability?: "strict-json-schema" | "json-object" | "prompt-json";
   credential?: Readonly<Record<string, string>>;
 }

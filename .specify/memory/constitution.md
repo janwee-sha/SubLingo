@@ -1,148 +1,134 @@
 <!--
-Sync Impact Report
-- Version change: unratified template -> 1.0.0
-- Added principles:
-  - I. Lightweight Dual-Track Delivery
-  - II. SDD Artifacts Describe Current Intent
-  - III. Minimal, Single-Purpose Context
-  - IV. Explicit Parallel-Work Boundaries
-  - V. Verification and Product Safety
-- Added sections:
-  - Delivery Track Selection
-  - Development Workflow
-- Removed sections: placeholder-only template sections
-- Deferred TODOs: none
+同步影响报告
+- 版本变更：1.0.0 -> 1.1.0
+- 修改的原则：
+  - I. 轻量双轨交付（仅中文化）
+  - II. SDD 产物描述当前意图（仅中文化）
+  - III. 精简且职责单一的上下文 -> 精简、职责单一且中文优先的上下文
+  - IV. 明确并行工作边界（仅中文化）
+  - V. 验证与产品安全（仅中文化）
+- 新增章节：无
+- 移除章节：无
+- 实质性变更：治理文档、SDD 产物和 docs/ 文档 MUST 默认使用中文；仅必要的引用、
+  标识符、约束谓词、代码、命令、路径、协议字段和专有名称保留原文。
+- 延后事项：无
 -->
-# SubLingo Constitution
+# SubLingo 项目宪法
 
-## Core Principles
+## 核心原则
 
-### I. Lightweight Dual-Track Delivery
+### I. 轻量双轨交付
 
-Every change MUST use the lightest process that safely preserves product intent.
+每项变更 MUST 使用足以安全维护产品意图的最轻流程。
 
-- A new user-facing capability, cross-runtime change, security or privacy boundary,
-  persistent-data change, or broad architectural change MUST use the full SDD track:
-  specification, plan, actionable tasks, consistency review, implementation, and validation.
-- A localized bug fix, documentation correction, dependency maintenance, test-only change,
-  or behavior-preserving refactor SHOULD use the lightweight track: a concise problem statement,
-  direct implementation, and proportionate verification.
-- A lightweight change that grows beyond its original boundary MUST be promoted to the full SDD
-  track before additional scope is implemented.
+- 新增面向用户的能力、跨运行时变更、安全或隐私边界变更、持久化数据变更或大范围
+  架构变更 MUST 使用完整 SDD 轨道：规格、计划、可执行任务、一致性审查、实现和验证。
+- 局部缺陷修复、文档纠正、依赖维护、仅测试变更或行为不变的重构 SHOULD 使用轻量轨道：
+  简短的问题说明、直接实现和与风险相称的验证。
+- 轻量变更一旦超出原定边界，MUST 在继续扩大实现范围前升级为完整 SDD 轨道。
 
-The purpose of process is to reduce uncertainty and risk, not to make every edit produce the same
-set of documents.
+流程的目的在于降低不确定性和风险，而不是强迫每次编辑生成同一套文档。
 
-### II. SDD Artifacts Describe Current Intent
+### II. SDD 产物描述当前意图
 
-SDD artifacts MUST describe the feature as it is currently intended, designed, and still awaiting
-work. They MUST NOT serve as development diaries, changelogs, or append-only remediation logs.
+SDD 产物 MUST 只描述功能当前的预期、设计和仍待完成的工作，MUST NOT 充当开发日记、
+变更日志或只增不减的补救记录。
 
-- Superseded requirements, abandoned designs, obsolete tasks, and historical implementation paths
-  MUST be removed instead of retained with annotations such as "legacy", "original", or
-  "superseded".
-- During active implementation, `tasks.md` MAY track completion with checkboxes. After convergence,
-  completed implementation history MUST be removed or condensed; only genuine unfinished work,
-  including outstanding validation, remains actionable.
-- A substantial remediation discovered after a feature has converged MUST become a new bounded
-  feature or lightweight change rather than another permanent phase appended to the old task list.
-- Git history, issues, pull requests, release notes, and validation evidence are the authoritative
-  historical record. SDD documents are not.
+- 被替代的需求、放弃的设计、过时任务和历史实现路径 MUST 直接移除，MUST NOT 通过
+  “旧版”“最初”或“已替代”等注释继续保留。
+- 实现期间，`tasks.md` MAY 使用复选框跟踪完成情况。功能收敛后，已完成的实现记录
+  MUST 被移除或压缩；只有真正未完成的工作（包括待验证项）继续作为可执行任务保留。
+- 功能收敛后发现的大型补救工作 MUST 成为新的有界功能或轻量变更，MUST NOT 作为永久
+  阶段继续追加到旧任务列表。
+- Git 历史、议题、拉取请求、发布说明和验证证据是权威历史记录；SDD 文档不是。
 
-### III. Minimal, Single-Purpose Context
+### III. 精简、职责单一且中文优先的上下文
 
-Each artifact MUST contain only the information required for its role and MUST reference, rather
-than duplicate, details owned by another artifact.
+每份产物 MUST 只包含履行自身职责所需的信息；由其他产物负责的细节 MUST 通过引用关联，
+MUST NOT 重复抄写。
 
-- `spec.md` owns user outcomes, scope, requirements, and success criteria.
-- `plan.md` owns the current architecture, technical constraints, and complexity justification.
-- `research.md` owns only decisions that remain relevant to the current design.
-- `data-model.md` and `contracts/` own current entities and interface boundaries.
-- `quickstart.md` owns runnable validation scenarios.
-- `tasks.md` owns current executable work and its dependencies.
+- `spec.md` 负责用户结果、范围、需求和成功标准。
+- `plan.md` 负责当前架构、技术约束和复杂度说明。
+- `research.md` 只负责当前设计仍然有效的决策。
+- `data-model.md` 和 `contracts/` 负责当前实体及接口边界。
+- `quickstart.md` 负责可执行的验证场景。
+- `tasks.md` 负责当前可执行工作及其依赖关系。
 
-Documents MUST be concise enough that an agent can load the relevant feature context without
-crowding out source code, tests, or diagnostic output. If a feature cannot remain concise, it MUST
-be divided into independently testable slices. Agents SHOULD receive only the artifact sections
-and code needed for their assigned slice.
+项目宪法、SDD 产物和 `docs/` 下的项目文档 MUST 默认使用中文。仅当翻译会降低准确性、
+可执行性或可追溯性时，引用原文、ID、MUST/NOT 等约束谓词、代码、命令、文件路径、
+协议字段、产品名和其他必要的专有名称 MAY 保留英文。普通标题、说明、状态、步骤和表格列名
+MUST 使用中文，MUST NOT 因模板原文为英文而保留英文套话。
 
-### IV. Explicit Parallel-Work Boundaries
+文档 MUST 足够简洁，使 Agent 能载入相关功能上下文而不挤占源码、测试或诊断输出的空间。
+无法保持简洁的功能 MUST 拆分为可独立测试的切片。分配给 Agent 的上下文 SHOULD 只包含
+其负责切片所需的产物章节和代码。
 
-Parallel execution MUST be based on actual dependency and file ownership, not merely on the
-presence of a `[P]` marker.
+### IV. 明确并行工作边界
 
-- A task MAY be marked `[P]` only when it has no dependency on unfinished sibling work and does
-  not modify the same files as another concurrent task.
-- Concurrent agents working on independent features or slices MUST use isolated worktrees or an
-  equivalent isolated workspace.
-- Shared integration files and other hot spots MUST have one owner at a time or an explicit merge
-  order.
-- Every delegated task MUST state its scope, relevant contracts, allowed files, validation command,
-  and completion condition.
+并行执行 MUST 依据真实依赖和文件所有权，MUST NOT 只依据 `[P]` 标记。
 
-### V. Verification and Product Safety
+- 任务仅在不依赖未完成的同级工作，且不会与其他并发任务修改相同文件时 MAY 标记为 `[P]`。
+- 并行处理独立功能或切片的 Agent MUST 使用隔离的 worktree 或等效隔离工作区。
+- 共享集成文件和其他热点文件 MUST 同一时间只有一个负责人，或事先规定明确的合并顺序。
+- 每项委派任务 MUST 说明范围、相关契约、允许修改的文件、验证命令和完成条件。
 
-Changes MUST be verified in proportion to their risk and MUST preserve SubLingo's core safety
-properties: original playback remains non-blocking, asynchronous results remain session-scoped,
-credentials and subtitle content do not leak into diagnostics, and packaged behavior matches the
-documented product boundary.
+### V. 验证与产品安全
 
-- Behavior changes MUST include automated regression coverage where the behavior is automatable.
-- Cross-runtime, packaging, permission, and player-host behavior MUST retain explicit integration or
-  manual acceptance work when automation cannot prove it.
-- Unfinished validation MUST remain visible as actionable work and MUST NOT be marked complete from
-  inference or superseded by unrelated passing tests.
-- A change is complete only when its selected track's required checks pass and its current artifacts
-  agree with the implementation.
+变更 MUST 按风险比例接受验证，并 MUST 保持 SubLingo 的核心安全属性：原始播放不受阻塞、
+异步结果仅作用于所属会话、凭据和字幕内容不会泄漏到诊断信息、安装包行为符合已记录的
+产品边界。
 
-## Delivery Track Selection
+- 可自动化的行为变更 MUST 包含自动化回归覆盖。
+- 当自动化无法证明跨运行时、打包、权限或播放器宿主行为时，MUST 保留明确的集成验证或
+  人工验收任务。
+- 未完成验证 MUST 继续作为可执行工作清晰可见，MUST NOT 根据推断标记完成，也不得被
+  无关的通过测试替代。
+- 只有所选轨道要求的检查全部通过，且当前产物与实现一致，变更才视为完成。
 
-Use the full SDD track when any of the following is true:
+## 交付轨道选择
 
-- the change creates or materially alters a user story;
-- it changes a public message, provider, storage, transport, packaging, privacy, or security
-  contract;
-- it spans multiple runtime owners or requires coordinated work across several subsystems;
-- important scope or acceptance behavior is ambiguous;
-- independent agents need a durable shared contract before implementation.
+出现以下任一情况时使用完整 SDD 轨道：
 
-Use the lightweight track when the change is bounded, reversible, and adequately specified by a
-short problem statement plus tests. The change owner MUST record the chosen track in the task,
-issue, or working note and MUST reassess it if scope expands.
+- 变更新增或实质改变用户故事；
+- 变更公共消息、服务提供方、存储、传输、打包、隐私或安全契约；
+- 变更跨越多个运行时负责人，或需要多个子系统协同；
+- 重要范围或验收行为仍有歧义；
+- 独立 Agent 在实现前需要持久、共享的契约。
 
-## Development Workflow
+当变更有界、可逆，且简短问题说明和测试足以完整描述时使用轻量轨道。变更负责人 MUST
+在任务、议题或工作说明中记录所选轨道，并在范围扩大时 MUST 重新评估。
 
-For full SDD work:
+## 开发工作流
 
-1. Define current user intent and measurable acceptance in `spec.md`.
-2. Record only the chosen current design and necessary rationale in the design artifacts.
-3. Generate small, dependency-ordered tasks with explicit file boundaries.
-4. Analyze consistency before implementation and execute by bounded phase or slice.
-5. Validate the implementation, reconcile artifacts to current truth, and remove completed or
-   superseded task history before closing the feature.
+完整 SDD 工作：
 
-For lightweight work:
+1. 在 `spec.md` 中定义当前用户意图和可度量的验收标准。
+2. 在设计产物中只记录当前选定的设计和必要理由。
+3. 生成小型、按依赖排序且具有明确文件边界的任务。
+4. 实现前分析一致性，并按有界阶段或切片执行。
+5. 验证实现，使产物与当前事实一致，并在关闭功能前移除已完成或已替代的任务历史。
 
-1. State the problem, expected behavior, and affected boundary concisely.
-2. Implement the smallest complete change.
-3. Run focused regression tests and any broader checks justified by risk.
-4. Promote the work to full SDD if new product scope or architectural uncertainty appears.
+轻量工作：
 
-Reviews MUST reject process-only document growth, duplicated context, stale requirements, and task
-lists that mix current work with historical narrative.
+1. 简明说明问题、预期行为和受影响边界。
+2. 实现最小且完整的变更。
+3. 运行聚焦的回归测试，以及风险所要求的更广泛检查。
+4. 出现新的产品范围或架构不确定性时，升级为完整 SDD。
 
-## Governance
+审查 MUST 拒绝只为流程而增长的文档、重复上下文、过时需求，以及混合当前工作与历史叙事的
+任务列表。
 
-This constitution governs project planning and implementation practices. Amendments require a
-documented rationale, semantic version update, and review of affected active SDD artifacts.
+## 治理
 
-- MAJOR changes remove or redefine a core principle incompatibly.
-- MINOR changes add a principle or materially expand mandatory guidance.
-- PATCH changes clarify wording without changing obligations.
+本宪法管理项目规划和实现实践。修订 MUST 记录理由、更新语义化版本，并审查受影响的有效
+SDD 产物。
 
-Every full-SDD plan MUST perform a Constitution Check before design and again before implementation.
-Every feature closeout MUST verify that its artifacts are concise, current, mutually consistent,
-and free of development-log history. Exceptions MUST be explicit, time-bounded, and tied to an
-owner and remediation task.
+- MAJOR：以不兼容方式移除或重新定义核心原则。
+- MINOR：新增原则或实质扩大强制性指导。
+- PATCH：只澄清文字，不改变约束义务。
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-11
+每份完整 SDD 计划 MUST 在设计前和实现前各执行一次宪法检查。每次功能收尾 MUST 确认其
+产物简洁、当前、相互一致、使用规定语言且不包含开发日志历史。例外 MUST 明确、有时限，
+并绑定负责人和补救任务。
+
+**版本**：1.1.0 | **批准日期**：2026-08-11 | **最近修订**：2026-08-11

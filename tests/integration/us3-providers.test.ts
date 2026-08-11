@@ -89,8 +89,9 @@ describe("US3 provider broker integration", () => {
     }));
     const a = profiles.save({
       displayName: "A",
-      kind: "azure",
-      endpoint: "https://a.example.test",
+      kind: "ollama",
+      endpoint: "http://127.0.0.1:11434",
+      model: "local-model",
     });
     const b = profiles.save({
       displayName: "B",

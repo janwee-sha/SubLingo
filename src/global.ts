@@ -99,15 +99,6 @@ const transport = new TransportSupervisor(async () => {
 });
 
 const credentials = new HelperCredentialStore(transport);
-// Keychain is no longer consulted. Remove only obsolete encrypted envelopes;
-// users re-enter an API key once into the new explicit local-storage model.
-for (const legacyVaultPath of ["@data/vault-a.json", "@data/vault-b.json"]) {
-  try {
-    if (iina.file.exists(legacyVaultPath)) iina.file.delete(legacyVaultPath);
-  } catch {
-    /* Legacy encrypted files are inert and may be cleaned up on a later run. */
-  }
-}
 
 function providerCacheKey(profile: ProviderProfileSnapshot): string {
   return `${profile.profileId}\u0000${profile.revision}`;
@@ -116,13 +107,6 @@ function providerCacheKey(profile: ProviderProfileSnapshot): string {
 async function buildProvider(profile: ProviderProfileSnapshot): Promise<TranslationProvider> {
   const providerTransport = new ProviderTransportAdapter(transport, localUuid);
   switch (profile.kind) {
-    case "azure":
-      throw {
-        category: "configuration",
-        retryable: false,
-        providerCode: "AZURE_UNSUPPORTED",
-        userAction: "SELECT_PROFILE",
-      };
     case "openai": {
       if (!profile.model)
         throw {
@@ -300,7 +284,6 @@ iina.global.onMessage("profile:create-revision", async (raw: unknown, playerId?:
       endpoint: String(values.endpoint ?? ""),
       proxyMode: values.proxyMode === "direct" ? "direct" : "system",
       ...(typeof values.model === "string" ? { model: values.model } : {}),
-      ...(typeof values.region === "string" ? { region: values.region } : {}),
     });
     persistProfileMetadata();
     postToPlayer(playerId, "profile:revision-created", {

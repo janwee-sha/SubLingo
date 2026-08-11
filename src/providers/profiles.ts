@@ -2,7 +2,7 @@ import { identityHash } from "../domain/identity.js";
 import type { EndpointFingerprint, ProfileId } from "../domain/types.js";
 import type { ProviderProfileSnapshot } from "./types.js";
 
-type Kind = "azure" | "openai" | "ollama";
+type Kind = "openai" | "ollama";
 export interface SaveProfileInput {
   profileId?: string;
   expectedRevision?: number;
@@ -12,7 +12,6 @@ export interface SaveProfileInput {
   endpoint: string;
   proxyMode?: "system" | "direct";
   model?: string;
-  region?: string;
   capability?: "strict-json-schema" | "json-object" | "prompt-json";
 }
 
@@ -65,8 +64,7 @@ export class ProviderProfiles {
     if (input.profileId && input.expectedRevision !== latestRevision)
       throw new Error("STALE_PROFILE_REVISION");
     const endpoint = normalizeProviderEndpoint(input.kind, input.endpoint);
-    if ((input.kind === "openai" || input.kind === "ollama") && !input.model?.trim())
-      throw new Error("MODEL_REQUIRED");
+    if (!input.model?.trim()) throw new Error("MODEL_REQUIRED");
     const revision = latestRevision + 1;
     const endpointFingerprint = identityHash({
       kind: input.kind,
@@ -82,7 +80,6 @@ export class ProviderProfiles {
       endpointFingerprint,
       proxyMode: input.proxyMode ?? "system",
       ...(input.model?.trim() ? { model: input.model.trim() } : {}),
-      ...(input.region?.trim() ? { region: input.region.trim() } : {}),
       ...(input.capability ? { capability: input.capability } : {}),
     };
     const profileRevisions = this.revisions.get(profileId) ?? new Map();

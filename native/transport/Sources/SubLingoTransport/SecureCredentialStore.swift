@@ -9,9 +9,8 @@ protocol CredentialStoreAccess: Sendable {
 
 /// Stores provider credentials in one fixed plugin-private JSON file.
 ///
-/// The file is intentionally not described as encrypted: without Keychain or
-/// a user passphrase, a colocated encryption key would add no real isolation.
-/// Atomic writes always create the replacement with mode 0600 before rename.
+/// The file is local plaintext protected by the plugin data directory and POSIX
+/// permissions. Atomic writes create each replacement with mode 0600 before rename.
 actor SecureCredentialStore: CredentialStoreAccess {
     private struct Document: Codable {
         let formatVersion: Int

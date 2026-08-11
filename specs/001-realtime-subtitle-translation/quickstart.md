@@ -2,112 +2,91 @@
 
 ## Prerequisites
 
-- macOS 12 or later on Apple Silicon or Intel
-- IINA 1.4.0+；final matrix includes minimum 1.4.0 and current stable 1.4.4
-- Node.js 24 and npm 11
-- Xcode/Swift toolchain capable of building a universal Foundation helper
-- IINA's bundled `iina-plugin` CLI
-- External SRT and ASS fixtures plus one configured Azure/OpenAI-compatible/Ollama endpoint as applicable
+- macOS 12+, Node.js 24/npm 11 and Swift 6
+- IINA 1.4+ for host validation
+- External SRT/ASS fixtures
+- OpenAI-compatible and local Ollama test Profiles where live validation is authorized
 
-The expected entities, lifecycles and interfaces are defined in [data-model.md](./data-model.md) and [contracts/](./contracts/).
-
-## Build and automated validation
+## Automated validation
 
 ```sh
 npm ci
-npm run test
+npm test
 npm run typecheck
-npm run build:native
+npm run lint
+npm run format:check
 npm run test:native
+npm run build:native
 npm run build
 npm run verify:package
+npm run pack
 ```
 
-Expected:
+Expected: all default tests and build/package checks pass. Live-provider tests remain opt-in and must not print or persist test credentials.
 
-- parser, scheduler, language gate, cache identity, epoch, retry and provider contract tests pass;
-- credential-store tests prove a fixed helper-owned path, UUID/field validation, atomic replace/delete, JSON `null` for a missing key, directory `0700` and file `0600`; scans find no credential in preferences, package, UI messages, logs or diagnostics;
-- transport tests prove loopback-only auth, health preflight, deadlines, cancellation, redirect safety, response bounds, `Retry-After` extraction, URLSession system routing and libcurl explicit no-proxy direct routing;
-- universal helper contains arm64 and x86_64 slices, and `dist/main.js`, `dist/global.js` plus sidebar assets are produced.
+## Formal installation
 
-## Install into IINA
-
-`link` is only for development. It creates an `.iinaplugin-dev` symlink, so IINA intentionally does not expose its normal Uninstall action. Remove it with the matching CLI command:
+Remove any development link before acceptance:
 
 ```sh
-/Applications/IINA.app/Contents/MacOS/iina-plugin link .
 /Applications/IINA.app/Contents/MacOS/iina-plugin unlink .
+open build/package/SubLingo-0.1.0.iinaplgz
 ```
 
-Release and acceptance testing MUST use the packed artifact. After unlinking the workspace, open `build/package/SubLingo-0.1.0.iinaplgz` with IINA, restart IINA, grant the declared permissions, and confirm the installed plugin's Uninstall action is enabled. Do not keep an installed package and a development link with the same identifier during acceptance.
+Restart IINA, enable SubLingo, and confirm the installed entry exposes an Uninstall action. Formal acceptance must not use an `.iinaplugin-dev` link.
 
-Open the SubLingo sidebar. On first OpenAI-compatible credential save, verify `@data/credentials.json` is created with mode `0600`, its parent directory is `0700`, and the provider secret does not appear in preferences, Sidebar messages, logs or diagnostics. The product must label this file as local plaintext rather than encrypted storage. Saving/selecting/testing Ollama must not create or read a credential entry.
+## Core playback
 
-## End-to-end validation
+1. Open a video with an external non-native SRT, confirm source and target languages, select a Profile and enable translation.
+2. Verify the original subtitle remains primary and translated cues appear as a synchronized second subtitle without pausing playback.
+3. Repeat with ASS and UTF-16 SRT samples; verify multiline text, timing, ordering and control-tag stripping.
+4. Delay or fail the service; verify original playback continues and no placeholder, wrong cue or technical error appears as subtitle text.
+5. Disable during an active request; verify late output is ignored and only the plugin-owned second track is removed.
 
-### P1 — playback and second subtitle
+## Bounded work and cache
 
-1. Open a video with an external non-native SRT, configure source/target languages and select a disclosed provider category + endpoint.
-2. Play continuously. The original primary subtitle stays selected; translated cues appear as the second subtitle without pausing playback.
-3. Repeat with ASS containing commas, multiple event fields, override tags and `\N`; timing/order remain exact and control tags never render as text.
-4. Delay the provider beyond a cue start; video/original subtitles continue and no placeholder, technical error or wrong cue appears.
-5. Disable while a request is active; the provider task/timers are cancelled, late output is ignored, and only the plugin-owned second track/file is removed.
+1. Use a same-language subtitle and seek repeatedly; provider call count remains zero.
+2. Watch part of a long fixture; selected work never exceeds 120 seconds or 40 cues and each logical sub-batch remains within 25 cues/5,000 code points.
+3. Seek backward in the same session; completed cues reuse cache without repeat calls.
+4. Seek rapidly to a distant position; old work is cancelled or invalidated and cannot enter the new track.
+5. Close and reopen the video; the previous session cache and temporary track are gone and a new session is created.
 
-### P2 — bounded work and session cache
+## Profiles and credentials
 
-1. Play native-language subtitles, pause and seek ten times; provider call count remains zero.
-2. Watch only the first ten minutes of a 60-minute fixture. No selected range exceeds 120 seconds/40 cues and no provider sub-batch exceeds 25 cues/5,000 code points.
-3. Seek backward within the same video session; successful cues reuse the in-memory cache with zero repeated successful calls.
-4. Seek rapidly to a distant final position; old unstarted work stops, active work is cancelled/invalidated, and old results never enter the new track.
-5. Close the video, confirm the session Map and generated SRT are removed, then reopen the same video; previous translations are not reused.
+1. Create, Test and Select one OpenAI-compatible and one Ollama Profile; translate the same fixture with both.
+2. Confirm the OpenAI-compatible API root is stored literally and the composed request address is previewed before selection.
+3. Edit a Profile repeatedly; one row advances revision without duplicates. Endpoint changes require reselection.
+4. Cancel one native Delete confirmation, then confirm deletion; only the selected Profile, its credential, related work and affected-window selections disappear.
+5. Verify every action reports busy and request-correlated success, cancellation or error independently of Session status.
+6. Save an OpenAI-compatible key and relaunch IINA. The UI reports only configured state; the full value never appears in UI, preferences, logs or diagnostics.
+7. Confirm the plugin data directory is `0700`, `credentials.json` is `0600`, replacement is atomic, and Ollama creates no credential entry.
 
-### P3 — providers, consent and failures
+## Retry, transport and recovery
 
-1. Run OpenAI-compatible and local Ollama probes, then translate the same small fixture with each active provider.
-2. Verify OpenAI/Ollama unknown/duplicate/empty IDs are rejected while unambiguous valid IDs may be retained.
-3. Change endpoint or semantic profile settings. The current window becomes unselected and sends nothing until the new kind/address is shown and explicitly selected.
-4. Exercise missing configuration, bad credentials, missing model, unreachable endpoint, quota and malformed output; each shows an actionable non-blocking state without logging sensitive content.
-5. Save an OpenAI-compatible profile with an API root. The saved list must display exactly that root and the UI must preview `{root}/chat/completions`; probe and real subtitle requests must use that address. Entering a full `/chat/completions` URL is intentionally treated as a root, previews the duplicated suffix, and is expected to fail unless that unusual route exists.
-6. Select a saved profile, edit it and click Save Profile repeatedly; the same list item advances revision without creating duplicates. Cancel one Delete confirmation, then confirm it; only that profile, credential, work and affected-window authorization disappear.
-7. For every action button and the Translate switch, verify an immediate busy/pressed state followed by a request-correlated success, cancellation or error message that remains separate from Session polling.
-8. Verify Selected, key saved/not saved, and Test not tested/passed/failed remain independent. Selecting before Test is allowed and must not claim authentication success.
+1. Verify transient failures receive at most three retries after the initial attempt with increasing delay.
+2. Verify a valid `Retry-After` delays the next attempt and permanent configuration/authentication/model/quota errors are not retried.
+3. Disable, seek, switch Profile and close the video during backoff; pending timers and exact helper jobs are cancelled.
+4. Verify wrong loopback token, remote plaintext HTTP, URL credentials and unsafe redirects are rejected.
+5. Leave the helper idle for at least 310 seconds, then Test and translate again; one replacement session starts before sensitive work and no dispatched provider request is replayed.
+6. Test an allowed endpoint in `system` and `direct` modes; system follows macOS proxy policy and direct bypasses configured proxies.
 
-### Retry and transport
+## Multi-window isolation
 
-Use a controlled endpoint that returns temporary failures:
+1. Open two players, use different Profile revisions or languages, and independently play, seek, fail, disable and close them.
+2. Verify request IDs, epochs, caches, timers, states, temporary paths and generated track IDs never cross windows.
+3. Edit a Profile in one window; another active window may finish its leased revision without being silently switched.
+4. Fail or close one window while the other translates; the other video's playback, retries and second subtitle remain available.
 
-1. Without `Retry-After`, observe at most three retries after the initial attempt with increasing 1s/2s/4s-class delays plus jitter.
-2. With `Retry-After: 3`, confirm no retry begins before three seconds.
-3. Return permanent 401/403/invalid model/quota errors; confirm zero automatic retries.
-4. Disable, seek out of range, change profile and close the video during backoff; confirm the timer and helper job are cancelled.
-5. Attempt wrong loopback token, remote HTTP, URL credentials and cross-origin authorization redirect; helper rejects all of them.
-6. Complete one helper request, leave SubLingo idle for at least 310 seconds, then Test and translate again. The expired helper is replaced before the provider body is sent, concurrent operations share one restart, and no dispatched provider POST is replayed by Global.
-7. Test the same allowed HTTPS endpoint in system and direct mode. Confirm system uses macOS proxy policy; direct reaches it through in-process libcurl with explicit no-proxy and does not connect to the configured proxy address. Repeat direct against loopback Ollama.
+## Outstanding validation
 
-### Local credential store
+These rows remain incomplete and are the only open work in `tasks.md`:
 
-1. Save one OpenAI-compatible key. Confirm no Keychain password dialog appears, `credentials.json` is owned by the current user with mode `0600`, and the plugin data directory is `0700`.
-2. Relaunch IINA. Confirm the profile reports its key as configured, Test succeeds with the saved key, the full key is never shown in the UI, and no system password dialog appears.
-3. Replace the key for the same Profile and confirm the fixed document is atomically replaced without producing duplicate profiles or caller-selected credential paths.
-4. Make the data directory unavailable or the file malformed; provider work fails closed with local-store guidance and does not fall back to preferences, environment variables, command arguments or Keychain.
-5. Confirm the UI and README disclose that the file is not encrypted and cannot protect against another process already able to read files as the current macOS user.
-6. Upgrade from the old encrypted-vault build. Confirm obsolete `vault-a.json`/`vault-b.json` are removed without accessing the old Keychain item, no password prompt appears, and the user is asked to re-enter the OpenAI key once.
-7. Cancel a profile Delete request in IINA's native confirmation; its credential and selections remain unchanged. Confirm deletion in a multi-window run; that profile's local credential, jobs/caches and selections are removed while unrelated profiles and windows remain available.
+| Environment | Scenario | Status |
+| --- | --- | --- |
+| IINA 1.4.4 | Real UTF-16 SRT and ASS playback | NOT RUN |
+| IINA 1.4.4 | Confirmed destructive Profile deletion and credential removal | NOT RUN |
+| IINA 1.4.4 | Live Retry-After, seek cancellation and two-window isolation | NOT RUN |
+| IINA 1.4.0 | Complete formal-package quickstart matrix | NOT RUN |
+| Target users | 10-person primary-task usability test | NOT RUN |
 
-### Multi-window isolation
-
-1. Open at least two IINA windows, including a test with the same media/subtitle in both.
-2. Enable different provider revisions/languages, then independently play, pause, seek, fail, disable and close each window.
-3. Confirm player/session/request IDs, caches, timers, statuses, temp paths and generated track IDs never cross windows.
-4. Edit a profile in window A. Window B keeps its leased old revision until its session ends; A must explicitly select the new endpoint revision.
-5. Fail or close A while B translates; B's video, original subtitle, retries and second track remain unaffected.
-
-## Packaging
-
-After both IINA versions and both CPU slices pass:
-
-```sh
-/Applications/IINA.app/Contents/MacOS/iina-plugin pack .
-```
-
-Inspect the package to confirm no credential/vault runtime file, test fixture or secret is included; helper executable permissions/signature are valid; and permission/privacy text explains the local plaintext credential file, helper and user-selected remote endpoint behavior.
+Record completed host evidence in `docs/validation/iina-matrix.md` and usability evidence in `docs/validation/usability.md`. Do not mark a row complete from automated coverage alone.

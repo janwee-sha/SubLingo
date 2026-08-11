@@ -32,7 +32,7 @@ if LC_ALL=C grep -E -n '<script[^>]+type="module"' "$PACKAGE_DIR/dist/ui/sidebar
   exit 1
 fi
 
-if find "$PACKAGE_DIR/dist" -type f \( -name '*.vault.json' -o -name 'credentials.json' -o -name '.env*' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
+if find "$PACKAGE_DIR/dist" -type f \( -name 'credentials.json' -o -name '.env*' -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
   echo "Forbidden secret/runtime file found in dist" >&2
   exit 1
 fi

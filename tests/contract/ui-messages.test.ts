@@ -85,8 +85,6 @@ describe("Sidebar/Main/Global security messages", () => {
 
   it("uses a Main-owned profile deletion request and preserves only allowlisted provider errors", () => {
     expect(SIDEBAR_MESSAGE_NAMES).toContain("profile:delete-request");
-    expect(SIDEBAR_MESSAGE_NAMES).not.toContain("vault:reset-request");
-    expect(SIDEBAR_MESSAGE_NAMES).not.toContain("vault:reset");
     expect(
       normalizeProviderError({
         category: "authentication",
@@ -140,7 +138,7 @@ describe("Sidebar/Main/Global security messages", () => {
     ).toMatch(/HTTP 503.*network route/i);
   });
 
-  it("distinguishes helper and private-file credential failures without Keychain guidance", () => {
+  it("distinguishes helper and private-file credential failures", () => {
     expect(credentialStatusMessage({ state: "unavailable", code: "HELPER_UNAVAILABLE" })).toMatch(
       /not saved.*helper/i,
     );
@@ -148,16 +146,11 @@ describe("Sidebar/Main/Global security messages", () => {
       credentialStatusMessage({ state: "unavailable", code: "CREDENTIAL_STORE_UNAVAILABLE" }),
     ).toMatch(/not saved.*private credential file/i);
     expect(credentialStatusMessage({ state: "ready" })).toMatch(/0600/i);
-    expect(
-      credentialStatusMessage({ state: "unavailable", code: "CREDENTIAL_STORE_UNAVAILABLE" }),
-    ).not.toMatch(/Keychain|encrypted vault/i);
   });
 
-  it("uses the renamed credential message and exposes no vault reset operation", () => {
+  it("uses the current credential message contract", () => {
     expect(GLOBAL_MESSAGE_NAMES).toContain("profile:select");
     expect(GLOBAL_MESSAGE_NAMES).toContain("credential:set");
-    expect(SIDEBAR_MESSAGE_NAMES).not.toContain("vault:reset-request");
-    expect(SIDEBAR_MESSAGE_NAMES).not.toContain("vault:reset");
     expect(credentialStatusMessage({ state: "ready" })).toMatch(/private local file/i);
   });
 });

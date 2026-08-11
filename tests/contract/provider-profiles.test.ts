@@ -98,14 +98,16 @@ describe("immutable provider profile revisions", () => {
     expect(() =>
       profiles.save({
         displayName: "bad",
-        kind: "azure",
+        kind: "openai",
         endpoint: "https://user:pass@example.test",
+        model: "m",
       }),
     ).toThrow();
     const valid = profiles.save({
-      displayName: "Azure",
-      kind: "azure",
-      endpoint: "https://api.cognitive.microsofttranslator.com",
+      displayName: "Remote",
+      kind: "openai",
+      endpoint: "https://api.example.test/v1",
+      model: "m",
     });
     expect(() => profiles.select("window", valid.profileId, 1, "forged")).toThrow(
       /SELECTION_MISMATCH/,

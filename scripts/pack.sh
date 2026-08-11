@@ -41,7 +41,7 @@ for required in Info.json dist/main.js dist/global.js dist/ui/sidebar.html dist/
   fi
 done
 
-if unzip -Z1 "$ARTIFACT" | grep -Eq '(^|/)(node_modules|\.git|\.parcel-cache|specs|tests|src|native/transport|@data|@tmp)(/|$)|(\.vault\.json|credentials\.json)$|(^|/)\.env'; then
+if unzip -Z1 "$ARTIFACT" | grep -Eq '(^|/)(node_modules|\.git|\.parcel-cache|specs|tests|src|native/transport|@data|@tmp)(/|$)|credentials\.json$|(^|/)\.env'; then
   echo "Packed artifact contains a forbidden development or runtime path" >&2
   exit 1
 fi

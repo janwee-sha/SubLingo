@@ -32,7 +32,7 @@ export interface SanitizedConnectionView {
   profileId: ProfileId;
   revision: number;
   displayName: string;
-  kind: "azure" | "openai" | "ollama";
+  kind: "openai" | "ollama";
   endpoint: string;
   credentialConfigured: boolean;
 }

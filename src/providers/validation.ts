@@ -60,30 +60,3 @@ export function validateIdOutput(
     : undefined;
   return { translations, missingIds, ...(usage && Object.keys(usage).length ? { usage } : {}) };
 }
-
-export function validateAzureOutput(
-  requestedIds: readonly string[],
-  value: unknown,
-): Array<{ id: string; text: string }> {
-  const parsed = parsedObject(value);
-  if (!Array.isArray(parsed.value) || parsed.value.length !== requestedIds.length)
-    throw new Error("AZURE_POSITIONAL_MISMATCH");
-  return parsed.value.map((item, index) => {
-    if (!item || typeof item !== "object" || Array.isArray(item))
-      throw new Error("AZURE_POSITIONAL_MISMATCH");
-    const translations = (item as Record<string, unknown>).translations;
-    if (!Array.isArray(translations) || translations.length < 1)
-      throw new Error("AZURE_POSITIONAL_MISMATCH");
-    const first = translations[0];
-    if (
-      !first ||
-      typeof first !== "object" ||
-      Array.isArray(first) ||
-      typeof (first as Record<string, unknown>).text !== "string"
-    )
-      throw new Error("AZURE_POSITIONAL_MISMATCH");
-    const text = ((first as Record<string, unknown>).text as string).trim();
-    if (!text) throw new Error("AZURE_POSITIONAL_MISMATCH");
-    return { id: requestedIds[index]!, text };
-  });
-}

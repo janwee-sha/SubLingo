@@ -74,7 +74,6 @@ describe("IINA sidebar lifecycle contract", () => {
 
   it("requests profile deletion from Main and uses IINA's native confirmation UI", () => {
     expect(sidebarSource).toContain('"profile:delete-request"');
-    expect(sidebarSource).not.toContain('postMessage("vault:reset-request"');
     expect(sidebarSource).not.toContain("window.confirm");
     expect(mainSource).toContain('runtime.sidebar.onMessage("profile:delete-request"');
     expect(mainSource).toContain("runtime.utils.ask");

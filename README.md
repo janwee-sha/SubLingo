@@ -5,7 +5,7 @@ SubLingo 是面向 IINA 1.4+ 的实时双语字幕插件。它读取当前选中
 ## 功能边界
 
 - 支持可由 IINA `@sub/<trackId>` 读取的外部 SRT、ASS/SSA 文本字幕。
-- 支持 OpenAI-compatible Chat Completions 与 Ollama 原生 API。Azure Translator 暂不在可选服务中。
+- 支持 OpenAI-compatible Chat Completions 与 Ollama 原生 API。
 - 每个窗口最多一个批次在途；窗口之间可独立并发。
 - 每次前瞻最多 120 秒或 40 条，调度批次最多 25 条或 5,000 Unicode code points；OpenAI-compatible 与 Ollama 的实际 wire request 再按最多 2 条拆分并按原顺序聚合。
 - 只缓存当前视频会话的成功译文；换片、播放结束或关窗时立即清空，不写入磁盘。
@@ -47,9 +47,9 @@ open build/package/SubLingo-0.1.0.iinaplgz
 
 ## 权限、隐私与费用
 
-SubLingo 不使用 macOS Keychain，因此正常保存、重启与翻译不会触发 Keychain 密码对话框。OpenAI-compatible API key 由 bearer-token 认证的 helper 原子写入插件私有 `@data/credentials.json`：目录权限固定为 `0700`，文件权限固定为 `0600`，输入框保持 write-only，密钥不会写入 preferences、安装包、Sidebar 状态、日志或诊断。Ollama 不保存也不读取凭据。
+OpenAI-compatible API key 由 bearer-token 认证的 helper 原子写入插件私有 `@data/credentials.json`：目录权限固定为 `0700`，文件权限固定为 `0600`，输入框保持 write-only，密钥不会写入 preferences、安装包、Sidebar 状态、日志或诊断。Ollama 不保存也不读取凭据。
 
-该文件是本地明文，并非静态加密。它能防止其他 macOS 账号和普通文件权限下的意外读取，但不能抵御已经能以当前 macOS 用户身份读取文件的进程。把加密密钥与密文放在同一目录并不会改善这一边界；如需抵御同账号进程，只能改用 Keychain、用户口令或不持久保存密钥。本版本选择无系统密码提示的使用体验，并在界面和文档中明确披露这一取舍。
+该文件是受文件权限保护的本地明文。它能防止其他 macOS 账号和普通文件权限下的意外读取，但不能抵御已经能以当前 macOS 用户身份读取文件的进程；界面和文档会明确披露这一边界。
 
 Swift helper 只监听 `127.0.0.1` 临时端口，使用内存 bearer token，并只提供 health、固定路径 credential read/replace/delete、有限 HTTP、精确 job 取消和 shutdown。helper 在 300 秒无活动后退出；下一次操作会在发送 provider body 前探活并按需启动新 session。真实 provider POST 一旦派发便不会由 helper supervisor 自动重放。远程地址必须是 HTTPS；只有 loopback Ollama 可使用 HTTP。跨源重定向、URL 凭据、超限 body/response 和错误 token 会被拒绝。
 
