@@ -13,6 +13,7 @@ coverage/
 
 # Native build output
 native/.build/
+native/transport/.build/
 
 # Plugin runtime state and validation artifacts
 @data/
