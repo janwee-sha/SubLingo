@@ -36,6 +36,14 @@ export interface TranslationBatchResult {
   usage?: { input?: number; output?: number; characters?: number };
 }
 
+export interface TranslationBatchProgress {
+  translations: Array<{ id: string; text: string }>;
+  providerRequestId?: string;
+  usage?: { input?: number; output?: number; characters?: number };
+}
+
+export type TranslationProgressHandler = (progress: TranslationBatchProgress) => void;
+
 export type ProviderErrorCategory =
   | "network"
   | "timeout"

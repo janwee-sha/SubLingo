@@ -32,14 +32,14 @@ See [provider-output.schema.json](./provider-output.schema.json).
 - Use optional bearer credential, `stream: false`, and JSON-encoded subtitle data.
 - Connection Test may negotiate strict schema, JSON object, then prompt JSON only for recognized format incompatibility.
 - Real subtitle work never retries under another response format.
-- Split a logical batch into ordered requests of at most two items and aggregate validated results/usage.
+- Split a logical batch into ordered requests of at most two items. Publish each validated wire result immediately and retain a complete terminal aggregate according to [002 progressive output](../../002-progressive-translation-output/contracts/translation-provider.md).
 
 ## Ollama native API
 
 - Default to `http://127.0.0.1:11434`; non-loopback HTTP is rejected.
 - Test `/api/version`, `/api/tags`, then one structured chat item.
 - Use `/api/chat` with `stream: false`, JSON Schema format, deterministic temperature and disabled thinking when supported.
-- Split a logical batch into ordered requests of at most two items and aggregate validated results/usage.
+- Split a logical batch into ordered requests of at most two items. Publish each validated wire result immediately and retain a complete terminal aggregate according to [002 progressive output](../../002-progressive-translation-output/contracts/translation-provider.md).
 
 ## Retry classification
 

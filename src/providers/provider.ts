@@ -1,7 +1,14 @@
-import type { TranslationBatchRequest, TranslationBatchResult } from "./types.js";
+import type {
+  TranslationBatchRequest,
+  TranslationBatchResult,
+  TranslationProgressHandler,
+} from "./types.js";
 
 export interface TranslationProvider {
   /** Executes exactly one provider attempt. Retry policy belongs to the player session. */
-  attempt(request: TranslationBatchRequest): Promise<TranslationBatchResult>;
+  attempt(
+    request: TranslationBatchRequest,
+    onProgress?: TranslationProgressHandler,
+  ): Promise<TranslationBatchResult>;
   cancel?(requestId: string): Promise<void> | void;
 }

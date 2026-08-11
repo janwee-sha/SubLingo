@@ -28,6 +28,65 @@ export const GLOBAL_MESSAGE_NAMES = [
   "profile:release",
 ] as const;
 
+export const PROVIDER_ATTEMPT_EVENT_NAMES = [
+  "provider:attempt-progress",
+  "provider:attempt-result",
+  "provider:attempt-error",
+] as const;
+
+export function parseTranslationBatchProgress(value: unknown): TranslationBatchProgress {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("INVALID_PROVIDER_PROGRESS");
+  const record = value as Record<string, unknown>;
+  const allowed = new Set(["translations", "providerRequestId", "usage"]);
+  if (Object.keys(record).some((key) => !allowed.has(key)) || !Array.isArray(record.translations))
+    throw new Error("INVALID_PROVIDER_PROGRESS");
+  const translations = record.translations.map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item))
+      throw new Error("INVALID_PROVIDER_PROGRESS");
+    const translation = item as Record<string, unknown>;
+    if (
+      Object.keys(translation).sort().join(",") !== "id,text" ||
+      typeof translation.id !== "string" ||
+      !translation.id ||
+      typeof translation.text !== "string" ||
+      !translation.text.trim()
+    )
+      throw new Error("INVALID_PROVIDER_PROGRESS");
+    return { id: translation.id, text: translation.text };
+  });
+  if (translations.length === 0) throw new Error("INVALID_PROVIDER_PROGRESS");
+  if (
+    record.providerRequestId !== undefined &&
+    (typeof record.providerRequestId !== "string" ||
+      !/^[\x20-\x7E]{1,256}$/.test(record.providerRequestId))
+  )
+    throw new Error("INVALID_PROVIDER_PROGRESS");
+  let usage: TranslationBatchProgress["usage"];
+  if (record.usage !== undefined) {
+    if (!record.usage || typeof record.usage !== "object" || Array.isArray(record.usage))
+      throw new Error("INVALID_PROVIDER_PROGRESS");
+    const rawUsage = record.usage as Record<string, unknown>;
+    if (Object.keys(rawUsage).some((key) => !["input", "output", "characters"].includes(key)))
+      throw new Error("INVALID_PROVIDER_PROGRESS");
+    for (const amount of Object.values(rawUsage))
+      if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0)
+        throw new Error("INVALID_PROVIDER_PROGRESS");
+    usage = {
+      ...(typeof rawUsage.input === "number" ? { input: rawUsage.input } : {}),
+      ...(typeof rawUsage.output === "number" ? { output: rawUsage.output } : {}),
+      ...(typeof rawUsage.characters === "number" ? { characters: rawUsage.characters } : {}),
+    };
+  }
+  return {
+    translations,
+    ...(typeof record.providerRequestId === "string"
+      ? { providerRequestId: record.providerRequestId }
+      : {}),
+    ...(usage ? { usage } : {}),
+  };
+}
+
 export function parseEnvelope(value: unknown): RpcEnvelope {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("INVALID_MESSAGE");
@@ -138,3 +197,4 @@ export function parseProfileSelection(value: unknown): {
     endpointFingerprint: input.endpointFingerprint,
   };
 }
+import type { TranslationBatchProgress } from "../providers/types.js";

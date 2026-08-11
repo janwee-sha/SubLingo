@@ -5,6 +5,7 @@ import type {
   ProviderProfileSnapshot,
   TranslationBatchRequest,
   TranslationBatchResult,
+  TranslationProgressHandler,
 } from "./types.js";
 
 export class ProviderBrokerError extends Error {
@@ -42,6 +43,7 @@ export class ProviderBroker {
   async attempt(
     authoritativePlayerId: string,
     request: TranslationBatchRequest,
+    onProgress?: TranslationProgressHandler,
   ): Promise<TranslationBatchResult> {
     const selection = this.profiles.selection(authoritativePlayerId);
     if (
@@ -68,11 +70,17 @@ export class ProviderBroker {
       throw new ProviderBrokerError("PROFILE_NOT_SELECTED");
     const key = `${authoritativePlayerId}\u0000${request.requestId}`;
     if (this.active.has(key)) throw new ProviderBrokerError("DUPLICATE_REQUEST");
-    this.active.set(key, { provider, requestId: request.requestId, profileId: profile.profileId });
+    const active = { provider, requestId: request.requestId, profileId: profile.profileId };
+    this.active.set(key, active);
     try {
-      return await provider.attempt({ ...request, playerId: authoritativePlayerId as PlayerId });
+      return await provider.attempt(
+        { ...request, playerId: authoritativePlayerId as PlayerId },
+        (progress) => {
+          if (this.active.get(key) === active) onProgress?.(progress);
+        },
+      );
     } finally {
-      this.active.delete(key);
+      if (this.active.get(key) === active) this.active.delete(key);
     }
   }
 

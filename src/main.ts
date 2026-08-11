@@ -1,57 +1,11 @@
 import { PlaybackController } from "./app/controller.js";
+import { GlobalProviderClient } from "./adapters/iina/global-provider-client.js";
 import { finitePosition } from "./adapters/iina/runtime.js";
 import { IinaSubtitleSourcePort, readSelectedSubtitle } from "./adapters/iina/subtitle-source.js";
 import {
   GeneratedSubtitleTrackManager,
   IinaSubtitleTrackPort,
 } from "./adapters/iina/subtitle-track.js";
-import type { TranslationProvider } from "./providers/provider.js";
-import type { TranslationBatchRequest, TranslationBatchResult } from "./providers/types.js";
-
-class GlobalProviderClient implements TranslationProvider {
-  private readonly pending = new Map<
-    string,
-    { resolve: (result: TranslationBatchResult) => void; reject: (error: unknown) => void }
-  >();
-
-  constructor(private readonly globalPort: IINA.API.Global) {
-    globalPort.onMessage("provider:attempt-result", (raw: unknown) => {
-      const result = raw as { requestId?: string; result?: TranslationBatchResult };
-      if (!result.requestId || !result.result) return;
-      this.pending.get(result.requestId)?.resolve(result.result);
-      this.pending.delete(result.requestId);
-    });
-    globalPort.onMessage("provider:attempt-error", (raw: unknown) => {
-      const result = raw as { requestId?: string; error?: unknown };
-      if (!result.requestId) return;
-      this.pending
-        .get(result.requestId)
-        ?.reject(result.error ?? new Error("PROVIDER_ATTEMPT_FAILED"));
-      this.pending.delete(result.requestId);
-    });
-  }
-
-  attempt(request: TranslationBatchRequest): Promise<TranslationBatchResult> {
-    return new Promise((resolve, reject) => {
-      this.pending.set(request.requestId, { resolve, reject });
-      this.globalPort.postMessage("provider:attempt", {
-        requestId: request.requestId,
-        revision: request.profileRevision,
-        payload: request,
-      });
-    });
-  }
-
-  cancel(requestId: string): void {
-    this.globalPort.postMessage("provider:cancel", {
-      requestId,
-      revision: 1,
-      payload: { requestId },
-    });
-    this.pending.get(requestId)?.reject({ category: "cancelled", retryable: false });
-    this.pending.delete(requestId);
-  }
-}
 
 interface MainRuntime {
   core: IINA.API.Core;
@@ -398,7 +352,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   });
   runtime.event.on("mpv.track-list.changed", () => scheduleSourceReload());
   runtime.event.on("mpv.seek", () =>
-    controller.session.onSeek(
+    controller.onSeek(
       finitePosition(
         runtime.core.status.position === null ? null : runtime.core.status.position * 1_000,
       ),

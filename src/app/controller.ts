@@ -4,6 +4,7 @@ import type { TranslationProvider } from "../providers/provider.js";
 import type {
   ProviderAttemptError,
   TranslationBatchRequest,
+  TranslationBatchProgress,
   TranslationBatchResult,
 } from "../providers/types.js";
 import { renderSrt } from "../subtitles/srt.js";
@@ -51,6 +52,12 @@ export class PlaybackController {
   private readonly pipeline = new TranslationPipeline();
   private readonly cache: SessionTranslationCache;
   private requestSequence = 0;
+  private activeAttempt: Pick<TranslationBatchRequest, "batchId" | "requestId"> | null = null;
+  private pendingPublication: {
+    fingerprint: ReturnType<PlaybackSession["fingerprint"]>;
+    content: string;
+  } | null = null;
+  private publication: Promise<void> | null = null;
 
   constructor(private readonly options: PlaybackControllerOptions) {
     this.session = new PlaybackSession(
@@ -69,22 +76,21 @@ export class PlaybackController {
   }
 
   setSource(source: ControllerSource | null): void {
+    const hadSource = this.source !== null;
     this.session.onTrackChanged();
     this.source = source;
     this.translations.clear();
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    // IINA emits transient source-track changes while it attaches and selects
-    // an external secondary subtitle. Keep the currently published track
-    // visible through those events; the next successful swap replaces it.
+    if (hadSource) this.invalidatePublication();
     this.status = this.nextIdleStatus();
   }
 
   setEnabled(enabled: boolean): void {
     this.session.setEnabled(enabled);
     if (!enabled) {
-      this.options.track.cleanup();
+      this.invalidatePublication();
       this.status = "disabled";
     } else {
       this.terminallyFailedCueIds.clear();
@@ -106,7 +112,7 @@ export class PlaybackController {
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    this.options.track.cleanup();
+    this.invalidatePublication();
     this.status = this.nextIdleStatus();
   }
 
@@ -126,7 +132,7 @@ export class PlaybackController {
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    this.options.track.cleanup();
+    this.invalidatePublication();
     this.status = this.nextIdleStatus();
   }
 
@@ -140,7 +146,7 @@ export class PlaybackController {
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    this.options.track.cleanup();
+    this.invalidatePublication();
     this.status = this.session.enabled ? "waitingForConfiguration" : "disabled";
   }
 
@@ -222,11 +228,19 @@ export class PlaybackController {
           targetLanguage,
           cues: remaining,
         });
+        this.activeAttempt = { batchId: request.batchId, requestId: request.requestId };
         try {
-          const result = await this.attemptWithCancellation(request);
+          const result = await this.attemptWithCancellation(request, (progress) => {
+            if (!this.acceptsAttempt(request, fingerprint)) return;
+            const accepted = this.acceptResults(remaining, progress, identity);
+            if (accepted.size === 0) return;
+            remaining = remaining.filter((cue) => !accepted.has(cue.id));
+            this.enqueueCurrentSnapshot(fingerprint);
+          });
           if (!this.session.accepts(fingerprint) || this.source === null) return;
           const accepted = this.acceptResults(remaining, result, identity);
           remaining = remaining.filter((cue) => !accepted.has(cue.id));
+          if (accepted.size > 0) this.enqueueCurrentSnapshot(fingerprint);
           terminalError = remaining.length
             ? {
                 category: "protocol",
@@ -251,6 +265,12 @@ export class PlaybackController {
               ? { retryAfterMs: detail.retryAfterMs }
               : {}),
           });
+        } finally {
+          if (
+            this.activeAttempt?.batchId === request.batchId &&
+            this.activeAttempt.requestId === request.requestId
+          )
+            this.activeAttempt = null;
         }
         if (remaining.length === 0 || !terminalError?.retryable || attempt === 3) break;
         const retryNumber = (attempt + 1) as 1 | 2 | 3;
@@ -263,26 +283,18 @@ export class PlaybackController {
       if (!this.session.accepts(fingerprint) || this.source === null) return;
       for (const cue of remaining) this.terminallyFailedCueIds.add(cue.id);
       this.lastAttemptError = remaining.length > 0 ? terminalError : null;
-      const rendered = renderSrt(this.source.cues, this.translations);
-      if (rendered) {
-        try {
-          await this.options.track.swap(rendered);
-        } catch {
-          if (this.session.accepts(fingerprint)) this.status = "partialFailure";
-          return;
-        }
-      }
+      await this.whenPublicationIdle();
       if (this.session.accepts(fingerprint)) {
         if (remaining.length > 0)
           this.status = terminalError?.retryable ? "serviceUnavailable" : "partialFailure";
-        else this.status = "running";
+        else if (this.status !== "partialFailure") this.status = "running";
       }
     });
   }
 
   private acceptResults(
     requested: readonly SubtitleCue[],
-    result: TranslationBatchResult,
+    result: TranslationBatchResult | TranslationBatchProgress,
     identity: CacheIdentity,
   ): Set<string> {
     const requestedIds = new Set(requested.map((cue) => cue.id));
@@ -301,6 +313,7 @@ export class PlaybackController {
 
   private attemptWithCancellation(
     request: TranslationBatchRequest,
+    onProgress: (progress: TranslationBatchProgress) => void,
   ): Promise<TranslationBatchResult> {
     return new Promise((resolve, reject) => {
       let settled = false;
@@ -310,20 +323,24 @@ export class PlaybackController {
         void this.options.provider.cancel?.(request.requestId);
         reject({ category: "cancelled", retryable: false });
       });
-      this.options.provider.attempt(request).then(
-        (result) => {
-          if (settled) return;
-          settled = true;
-          unregister();
-          resolve(result);
-        },
-        (error: unknown) => {
-          if (settled) return;
-          settled = true;
-          unregister();
-          reject(error);
-        },
-      );
+      this.options.provider
+        .attempt(request, (progress) => {
+          if (!settled) onProgress(progress);
+        })
+        .then(
+          (result) => {
+            if (settled) return;
+            settled = true;
+            unregister();
+            resolve(result);
+          },
+          (error: unknown) => {
+            if (settled) return;
+            settled = true;
+            unregister();
+            reject(error);
+          },
+        );
     });
   }
 
@@ -358,8 +375,86 @@ export class PlaybackController {
     };
   }
 
-  whenIdle(): Promise<void> {
-    return this.pipeline.whenIdle();
+  private acceptsAttempt(
+    request: TranslationBatchRequest,
+    fingerprint: ReturnType<PlaybackSession["fingerprint"]>,
+  ): boolean {
+    return (
+      this.session.accepts(fingerprint) &&
+      request.playerId === fingerprint.playerId &&
+      request.sessionId === fingerprint.sessionId &&
+      request.sessionEpoch === fingerprint.sessionEpoch &&
+      request.windowEpoch === fingerprint.windowEpoch &&
+      request.profileId === (this.options.profileId ?? "injected-provider") &&
+      request.profileRevision === (this.options.profileRevision ?? 1) &&
+      request.endpointFingerprint === (this.options.endpointFingerprint ?? "injected") &&
+      this.activeAttempt?.batchId === request.batchId &&
+      this.activeAttempt.requestId === request.requestId
+    );
+  }
+
+  private enqueueCurrentSnapshot(fingerprint: ReturnType<PlaybackSession["fingerprint"]>): void {
+    if (!this.session.accepts(fingerprint) || !this.source) return;
+    const content = renderSrt(this.source.cues, this.translations);
+    if (!content) return;
+    this.pendingPublication = { fingerprint, content };
+    this.startPublication();
+  }
+
+  private startPublication(): void {
+    if (this.publication || !this.pendingPublication) return;
+    this.publication = this.drainPublications().finally(() => {
+      this.publication = null;
+      this.startPublication();
+    });
+  }
+
+  private async drainPublications(): Promise<void> {
+    while (this.pendingPublication) {
+      const snapshot = this.pendingPublication;
+      this.pendingPublication = null;
+      if (!this.session.accepts(snapshot.fingerprint)) continue;
+      try {
+        await this.options.track.swap(snapshot.content);
+      } catch {
+        if (this.session.accepts(snapshot.fingerprint)) this.status = "partialFailure";
+        continue;
+      }
+      if (!this.session.accepts(snapshot.fingerprint)) {
+        this.options.track.cleanup();
+        continue;
+      }
+      this.status = "running";
+    }
+  }
+
+  private async whenPublicationIdle(): Promise<void> {
+    for (;;) {
+      this.startPublication();
+      const current = this.publication;
+      if (!current) return;
+      await current;
+      if (!this.publication && !this.pendingPublication) return;
+    }
+  }
+
+  private invalidatePublication(): void {
+    this.pendingPublication = null;
+    this.options.track.cleanup();
+  }
+
+  async whenIdle(): Promise<void> {
+    for (;;) {
+      await this.pipeline.whenIdle();
+      await this.whenPublicationIdle();
+      if (!this.pipeline.inFlight && !this.publication && !this.pendingPublication) return;
+    }
+  }
+
+  onSeek(positionMs: number | null): void {
+    this.session.onSeek(positionMs);
+    this.invalidatePublication();
+    this.status = this.nextIdleStatus();
   }
 
   endFile(): void {
@@ -369,7 +464,7 @@ export class PlaybackController {
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    this.options.track.cleanup();
+    this.invalidatePublication();
     this.status = this.nextIdleStatus();
   }
 
@@ -379,7 +474,7 @@ export class PlaybackController {
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    this.options.track.cleanup();
+    this.invalidatePublication();
     this.status = "disabled";
   }
 }

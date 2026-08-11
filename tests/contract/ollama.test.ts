@@ -125,6 +125,77 @@ describe("Ollama native provider", () => {
     expect(result.usage).toEqual({ input: 9, output: 6 });
   });
 
+  it("publishes each validated wire result with restored IDs before returning the aggregate", async () => {
+    const provider = new OllamaProvider(
+      { endpoint: "http://127.0.0.1:11434", model: "qwen" },
+      {
+        request: async (request) => {
+          const messages = (request.body as { messages: Array<{ content: string }> }).messages;
+          const payload = JSON.parse(messages.at(-1)!.content) as {
+            items: Array<{ id: string; text: string }>;
+          };
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: JSON.stringify({
+              message: {
+                content: JSON.stringify({
+                  translations: payload.items.map((item) => ({
+                    id: item.id,
+                    text: `T:${item.text}`,
+                  })),
+                }),
+              },
+            }),
+          };
+        },
+      },
+    );
+    const request = makeProviderRequest();
+    request.items = Array.from({ length: 5 }, (_, index) => ({
+      id: `source-${index + 1}`,
+      text: `text-${index + 1}`,
+    }));
+    const progress: Array<Array<{ id: string; text: string }>> = [];
+
+    const result = await provider.attempt(request, (increment) => {
+      progress.push(increment.translations);
+    });
+
+    expect(progress.map((items) => items.map((item) => item.id))).toEqual([
+      ["source-1", "source-2"],
+      ["source-3", "source-4"],
+      ["source-5"],
+    ]);
+    expect(result.translations.map((item) => item.id)).toEqual([
+      "source-1",
+      "source-2",
+      "source-3",
+      "source-4",
+      "source-5",
+    ]);
+  });
+
+  it("does not publish invalid output", async () => {
+    const progress: unknown[] = [];
+    const provider = new OllamaProvider(
+      { endpoint: "http://127.0.0.1:11434", model: "qwen" },
+      {
+        request: async () => ({
+          statusCode: 200,
+          headers: {},
+          bodyText:
+            '{"message":{"content":"{\\"translations\\":[{\\"id\\":\\"unknown\\",\\"text\\":\\"x\\"}]}"}}',
+        }),
+      },
+    );
+
+    await expect(
+      provider.attempt(makeProviderRequest(), (value) => progress.push(value)),
+    ).resolves.toMatchObject({ translations: [] });
+    expect(progress).toEqual([]);
+  });
+
   it("cancels every active split chat for the logical batch", async () => {
     const cancelled: string[] = [];
     let release: (() => void) | undefined;
@@ -149,14 +220,16 @@ describe("Ollama native provider", () => {
         },
       },
     );
-    const attempt = provider.attempt(makeProviderRequest());
+    const progress: unknown[] = [];
+    const attempt = provider.attempt(makeProviderRequest(), (value) => progress.push(value));
     await Promise.resolve();
 
     await provider.cancel("request");
     release?.();
-    await attempt;
+    await expect(attempt).rejects.toMatchObject({ category: "cancelled" });
 
     expect(cancelled).toEqual(["request-part-1"]);
+    expect(progress).toEqual([]);
   });
 
   it("rejects non-loopback HTTP endpoints", () => {

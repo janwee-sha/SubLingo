@@ -32,9 +32,9 @@ Provider messages include the complete session/Profile identity. Global keys job
 
 - `profiles:result`, `profile:revision-created`, `profile:deleted`, `profile:selected`
 - `credential:result`, `credential:state`
-- `provider:test-result`, `provider:attempt-result`, `provider:attempt-error`, `provider:cancelled`
+- `provider:test-result`, `provider:attempt-progress`, `provider:attempt-result`, `provider:attempt-error`, `provider:cancelled`
 
-Main discards any reply that does not match its current request and complete player/session/window/Profile identity.
+Main discards any reply that does not match its current request and complete player/session/window/Profile identity. Progress routing and terminal cleanup follow [002 progressive output](../../002-progressive-translation-output/contracts/progress-messages.md).
 
 ## Invariants
 

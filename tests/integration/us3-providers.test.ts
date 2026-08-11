@@ -39,6 +39,64 @@ describe("US3 provider broker integration", () => {
     });
   });
 
+  it("routes progress through the authoritative player request and stops after terminal or cancel", async () => {
+    const profiles = new ProviderProfiles(() => "00000000-0000-4000-8000-000000000001");
+    const progressHandlers = new Map<string, (text: string) => void>();
+    const resolvers = new Map<
+      string,
+      (value: { translations: Array<{ id: string; text: string }> }) => void
+    >();
+    const provider: TranslationProvider = {
+      attempt: (request, onProgress) =>
+        new Promise((resolve) => {
+          progressHandlers.set(request.playerId, (text) =>
+            onProgress?.({ translations: [{ id: "c1", text }] }),
+          );
+          resolvers.set(request.playerId, resolve);
+        }),
+      cancel: (requestId) => {
+        if (requestId === "request") resolvers.get("window-A")?.({ translations: [] });
+      },
+    };
+    const broker = new ProviderBroker(profiles, () => provider);
+    const saved = profiles.save({
+      displayName: "OpenAI",
+      kind: "openai",
+      endpoint: "https://example.test/v1",
+      model: "m",
+    });
+    for (const windowId of ["window-A", "window-B"])
+      broker.select(windowId, saved.profileId, saved.revision, saved.endpointFingerprint);
+    const request = {
+      ...makeProviderRequest(),
+      profileId: saved.profileId,
+      profileRevision: saved.revision,
+      endpointFingerprint: saved.endpointFingerprint,
+    };
+    const aProgress: string[] = [];
+    const bProgress: string[] = [];
+    const aPending = broker.attempt(
+      "window-A",
+      { ...request, playerId: "spoofed" as typeof request.playerId },
+      (value) => aProgress.push(value.translations[0]!.text),
+    );
+    const bPending = broker.attempt("window-B", request, (value) =>
+      bProgress.push(value.translations[0]!.text),
+    );
+    await Promise.resolve();
+
+    progressHandlers.get("window-A")?.("A-first");
+    progressHandlers.get("window-B")?.("B-first");
+    await broker.cancel("window-A", request.requestId);
+    progressHandlers.get("window-A")?.("A-late");
+    resolvers.get("window-B")?.({ translations: [{ id: "c1", text: "B-final" }] });
+    await Promise.all([aPending, bPending]);
+    progressHandlers.get("window-B")?.("B-late");
+
+    expect(aProgress).toEqual(["A-first"]);
+    expect(bProgress).toEqual(["B-first"]);
+  });
+
   it("requires reselection after endpoint edits while old window leases remain isolated", async () => {
     const profiles = new ProviderProfiles(() => "00000000-0000-4000-8000-000000000001");
     const provider: TranslationProvider = {

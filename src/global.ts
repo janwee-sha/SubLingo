@@ -1,6 +1,11 @@
 import { sha256Hex } from "./domain/identity.js";
 import { normalizeProviderError } from "./domain/errors.js";
-import { sanitizedProfileView, parseProfileSelection, parseSecretSet } from "./domain/messages.js";
+import {
+  parseProfileSelection,
+  parseSecretSet,
+  parseTranslationBatchProgress,
+  sanitizedProfileView,
+} from "./domain/messages.js";
 import { HelperCredentialStore, CredentialStoreError } from "./credentials/store.js";
 import { createDeferredPlayerPost } from "./adapters/iina/deferred-post.js";
 import { IinaLocalHttpBridge, IinaProcessLauncher } from "./adapters/iina/provider-transport.js";
@@ -415,10 +420,18 @@ iina.global.onMessage("provider:attempt", async (raw: unknown, playerId?: string
   if (!playerId) return;
   const id = requestId(raw);
   try {
-    const result = await broker.attempt(
-      playerId,
-      payload(raw) as unknown as TranslationBatchRequest,
-    );
+    const request = payload(raw) as unknown as TranslationBatchRequest;
+    if (request.requestId !== id) throw new Error("REQUEST_ID_MISMATCH");
+    const result = await broker.attempt(playerId, request, (progress) => {
+      try {
+        postToPlayer(playerId, "provider:attempt-progress", {
+          requestId: id,
+          progress: parseTranslationBatchProgress(progress),
+        });
+      } catch {
+        return;
+      }
+    });
     postToPlayer(playerId, "provider:attempt-result", { requestId: id, result });
   } catch (error) {
     const safe = normalizeProviderError(error);

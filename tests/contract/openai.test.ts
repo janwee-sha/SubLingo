@@ -134,6 +134,117 @@ describe("OpenAI-compatible provider", () => {
     expect(result.translations).toHaveLength(5);
   });
 
+  it("publishes each validated wire result with restored IDs before returning the aggregate", async () => {
+    const provider = new OpenAICompatibleProvider(
+      {
+        endpoint: "https://example.test/v1",
+        model: "model",
+        capability: "json-object",
+      },
+      {
+        request: async (request) => {
+          const messages = (request.body as { messages: Array<{ content: string }> }).messages;
+          const payload = JSON.parse(messages.at(-1)!.content) as {
+            items: Array<{ id: string; text: string }>;
+          };
+          return {
+            statusCode: 200,
+            headers: { "x-request-id": request.jobId },
+            bodyText: JSON.stringify({
+              choices: [
+                {
+                  finish_reason: "stop",
+                  message: {
+                    content: JSON.stringify({
+                      translations: payload.items.map((item) => ({
+                        id: item.id,
+                        text: `T:${item.text}`,
+                      })),
+                    }),
+                  },
+                },
+              ],
+            }),
+          };
+        },
+      },
+    );
+    const request = makeProviderRequest();
+    request.items = Array.from({ length: 5 }, (_, index) => ({
+      id: `source-${index + 1}`,
+      text: `text-${index + 1}`,
+    }));
+    const progress: Array<Array<{ id: string; text: string }>> = [];
+
+    const result = await provider.attempt(request, (increment) => {
+      progress.push(increment.translations);
+    });
+
+    expect(progress.map((items) => items.map((item) => item.id))).toEqual([
+      ["source-1", "source-2"],
+      ["source-3", "source-4"],
+      ["source-5"],
+    ]);
+    expect(result.translations.map((item) => item.id)).toEqual([
+      "source-1",
+      "source-2",
+      "source-3",
+      "source-4",
+      "source-5",
+    ]);
+  });
+
+  it("does not publish invalid output or progress after cancellation", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let responseMode: "invalid" | "blocked" = "invalid";
+    const provider = new OpenAICompatibleProvider(
+      {
+        endpoint: "https://example.test/v1",
+        model: "model",
+        capability: "prompt-json",
+      },
+      {
+        request: async () => {
+          if (responseMode === "blocked") await gate;
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: JSON.stringify({
+              choices: [
+                {
+                  finish_reason: "stop",
+                  message: {
+                    content:
+                      responseMode === "invalid"
+                        ? '{"translations":[{"id":"unknown","text":"x"}]}'
+                        : '{"translations":[{"id":"c1","text":"one"},{"id":"c2","text":"two"}]}',
+                  },
+                },
+              ],
+            }),
+          };
+        },
+        cancel: () => undefined,
+      },
+    );
+    const progress: unknown[] = [];
+
+    await expect(
+      provider.attempt(makeProviderRequest(), (value) => progress.push(value)),
+    ).resolves.toMatchObject({ translations: [] });
+    responseMode = "blocked";
+    const cancelled = provider.attempt(makeProviderRequest(), (value) => progress.push(value));
+    await Promise.resolve();
+    await provider.cancel("request");
+    release();
+
+    await expect(cancelled).rejects.toMatchObject({ category: "cancelled" });
+    expect(progress).toEqual([]);
+  });
+
   it("treats even a full chat-completions input as an API root", async () => {
     let requestedUrl = "";
     const provider = new OpenAICompatibleProvider(

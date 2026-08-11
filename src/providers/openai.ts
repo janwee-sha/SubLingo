@@ -1,5 +1,10 @@
 import type { TranslationProvider } from "./provider.js";
-import type { TranslationBatchRequest, TranslationBatchResult } from "./types.js";
+import type {
+  ProviderAttemptError,
+  TranslationBatchRequest,
+  TranslationBatchResult,
+  TranslationProgressHandler,
+} from "./types.js";
 import type { ProviderTransport, ProviderTransportResponse } from "./transport.js";
 import { providerHttpError, protocolError } from "./errors.js";
 import { normalizeProviderEndpoint } from "./profiles.js";
@@ -14,6 +19,8 @@ export class OpenAICompatibleProvider implements TranslationProvider {
   private capability: Capability | undefined;
   private probePromise: Promise<Capability> | null = null;
   private readonly activeJobs = new Set<string>();
+  private readonly activeRequests = new Set<string>();
+  private readonly cancelledRequests = new Set<string>();
 
   constructor(
     private readonly config: {
@@ -66,50 +73,78 @@ export class OpenAICompatibleProvider implements TranslationProvider {
     throw protocolError("OPENAI_CAPABILITY_PROBE_FAILED", "configuration");
   }
 
-  async attempt(request: TranslationBatchRequest): Promise<TranslationBatchResult> {
-    const capability = this.capability ?? (await this.probe());
-    const wire = encodeWireItems(request.items);
-    const combined: TranslationBatchResult = { translations: [] };
-    for (let offset = 0; offset < wire.items.length; offset += MAX_ITEMS_PER_CHAT_REQUEST) {
-      const items = wire.items.slice(offset, offset + MAX_ITEMS_PER_CHAT_REQUEST);
-      const part = Math.floor(offset / MAX_ITEMS_PER_CHAT_REQUEST) + 1;
-      const response = await this.send(
-        `${request.requestId}-part-${part}`,
-        items,
-        request.sourceLanguage,
-        request.targetLanguage,
-        capability,
-        30_000,
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300)
-        throw providerHttpError(
-          response.statusCode,
-          response.headers,
-          this.providerCode(response.bodyText),
+  async attempt(
+    request: TranslationBatchRequest,
+    onProgress?: TranslationProgressHandler,
+  ): Promise<TranslationBatchResult> {
+    this.cancelledRequests.delete(request.requestId);
+    this.activeRequests.add(request.requestId);
+    try {
+      const capability = this.capability ?? (await this.probe());
+      this.throwIfCancelled(request.requestId);
+      const wire = encodeWireItems(request.items);
+      const combined: TranslationBatchResult = { translations: [] };
+      for (let offset = 0; offset < wire.items.length; offset += MAX_ITEMS_PER_CHAT_REQUEST) {
+        this.throwIfCancelled(request.requestId);
+        const items = wire.items.slice(offset, offset + MAX_ITEMS_PER_CHAT_REQUEST);
+        const part = Math.floor(offset / MAX_ITEMS_PER_CHAT_REQUEST) + 1;
+        const response = await this.send(
+          `${request.requestId}-part-${part}`,
+          items,
+          request.sourceLanguage,
+          request.targetLanguage,
+          capability,
+          30_000,
         );
-      const parsed = this.parseResponse(
-        items.map((item) => item.id),
-        response,
-      );
-      combined.translations.push(...parsed.translations);
-      if (parsed.providerRequestId && !combined.providerRequestId)
-        combined.providerRequestId = parsed.providerRequestId;
-      for (const key of ["input", "output", "characters"] as const) {
-        const value = parsed.usage?.[key];
-        if (value === undefined) continue;
-        combined.usage ??= {};
-        combined.usage[key] = (combined.usage[key] ?? 0) + value;
+        this.throwIfCancelled(request.requestId);
+        if (response.statusCode < 200 || response.statusCode >= 300)
+          throw providerHttpError(
+            response.statusCode,
+            response.headers,
+            this.providerCode(response.bodyText),
+          );
+        const parsed = this.parseResponse(
+          items.map((item) => item.id),
+          response,
+        );
+        this.throwIfCancelled(request.requestId);
+        const progress = wire.restore(parsed);
+        if (progress.translations.length > 0) onProgress?.(progress);
+        combined.translations.push(...parsed.translations);
+        if (parsed.providerRequestId && !combined.providerRequestId)
+          combined.providerRequestId = parsed.providerRequestId;
+        for (const key of ["input", "output", "characters"] as const) {
+          const value = parsed.usage?.[key];
+          if (value === undefined) continue;
+          combined.usage ??= {};
+          combined.usage[key] = (combined.usage[key] ?? 0) + value;
+        }
       }
+      this.throwIfCancelled(request.requestId);
+      return wire.restore(combined);
+    } finally {
+      this.activeRequests.delete(request.requestId);
+      this.cancelledRequests.delete(request.requestId);
     }
-    return wire.restore(combined);
   }
 
   async cancel(requestId: string): Promise<void> {
+    if (this.activeRequests.has(requestId)) this.cancelledRequests.add(requestId);
     const jobs = [...this.activeJobs].filter(
       (jobId) =>
         jobId === requestId || jobId.startsWith(`${requestId}-part-`) || jobId.startsWith("probe-"),
     );
     await Promise.allSettled(jobs.map((jobId) => this.transport.cancel?.(jobId)));
+  }
+
+  private throwIfCancelled(requestId: string): void {
+    if (!this.cancelledRequests.has(requestId)) return;
+    throw {
+      category: "cancelled",
+      retryable: false,
+      providerCode: "REQUEST_CANCELLED",
+      userAction: "RETRY",
+    } satisfies ProviderAttemptError;
   }
 
   private async send(

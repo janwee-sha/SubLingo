@@ -102,7 +102,7 @@ describe("US1 playback acceptance", () => {
     expect(track.cleaned).toBe(1);
   });
 
-  it("invalidates delayed output after a source change without removing the visible track", async () => {
+  it("invalidates delayed output after a source change and removes the stale track", async () => {
     let resolve!: (value: { translations: Array<{ id: string; text: string }> }) => void;
     const provider = {
       attempt: () =>
@@ -119,7 +119,7 @@ describe("US1 playback acceptance", () => {
     await controller.whenIdle();
 
     expect(track.revisions).toEqual([]);
-    expect(track.cleaned).toBe(0);
+    expect(track.cleaned).toBe(1);
   });
 
   it("keeps a disabled session disabled when source or configuration changes", () => {

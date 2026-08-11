@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GLOBAL_MESSAGE_NAMES,
+  PROVIDER_ATTEMPT_EVENT_NAMES,
   SIDEBAR_MESSAGE_NAMES,
   parseProfileSelection,
   parseSecretSet,
@@ -152,5 +153,16 @@ describe("Sidebar/Main/Global security messages", () => {
     expect(GLOBAL_MESSAGE_NAMES).toContain("profile:select");
     expect(GLOBAL_MESSAGE_NAMES).toContain("credential:set");
     expect(credentialStatusMessage({ state: "ready" })).toMatch(/private local file/i);
+  });
+
+  it("declares progressive provider events without exposing a credential channel", () => {
+    expect(PROVIDER_ATTEMPT_EVENT_NAMES).toEqual([
+      "provider:attempt-progress",
+      "provider:attempt-result",
+      "provider:attempt-error",
+    ]);
+    expect(JSON.stringify(PROVIDER_ATTEMPT_EVENT_NAMES)).not.toMatch(
+      /secret|credential|authorization/i,
+    );
   });
 });

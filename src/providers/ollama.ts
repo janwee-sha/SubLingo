@@ -1,5 +1,10 @@
 import type { TranslationProvider } from "./provider.js";
-import type { TranslationBatchRequest, TranslationBatchResult } from "./types.js";
+import type {
+  ProviderAttemptError,
+  TranslationBatchRequest,
+  TranslationBatchResult,
+  TranslationProgressHandler,
+} from "./types.js";
 import type { ProviderTransport, ProviderTransportResponse } from "./transport.js";
 import { providerHttpError, protocolError } from "./errors.js";
 import { normalizeProviderEndpoint } from "./profiles.js";
@@ -11,6 +16,8 @@ const MAX_ITEMS_PER_CHAT_REQUEST = 2;
 export class OllamaProvider implements TranslationProvider {
   private readonly endpoint: string;
   private readonly activeJobs = new Set<string>();
+  private readonly activeRequests = new Set<string>();
+  private readonly cancelledRequests = new Set<string>();
   constructor(
     private readonly config: {
       endpoint: string;
@@ -55,42 +62,69 @@ export class OllamaProvider implements TranslationProvider {
     return { version: typeof version === "string" ? version : "unknown", model: this.config.model };
   }
 
-  async attempt(request: TranslationBatchRequest): Promise<TranslationBatchResult> {
-    const wire = encodeWireItems(request.items);
-    const combined: TranslationBatchResult = { translations: [] };
-    for (let offset = 0; offset < wire.items.length; offset += MAX_ITEMS_PER_CHAT_REQUEST) {
-      const items = wire.items.slice(offset, offset + MAX_ITEMS_PER_CHAT_REQUEST);
-      const part = Math.floor(offset / MAX_ITEMS_PER_CHAT_REQUEST) + 1;
-      const response = await this.chat(
-        `${request.requestId}-part-${part}`,
-        items,
-        request.sourceLanguage,
-        request.targetLanguage,
-        60_000,
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300)
-        throw providerHttpError(response.statusCode, response.headers);
-      const parsed = this.parse(
-        items.map((item) => item.id),
-        response,
-      );
-      combined.translations.push(...parsed.translations);
-      for (const key of ["input", "output", "characters"] as const) {
-        const value = parsed.usage?.[key];
-        if (value === undefined) continue;
-        combined.usage ??= {};
-        combined.usage[key] = (combined.usage[key] ?? 0) + value;
+  async attempt(
+    request: TranslationBatchRequest,
+    onProgress?: TranslationProgressHandler,
+  ): Promise<TranslationBatchResult> {
+    this.cancelledRequests.delete(request.requestId);
+    this.activeRequests.add(request.requestId);
+    try {
+      const wire = encodeWireItems(request.items);
+      const combined: TranslationBatchResult = { translations: [] };
+      for (let offset = 0; offset < wire.items.length; offset += MAX_ITEMS_PER_CHAT_REQUEST) {
+        this.throwIfCancelled(request.requestId);
+        const items = wire.items.slice(offset, offset + MAX_ITEMS_PER_CHAT_REQUEST);
+        const part = Math.floor(offset / MAX_ITEMS_PER_CHAT_REQUEST) + 1;
+        const response = await this.chat(
+          `${request.requestId}-part-${part}`,
+          items,
+          request.sourceLanguage,
+          request.targetLanguage,
+          60_000,
+        );
+        this.throwIfCancelled(request.requestId);
+        if (response.statusCode < 200 || response.statusCode >= 300)
+          throw providerHttpError(response.statusCode, response.headers);
+        const parsed = this.parse(
+          items.map((item) => item.id),
+          response,
+        );
+        this.throwIfCancelled(request.requestId);
+        const progress = wire.restore(parsed);
+        if (progress.translations.length > 0) onProgress?.(progress);
+        combined.translations.push(...parsed.translations);
+        for (const key of ["input", "output", "characters"] as const) {
+          const value = parsed.usage?.[key];
+          if (value === undefined) continue;
+          combined.usage ??= {};
+          combined.usage[key] = (combined.usage[key] ?? 0) + value;
+        }
       }
+      this.throwIfCancelled(request.requestId);
+      return wire.restore(combined);
+    } finally {
+      this.activeRequests.delete(request.requestId);
+      this.cancelledRequests.delete(request.requestId);
     }
-    return wire.restore(combined);
   }
 
   async cancel(requestId: string): Promise<void> {
+    if (this.activeRequests.has(requestId)) this.cancelledRequests.add(requestId);
     const jobs = [...this.activeJobs].filter(
       (jobId) =>
         jobId === requestId || jobId.startsWith(`${requestId}-part-`) || jobId.startsWith("probe-"),
     );
     await Promise.allSettled(jobs.map((jobId) => this.transport.cancel?.(jobId)));
+  }
+
+  private throwIfCancelled(requestId: string): void {
+    if (!this.cancelledRequests.has(requestId)) return;
+    throw {
+      category: "cancelled",
+      retryable: false,
+      providerCode: "REQUEST_CANCELLED",
+      userAction: "RETRY",
+    } satisfies ProviderAttemptError;
   }
 
   private async get(jobId: string, path: string): Promise<ProviderTransportResponse> {
