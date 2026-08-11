@@ -7,7 +7,6 @@ import {
 } from "./adapters/iina/subtitle-track.js";
 import type { TranslationProvider } from "./providers/provider.js";
 import type { TranslationBatchRequest, TranslationBatchResult } from "./providers/types.js";
-import { confirmVaultReset } from "./vault/reset.js";
 
 class GlobalProviderClient implements TranslationProvider {
   private readonly pending = new Map<
@@ -102,6 +101,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   let sidebarState: Record<string, unknown> = {
     status: controller.status,
     cacheSize: controller.cacheSize,
+    providerError: controller.providerError,
     boundedWork,
     source: null,
     sourceIssue: "unreadable",
@@ -113,6 +113,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       ...sidebarState,
       status: controller.status,
       cacheSize: controller.cacheSize,
+      providerError: controller.providerError,
       boundedWork,
       ...patch,
     };
@@ -217,6 +218,11 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     runtime.preferences.set("enabledByDefault", enabled);
     runtime.preferences.sync();
     updateSidebarState();
+    queueSidebarMessage("operation:result", {
+      requestId: (raw as { requestId?: unknown }).requestId,
+      ok: true,
+      action: "translation",
+    });
     flushSidebar();
   });
   runtime.sidebar.onMessage("defaults:save", (raw: unknown) => {
@@ -233,12 +239,18 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       controller.setLanguages(payload.targetLanguage, manualSourceLanguage);
       if (!loadSource(false)) scheduleSourceReload();
     }
+    queueSidebarMessage("operation:result", {
+      requestId: (raw as { requestId?: unknown }).requestId,
+      ok: true,
+      action: "languages",
+    });
     runtime.global.postMessage("defaults:save", raw);
+    flushSidebar();
   });
 
   const forward: Array<[string, string]> = [
     ["profile:save", "profile:create-revision"],
-    ["secret:set", "vault:set-secret"],
+    ["secret:set", "credential:set"],
     ["profile:select", "profile:select"],
     ["provider:test", "provider:test"],
   ];
@@ -247,40 +259,68 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       runtime.global.postMessage(globalName, raw),
     );
   }
-  runtime.sidebar.onMessage("vault:reset-request", (raw: unknown) => {
-    if (!confirmVaultReset(runtime.utils)) {
-      queueSidebarMessage("vault:state", { state: "cancelled" });
+  runtime.sidebar.onMessage("profile:delete-request", (raw: unknown) => {
+    const source = raw as {
+      requestId?: unknown;
+      revision?: unknown;
+      payload?: { displayName?: unknown };
+    };
+    let confirmed = false;
+    try {
+      const displayName =
+        typeof source.payload?.displayName === "string"
+          ? source.payload.displayName
+          : "this profile";
+      confirmed = runtime.utils.ask(
+        `Delete ${displayName}? Its saved credential will be permanently removed.`,
+      );
+    } catch {
+      confirmed = false;
+    }
+    if (!confirmed) {
+      queueSidebarMessage("operation:result", {
+        requestId: source.requestId,
+        ok: false,
+        cancelled: true,
+        action: "delete-profile",
+      });
       flushSidebar();
       return;
     }
-    const source = raw as { requestId?: unknown; revision?: unknown };
-    runtime.global.postMessage("vault:reset", {
-      requestId:
-        typeof source?.requestId === "string" ? source.requestId : `vault-reset-${Date.now()}`,
-      revision: typeof source?.revision === "number" ? source.revision : 1,
-      payload: { confirmed: true },
-    });
+    runtime.global.postMessage("profile:delete", raw);
   });
   runtime.global.onMessage("profiles:result", (raw: unknown) => {
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       updateSidebarState(raw as Record<string, unknown>);
     }
   });
-  runtime.global.onMessage("profile:revision-created", (raw: unknown) =>
-    queueSidebarMessage("profile:revision-created", raw),
-  );
-  runtime.global.onMessage("vault:result", (raw: unknown) =>
-    queueSidebarMessage("vault:state", raw),
-  );
-  runtime.global.onMessage("vault:state", (raw: unknown) => {
-    const state = raw as { selectionInvalidated?: unknown };
-    if (state.selectionInvalidated === true) {
+  runtime.global.onMessage("profile:revision-created", (raw: unknown) => {
+    const result = raw as {
+      selectionInvalidated?: unknown;
+      profile?: { profileId?: unknown };
+    };
+    if (
+      result.selectionInvalidated === true &&
+      currentSelection &&
+      result.profile?.profileId === currentSelection.profileId
+    ) {
+      runtime.global.postMessage("profile:release", {
+        requestId: `release-${Date.now()}`,
+        revision: 1,
+        payload: currentSelection,
+      });
       currentSelection = null;
       controller.clearProviderSelection();
       updateSidebarState({ selection: null });
     }
-    queueSidebarMessage("vault:state", raw);
+    queueSidebarMessage("profile:revision-created", raw);
   });
+  runtime.global.onMessage("credential:result", (raw: unknown) =>
+    queueSidebarMessage("credential:state", raw),
+  );
+  runtime.global.onMessage("credential:state", (raw: unknown) =>
+    queueSidebarMessage("credential:state", raw),
+  );
   runtime.global.onMessage("provider:test-result", (raw: unknown) =>
     queueSidebarMessage("provider:test-result", raw),
   );
@@ -316,6 +356,24 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     updateSidebarState({
       selection: currentSelection,
     });
+    queueSidebarMessage("profile:selected", raw);
+  });
+  runtime.global.onMessage("profile:deleted", (raw: unknown) => {
+    const result = raw as { profileId?: unknown; selectionInvalidated?: unknown };
+    if (
+      result.selectionInvalidated === true ||
+      (currentSelection && result.profileId === currentSelection.profileId)
+    ) {
+      currentSelection = null;
+      controller.clearProviderSelection();
+      updateSidebarState({ selection: null });
+    }
+    queueSidebarMessage("profile:deleted", raw);
+    runtime.global.postMessage("profiles:list", {
+      requestId: `profiles-${Date.now()}`,
+      revision: 1,
+      payload: {},
+    });
   });
   runtime.global.postMessage("profiles:list", {
     requestId: `profiles-${Date.now()}`,
@@ -324,6 +382,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   });
 
   runtime.event.on("iina.file-loaded", () => {
+    controller.endFile();
     clearSource("unreadable");
     scheduleSourceReload();
   });
@@ -345,8 +404,8 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       ),
     ),
   );
-  runtime.event.on("mpv.end-file", () => controller.close());
-  const tickInterval = setInterval(() => {
+  runtime.event.on("mpv.end-file", () => controller.endFile());
+  setInterval(() => {
     controller.session.setPaused(runtime.core.status.paused);
     controller.tick(
       finitePosition(
@@ -356,7 +415,6 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     updateSidebarState();
   }, 350);
   runtime.event.on("iina.window-will-close", () => {
-    clearInterval(tickInterval);
     if (sourceSelectionTimer !== null) clearTimeout(sourceSelectionTimer);
     if (currentSelection)
       runtime.global.postMessage("profile:release", {
@@ -364,7 +422,13 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
         revision: 1,
         payload: currentSelection,
       });
-    controller.close();
+    currentSelection = null;
+    selectedSourceTrackId = null;
+    selectedSourceContentHash = null;
+    selectedSourceLanguage = null;
+    controller.endFile();
+    controller.clearProviderSelection();
+    updateSidebarState({ source: null, sourceIssue: "unreadable", selection: null });
   });
   if (!loadSource(false)) scheduleSourceReload();
   return controller;

@@ -65,6 +65,7 @@ export interface ProviderProfileSnapshot {
   kind: Exclude<ProviderKind, "fake">;
   endpoint: string;
   endpointFingerprint: EndpointFingerprint;
+  proxyMode?: "system" | "direct";
   model?: string;
   region?: string;
   capability?: "strict-json-schema" | "json-object" | "prompt-json";

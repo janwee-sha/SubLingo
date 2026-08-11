@@ -4,24 +4,10 @@ import type { ProviderTransport, ProviderTransportResponse } from "./transport.j
 import { providerHttpError, protocolError } from "./errors.js";
 import { normalizeProviderEndpoint } from "./profiles.js";
 import { validateIdOutput } from "./validation.js";
+import { encodeWireItems, providerOutputSchema } from "./wire-items.js";
 
 type Capability = "strict-json-schema" | "json-object" | "prompt-json";
-const OUTPUT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["translations"],
-  properties: {
-    translations: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["id", "text"],
-        properties: { id: { type: "string" }, text: { type: "string" } },
-      },
-    },
-  },
-} as const;
+const MAX_ITEMS_PER_CHAT_REQUEST = 2;
 
 export class OpenAICompatibleProvider implements TranslationProvider {
   private readonly endpoint: string;
@@ -35,6 +21,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
       model: string;
       apiKey?: string;
       capability?: Capability;
+      proxyMode?: "system" | "direct";
     },
     private readonly transport: ProviderTransport,
   ) {
@@ -81,29 +68,46 @@ export class OpenAICompatibleProvider implements TranslationProvider {
 
   async attempt(request: TranslationBatchRequest): Promise<TranslationBatchResult> {
     const capability = this.capability ?? (await this.probe());
-    const response = await this.send(
-      request.requestId,
-      request.items,
-      request.sourceLanguage,
-      request.targetLanguage,
-      capability,
-      30_000,
-    );
-    if (response.statusCode < 200 || response.statusCode >= 300)
-      throw providerHttpError(
-        response.statusCode,
-        response.headers,
-        this.providerCode(response.bodyText),
+    const wire = encodeWireItems(request.items);
+    const combined: TranslationBatchResult = { translations: [] };
+    for (let offset = 0; offset < wire.items.length; offset += MAX_ITEMS_PER_CHAT_REQUEST) {
+      const items = wire.items.slice(offset, offset + MAX_ITEMS_PER_CHAT_REQUEST);
+      const part = Math.floor(offset / MAX_ITEMS_PER_CHAT_REQUEST) + 1;
+      const response = await this.send(
+        `${request.requestId}-part-${part}`,
+        items,
+        request.sourceLanguage,
+        request.targetLanguage,
+        capability,
+        30_000,
       );
-    return this.parseResponse(
-      request.items.map((item) => item.id),
-      response,
-    );
+      if (response.statusCode < 200 || response.statusCode >= 300)
+        throw providerHttpError(
+          response.statusCode,
+          response.headers,
+          this.providerCode(response.bodyText),
+        );
+      const parsed = this.parseResponse(
+        items.map((item) => item.id),
+        response,
+      );
+      combined.translations.push(...parsed.translations);
+      if (parsed.providerRequestId && !combined.providerRequestId)
+        combined.providerRequestId = parsed.providerRequestId;
+      for (const key of ["input", "output", "characters"] as const) {
+        const value = parsed.usage?.[key];
+        if (value === undefined) continue;
+        combined.usage ??= {};
+        combined.usage[key] = (combined.usage[key] ?? 0) + value;
+      }
+    }
+    return wire.restore(combined);
   }
 
   async cancel(requestId: string): Promise<void> {
     const jobs = [...this.activeJobs].filter(
-      (jobId) => jobId === requestId || jobId.startsWith("probe-"),
+      (jobId) =>
+        jobId === requestId || jobId.startsWith(`${requestId}-part-`) || jobId.startsWith("probe-"),
     );
     await Promise.allSettled(jobs.map((jobId) => this.transport.cancel?.(jobId)));
   }
@@ -116,11 +120,16 @@ export class OpenAICompatibleProvider implements TranslationProvider {
     capability: Capability,
     timeoutMs: number,
   ): Promise<ProviderTransportResponse> {
+    const apiRoot = this.endpoint.replace(/\/+$/, "");
     const responseFormat =
       capability === "strict-json-schema"
         ? {
             type: "json_schema",
-            json_schema: { name: "subtitle_translations", strict: true, schema: OUTPUT_SCHEMA },
+            json_schema: {
+              name: "subtitle_translations",
+              strict: true,
+              schema: providerOutputSchema(items.map((item) => item.id)),
+            },
           }
         : capability === "json-object"
           ? { type: "json_object" }
@@ -130,11 +139,12 @@ export class OpenAICompatibleProvider implements TranslationProvider {
       return await this.transport.request({
         jobId,
         method: "POST",
-        url: `${this.endpoint}/chat/completions`,
+        url: `${apiRoot}/chat/completions`,
         headers: {
           "Content-Type": "application/json",
           ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
         },
+        proxyMode: this.config.proxyMode ?? "system",
         body: {
           model: this.config.model,
           stream: false,

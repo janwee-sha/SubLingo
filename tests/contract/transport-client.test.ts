@@ -17,12 +17,31 @@ import {
 class FakeBridge implements LocalHttpBridge {
   readonly calls: Array<{ url: string; token: string; body: unknown }> = [];
   unavailable = false;
+  credentials = new Map<string, Record<string, string>>();
 
   async post<T>(url: string, token: string, body: unknown): Promise<T> {
     if (this.unavailable) throw new Error("connection refused with private body");
     this.calls.push({ url, token, body });
     const path = new URL(url).pathname;
-    if (path === "/v1/random") return { bytesB64: "AQID" } as T;
+    if (path === "/v1/health") return { state: "ok" } as T;
+    if (path === "/v1/credentials") {
+      const request = body as {
+        action?: string;
+        profileId?: string;
+        fields?: Record<string, string>;
+      };
+      if (request.action === "write" && request.profileId && request.fields) {
+        this.credentials.set(request.profileId, { ...request.fields });
+        return { state: "saved" } as T;
+      }
+      if (request.action === "read" && request.profileId) {
+        return { fields: this.credentials.get(request.profileId) ?? null } as T;
+      }
+      if (request.action === "delete" && request.profileId) {
+        this.credentials.delete(request.profileId);
+        return { state: "deleted" } as T;
+      }
+    }
     if (path === "/v1/cancel") return { state: "cancelled" } as T;
     if (path === "/v1/shutdown") return { state: "shutting-down" } as T;
     return {
@@ -63,25 +82,79 @@ describe("transport helper client", () => {
     );
   });
 
+  it("discovers the helper through an identifier-matched development plugin link", () => {
+    const plugins = "/Users/example/Library/Application Support/com.colliderli.iina/plugins";
+    const developmentRoot = `${plugins}/SubLingo.iinaplugin-dev`;
+    const helper = discoverHelperExecutable({
+      resolvePath: () => `${plugins}/.data/io.sublingo.iina`,
+      exists: (path) => path === `${developmentRoot}/dist/native/sublingo-transport`,
+      list: () => [
+        // IINA can expose a CLI-created package symlink with isDir=false.
+        { filename: "SubLingo.iinaplugin-dev", path: developmentRoot, isDir: false },
+        {
+          filename: "Unrelated.iinaplugin-dev",
+          path: `${plugins}/Unrelated.iinaplugin-dev`,
+          isDir: true,
+        },
+      ],
+      read: (path) =>
+        path === `${developmentRoot}/Info.json`
+          ? JSON.stringify({ identifier: "io.sublingo.iina" })
+          : JSON.stringify({ identifier: "example.unrelated" }),
+    });
+
+    expect(helper).toBe(`${developmentRoot}/dist/native/sublingo-transport`);
+  });
+
+  it("rejects ambiguous identifier-matched plugin roots instead of executing an arbitrary helper", () => {
+    const plugins = "/Users/example/Library/Application Support/com.colliderli.iina/plugins";
+    expect(() =>
+      discoverHelperExecutable({
+        resolvePath: () => `${plugins}/.data/io.sublingo.iina`,
+        exists: (path) => !path.includes("/io.sublingo.iina.iinaplugin/"),
+        list: () => [
+          {
+            filename: "SubLingo-A.iinaplugin-dev",
+            path: `${plugins}/SubLingo-A.iinaplugin-dev`,
+            isDir: true,
+          },
+          {
+            filename: "SubLingo-B.iinaplugin-dev",
+            path: `${plugins}/SubLingo-B.iinaplugin-dev`,
+            isDir: true,
+          },
+        ],
+        read: () => JSON.stringify({ identifier: "io.sublingo.iina" }),
+      }),
+    ).toThrow(/PACKAGED_HELPER_AMBIGUOUS/);
+  });
+
   it("uses the ready frame and fails promptly when the helper exits during startup", async () => {
     await expect(
-      TransportProcess.bootstrap({
-        launch: async (_executable, _args, onStdout) => {
-          onStdout('{"type":"ready","port":49152,"token":"abcDEF123_-","protocolVersion":1}\n');
-          return new Promise<{ status: number }>(() => undefined);
+      TransportProcess.bootstrap(
+        {
+          launch: async (_executable, args, onStdout) => {
+            expect(args).toEqual(["--data-directory", "/private/test/io.sublingo.iina"]);
+            onStdout('{"type":"ready","port":49152,"token":"abcDEF123_-","protocolVersion":1}\n');
+            return new Promise<{ status: number }>(() => undefined);
+          },
         },
-      }),
+        { dataDirectory: "/private/test/io.sublingo.iina" },
+      ),
     ).resolves.toMatchObject({ port: 49152, token: "abcDEF123_-" });
 
     await expect(
-      TransportProcess.bootstrap({ launch: async () => ({ status: 127 }) }),
-    ).rejects.toThrow("Helper exited during startup");
+      TransportProcess.bootstrap(
+        { launch: async () => ({ status: 127 }) },
+        { dataDirectory: "/private/test/io.sublingo.iina" },
+      ),
+    ).rejects.toMatchObject({ code: "HELPER_START_FAILED", userAction: "RESTART_IINA" });
   });
 
-  it("sends bearer-authenticated random/request/cancel RPC to loopback", async () => {
+  it("sends bearer-authenticated health/credential/request/cancel RPC to loopback", async () => {
     const bridge = new FakeBridge();
     const client = new TransportClient({ port: 49152, token: "session-token" }, bridge);
-    await expect(client.random(3, "vault-nonce")).resolves.toEqual(Uint8Array.from([1, 2, 3]));
+    await expect(client.health()).resolves.toBeUndefined();
     await expect(
       client.request({
         jobId: "job-1",
@@ -94,6 +167,13 @@ describe("transport helper client", () => {
       }),
     ).resolves.toMatchObject({ statusCode: 200 });
     await expect(client.cancel("job-1")).resolves.toBe("cancelled");
+    const profileId = "7a90a4e6-cc4f-4f59-99b7-8ff522f887ae";
+    await expect(
+      client.credentialWrite(profileId, { apiKey: "private-key" }),
+    ).resolves.toBeUndefined();
+    await expect(client.credentialRead(profileId)).resolves.toEqual({ apiKey: "private-key" });
+    await expect(client.credentialDelete(profileId)).resolves.toBeUndefined();
+    await expect(client.credentialRead(profileId)).resolves.toBeNull();
     expect(bridge.calls.every((call) => call.token === "session-token")).toBe(true);
     expect(bridge.calls.every((call) => call.url.startsWith("http://127.0.0.1:49152/"))).toBe(true);
   });
@@ -163,6 +243,23 @@ describe("transport helper client", () => {
         data: { error: "upstream-timeout", detail: "private provider response" },
         text: '{"error":"upstream-timeout","detail":"private provider response"}',
       }),
+    } as unknown as IINA.API.HTTP);
+    await expect(
+      bridge.post("http://127.0.0.1:49152/v1/request", "token", {}),
+    ).rejects.toMatchObject({ code: "upstream-timeout" });
+    await expect(bridge.post("http://127.0.0.1:49152/v1/request", "token", {})).rejects.not.toThrow(
+      /private provider response|token/,
+    );
+  });
+
+  it("extracts safe helper codes from IINA's rejected non-2xx Promise", async () => {
+    const bridge = new IinaLocalHttpBridge({
+      post: async () =>
+        Promise.reject({
+          statusCode: 504,
+          data: { error: "upstream-timeout", detail: "private provider response" },
+          text: '{"error":"upstream-timeout","detail":"private provider response"}',
+        }),
     } as unknown as IINA.API.HTTP);
     await expect(
       bridge.post("http://127.0.0.1:49152/v1/request", "token", {}),

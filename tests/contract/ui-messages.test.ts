@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  GLOBAL_MESSAGE_NAMES,
   SIDEBAR_MESSAGE_NAMES,
   parseProfileSelection,
   parseSecretSet,
@@ -17,6 +18,15 @@ const providerTestStatusMessage = (
     }): string;
   }
 ).sublingoProviderTestStatusMessage;
+const credentialStatusMessage = (
+  globalThis as typeof globalThis & {
+    sublingoCredentialStatusMessage(result: {
+      state?: string;
+      code?: string;
+      userAction?: string;
+    }): string;
+  }
+).sublingoCredentialStatusMessage;
 
 describe("Sidebar/Main/Global security messages", () => {
   const profile = {
@@ -38,6 +48,7 @@ describe("Sidebar/Main/Global security messages", () => {
       kind: "openai",
       endpoint: "https://api.example.test/v1",
       endpointFingerprint: "fingerprint",
+      proxyMode: "system",
       model: "model",
       credentialConfigured: true,
     });
@@ -72,8 +83,9 @@ describe("Sidebar/Main/Global security messages", () => {
     ).toMatchObject({ revision: 2 });
   });
 
-  it("uses a Main-owned reset request and preserves only allowlisted provider errors", () => {
-    expect(SIDEBAR_MESSAGE_NAMES).toContain("vault:reset-request");
+  it("uses a Main-owned profile deletion request and preserves only allowlisted provider errors", () => {
+    expect(SIDEBAR_MESSAGE_NAMES).toContain("profile:delete-request");
+    expect(SIDEBAR_MESSAGE_NAMES).not.toContain("vault:reset-request");
     expect(SIDEBAR_MESSAGE_NAMES).not.toContain("vault:reset");
     expect(
       normalizeProviderError({
@@ -118,5 +130,34 @@ describe("Sidebar/Main/Global security messages", () => {
     expect(
       providerTestStatusMessage({ ok: false, category: "timeout", userAction: "CHECK_NETWORK" }),
     ).toMatch(/timed out/i);
+    expect(
+      providerTestStatusMessage({
+        ok: false,
+        category: "network",
+        statusCode: 503,
+        userAction: "CHECK_NETWORK",
+      }),
+    ).toMatch(/HTTP 503.*network route/i);
+  });
+
+  it("distinguishes helper and private-file credential failures without Keychain guidance", () => {
+    expect(credentialStatusMessage({ state: "unavailable", code: "HELPER_UNAVAILABLE" })).toMatch(
+      /not saved.*helper/i,
+    );
+    expect(
+      credentialStatusMessage({ state: "unavailable", code: "CREDENTIAL_STORE_UNAVAILABLE" }),
+    ).toMatch(/not saved.*private credential file/i);
+    expect(credentialStatusMessage({ state: "ready" })).toMatch(/0600/i);
+    expect(
+      credentialStatusMessage({ state: "unavailable", code: "CREDENTIAL_STORE_UNAVAILABLE" }),
+    ).not.toMatch(/Keychain|encrypted vault/i);
+  });
+
+  it("uses the renamed credential message and exposes no vault reset operation", () => {
+    expect(GLOBAL_MESSAGE_NAMES).toContain("profile:select");
+    expect(GLOBAL_MESSAGE_NAMES).toContain("credential:set");
+    expect(SIDEBAR_MESSAGE_NAMES).not.toContain("vault:reset-request");
+    expect(SIDEBAR_MESSAGE_NAMES).not.toContain("vault:reset");
+    expect(credentialStatusMessage({ state: "ready" })).toMatch(/private local file/i);
   });
 });

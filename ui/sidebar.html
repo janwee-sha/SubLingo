@@ -72,7 +72,8 @@
             autocomplete="off"
             required
           />
-          <small id="endpoint-hint">OpenAI-compatible API root, usually ending in /v1.</small>
+          <small id="endpoint-hint">Enter the API root, usually ending in /v1.</small>
+          <small id="request-url">Requests will use /chat/completions below this root.</small>
         </label>
         <label id="model-row" class="field">
           <span>Model ID</span>
@@ -85,6 +86,16 @@
           />
           <small id="model-hint">Enter the exact model identifier exposed by this service.</small>
         </label>
+        <label class="field">
+          <span>Network route</span>
+          <select id="provider-proxy-mode" aria-describedby="proxy-mode-hint">
+            <option value="system">Use macOS proxy settings</option>
+            <option value="direct">Connect directly</option>
+          </select>
+          <small id="proxy-mode-hint"
+            >Use direct only when the configured macOS proxy rejects this service.</small
+          >
+        </label>
         <label id="credential-row" class="field">
           <span
             >API key <span class="optional">write-only; optional when unauthenticated</span></span
@@ -96,7 +107,16 @@
             placeholder="Not shown after saving"
           />
         </label>
-        <button id="save-profile" type="button">Save profile</button>
+        <div class="form-actions">
+          <button id="save-profile" type="button">Save profile</button>
+          <button id="new-profile" class="secondary" type="button" hidden>New profile</button>
+        </div>
+        <p id="operation-status" class="operation-status" role="status" aria-live="polite">
+          Ready.
+        </p>
+        <p id="credential-state" class="credential-state">
+          Saved API keys use SubLingo's private local file (mode 0600), not macOS Keychain.
+        </p>
         <div id="profiles" class="profiles" aria-live="polite">
           <p class="empty">No saved profiles yet.</p>
         </div>
@@ -132,14 +152,6 @@
             <dd id="work-bound">120 s / 40 cues</dd>
           </div>
         </dl>
-      </section>
-
-      <section class="danger-zone" aria-labelledby="vault-heading">
-        <div>
-          <h2 id="vault-heading">Credential vault</h2>
-          <p id="vault-state">Credentials are encrypted locally.</p>
-        </div>
-        <button id="reset-vault" class="secondary danger" type="button">Reset vault</button>
       </section>
     </main>
     <script src="./provider-status.ts"></script>

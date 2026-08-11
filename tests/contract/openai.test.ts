@@ -66,17 +66,75 @@ describe("OpenAI-compatible provider", () => {
         },
       },
     );
-    const result = await provider.attempt(makeProviderRequest());
+    const request = makeProviderRequest();
+    request.items[0]!.id = "srt:0:0:1000";
+    request.items[1]!.id = "srt:1:1000:2000";
+    const result = await provider.attempt(request);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
       url: "https://example.test/v1/chat/completions",
       headers: { Authorization: "Bearer key" },
       body: { model: "model", stream: false },
     });
-    expect(result.translations).toEqual([{ id: "c1", text: "一" }]);
+    const userMessage = (
+      calls[0] as { body: { messages: Array<{ content: string }> } }
+    ).body.messages.at(-1)?.content;
+    expect(userMessage).toContain('"id":"c1"');
+    expect(userMessage).not.toContain("srt:0:0:1000");
+    expect(result.translations).toEqual([{ id: "srt:0:0:1000", text: "一" }]);
   });
 
-  it("accepts a full chat-completions endpoint without duplicating the path", async () => {
+  it("sends larger batches as two-item compatible chat requests without duplicating text", async () => {
+    const calls: Array<Array<{ id: string; text: string }>> = [];
+    const provider = new OpenAICompatibleProvider(
+      {
+        endpoint: "https://example.test/v1",
+        model: "model",
+        capability: "json-object",
+      },
+      {
+        request: async (request) => {
+          const messages = (request.body as { messages: Array<{ content: string }> }).messages;
+          const payload = JSON.parse(messages.at(-1)!.content) as {
+            items: Array<{ id: string; text: string }>;
+          };
+          calls.push(payload.items);
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: JSON.stringify({
+              choices: [
+                {
+                  finish_reason: "stop",
+                  message: {
+                    content: JSON.stringify({
+                      translations: payload.items.map((item) => ({
+                        id: item.id,
+                        text: `T:${item.text}`,
+                      })),
+                    }),
+                  },
+                },
+              ],
+            }),
+          };
+        },
+      },
+    );
+    const request = makeProviderRequest();
+    request.items.push(
+      { id: "c3", text: "three" },
+      { id: "c4", text: "four" },
+      { id: "c5", text: "five" },
+    );
+
+    const result = await provider.attempt(request);
+    expect(calls.map((items) => items.length)).toEqual([2, 2, 1]);
+    expect(calls.flat().map((item) => item.text)).toEqual(["one", "two", "three", "four", "five"]);
+    expect(result.translations).toHaveLength(5);
+  });
+
+  it("treats even a full chat-completions input as an API root", async () => {
     let requestedUrl = "";
     const provider = new OpenAICompatibleProvider(
       {
@@ -103,7 +161,7 @@ describe("OpenAI-compatible provider", () => {
       },
     );
     await provider.attempt(makeProviderRequest());
-    expect(requestedUrl).toBe("https://example.test/v1/chat/completions");
+    expect(requestedUrl).toBe("https://example.test/v1/chat/completions/chat/completions");
   });
 
   it("does not hide authentication, model or quota failures behind capability fallback", async () => {

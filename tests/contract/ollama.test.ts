@@ -50,13 +50,113 @@ describe("Ollama native provider", () => {
         },
       },
     );
-    const result = await provider.attempt(makeProviderRequest());
+    const request = makeProviderRequest();
+    request.items[0]!.id = "srt:0:0:1000";
+    request.items[1]!.id = "srt:1:1000:2000";
+    const result = await provider.attempt(request);
     expect(calls[0]).toMatchObject({
       url: "http://localhost:11434/api/chat",
       timeoutMs: 60_000,
       body: { stream: false, think: false, options: { temperature: 0 } },
     });
-    expect(result.translations).toEqual([{ id: "c1", text: "一" }]);
+    const userMessage = (
+      calls[0] as { body: { messages: Array<{ content: string }> } }
+    ).body.messages.at(-1)?.content;
+    expect(userMessage).toContain('"id":"c1"');
+    expect(userMessage).not.toContain("srt:0:0:1000");
+    expect(result.translations).toEqual([{ id: "srt:0:0:1000", text: "一" }]);
+  });
+
+  it("sends larger batches as two-item chats without dropping or duplicating cues", async () => {
+    const calls: Array<{ jobId: string; items: Array<{ id: string; text: string }> }> = [];
+    const provider = new OllamaProvider(
+      { endpoint: "http://127.0.0.1:11434", model: "translategemma:12b" },
+      {
+        request: async (request) => {
+          const messages = (request.body as { messages: Array<{ content: string }> }).messages;
+          const payload = JSON.parse(messages.at(-1)!.content) as {
+            items: Array<{ id: string; text: string }>;
+          };
+          calls.push({ jobId: request.jobId, items: payload.items });
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: JSON.stringify({
+              message: {
+                content: JSON.stringify({
+                  translations: payload.items.map((item) => ({
+                    id: item.id,
+                    text: `T:${item.text}`,
+                  })),
+                }),
+              },
+              prompt_eval_count: 3,
+              eval_count: 2,
+            }),
+          };
+        },
+      },
+    );
+    const request = makeProviderRequest();
+    request.items.push(
+      { id: "c3", text: "three" },
+      { id: "c4", text: "four" },
+      { id: "c5", text: "five" },
+      { id: "c6", text: "six" },
+    );
+
+    const result = await provider.attempt(request);
+
+    expect(calls.map((call) => call.jobId)).toEqual([
+      "request-part-1",
+      "request-part-2",
+      "request-part-3",
+    ]);
+    expect(calls.map((call) => call.items.length)).toEqual([2, 2, 2]);
+    expect(calls.flatMap((call) => call.items.map((item) => item.text))).toEqual([
+      "one",
+      "two",
+      "three",
+      "four",
+      "five",
+      "six",
+    ]);
+    expect(result.translations).toHaveLength(6);
+    expect(result.usage).toEqual({ input: 9, output: 6 });
+  });
+
+  it("cancels every active split chat for the logical batch", async () => {
+    const cancelled: string[] = [];
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const provider = new OllamaProvider(
+      { endpoint: "http://127.0.0.1:11434", model: "qwen" },
+      {
+        request: async () => {
+          await gate;
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: JSON.stringify({
+              message: { content: '{"translations":[{"id":"c1","text":"一"}]}' },
+            }),
+          };
+        },
+        cancel: (jobId) => {
+          cancelled.push(jobId);
+        },
+      },
+    );
+    const attempt = provider.attempt(makeProviderRequest());
+    await Promise.resolve();
+
+    await provider.cancel("request");
+    release?.();
+    await attempt;
+
+    expect(cancelled).toEqual(["request-part-1"]);
   });
 
   it("rejects non-loopback HTTP endpoints", () => {

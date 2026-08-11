@@ -54,6 +54,35 @@ describe("US1 playback acceptance", () => {
     expect(controller.status).toBe("partialFailure");
   });
 
+  it("does not continuously resubmit terminally failed cues and allows an explicit retry", async () => {
+    let attempts = 0;
+    const controller = new PlaybackController({
+      playerId: "A",
+      provider: {
+        attempt: async () => {
+          attempts += 1;
+          throw { category: "protocol", retryable: false };
+        },
+      },
+      track: new TrackSink(),
+    });
+    controller.setSource({ cues, contentHash: "hash", language: "en", format: "srt" });
+
+    controller.tick(0);
+    await controller.whenIdle();
+    controller.tick(0);
+    await controller.whenIdle();
+    expect(attempts).toBe(1);
+    expect(controller.status).toBe("partialFailure");
+    expect(controller.providerError).toMatchObject({ category: "protocol", retryable: false });
+
+    controller.setEnabled(false);
+    controller.setEnabled(true);
+    controller.tick(0);
+    await controller.whenIdle();
+    expect(attempts).toBe(2);
+  });
+
   it("ignores delayed output after disable and removes the owned track", async () => {
     let resolve!: (value: { translations: Array<{ id: string; text: string }> }) => void;
     const provider = {
@@ -138,5 +167,27 @@ describe("US1 playback acceptance", () => {
     a.setEnabled(false);
     expect(b.status).toBe("running");
     expect(bTrack.cleaned).toBe(0);
+  });
+
+  it("ends one video without permanently closing translation in the same window", async () => {
+    const track = new TrackSink();
+    const provider = new DeterministicFakeProvider("ZH:");
+    const controller = new PlaybackController({ playerId: "A", provider, track });
+    controller.setSource({ cues, contentHash: "first", language: "en", format: "srt" });
+    controller.tick(0);
+    await controller.whenIdle();
+    expect(controller.cacheSize).toBeGreaterThan(0);
+
+    controller.endFile();
+
+    expect(controller.cacheSize).toBe(0);
+    expect(controller.session.closed).toBe(false);
+    expect(controller.status).toBe("waitingForSubtitle");
+    expect(track.cleaned).toBe(1);
+    controller.setSource({ cues, contentHash: "second", language: "en", format: "srt" });
+    controller.tick(0);
+    await controller.whenIdle();
+    expect(track.revisions).toHaveLength(2);
+    expect(controller.status).toBe("running");
   });
 });

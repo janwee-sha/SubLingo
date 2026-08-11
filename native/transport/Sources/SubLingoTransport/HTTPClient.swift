@@ -1,5 +1,16 @@
 @preconcurrency import Foundation
 
+enum ProxyEnvironment {
+    static let inheritedNames = [
+        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+        "http_proxy", "https_proxy", "all_proxy",
+    ]
+
+    static func sanitized(_ environment: [String: String]) -> [String: String] {
+        environment.filter { !inheritedNames.contains($0.key) }
+    }
+}
+
 enum UpstreamPolicy {
     static func validate(_ url: URL) throws {
         guard url.user == nil, url.password == nil, url.fragment == nil,
@@ -59,9 +70,13 @@ private final class RedirectDelegate: NSObject, URLSessionTaskDelegate, @uncheck
 }
 
 final class HTTPClient: @unchecked Sendable {
+    enum TransportKind: Equatable {
+        case urlSession
+        case libcurl
+    }
+
     private struct ActiveJob {
-        let task: URLSessionDataTask
-        let session: URLSession
+        let cancel: @Sendable () -> Void
     }
 
     private let lock = NSLock()
@@ -72,8 +87,18 @@ final class HTTPClient: @unchecked Sendable {
         error.code == .timedOut ? .timedOut : .upstreamNetwork
     }
 
+    static func transportKind(for proxyMode: String) -> TransportKind {
+        proxyMode == "direct" ? .libcurl : .urlSession
+    }
+
     func perform(_ rawRequest: TransportRequest) async throws -> TransportResponse {
         let request = try rawRequest.validated()
+        return try await Self.transportKind(for: request.proxyMode) == .libcurl
+            ? performDirect(request)
+            : performURLSession(request)
+    }
+
+    private func performURLSession(_ request: TransportRequest) async throws -> TransportResponse {
         guard let url = URL(string: request.url) else { throw TransportProtocolError.invalidRequest }
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method
@@ -125,7 +150,10 @@ final class HTTPClient: @unchecked Sendable {
                 }
                 let inserted = self.lock.withLock { () -> Bool in
                     guard self.active[request.jobID] == nil else { return false }
-                    self.active[request.jobID] = ActiveJob(task: task, session: session)
+                    self.active[request.jobID] = ActiveJob(cancel: {
+                        task.cancel()
+                        session.invalidateAndCancel()
+                    })
                     return true
                 }
                 guard inserted else {
@@ -140,6 +168,35 @@ final class HTTPClient: @unchecked Sendable {
         }
     }
 
+    private func performDirect(_ request: TransportRequest) async throws -> TransportResponse {
+        let context = CurlRequestContext(maximumResponseBytes: request.maxResponseBytes)
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let inserted = lock.withLock { () -> Bool in
+                    guard active[request.jobID] == nil else { return false }
+                    active[request.jobID] = ActiveJob(cancel: { context.cancel() })
+                    return true
+                }
+                guard inserted else {
+                    continuation.resume(throwing: TransportProtocolError.duplicateJob)
+                    return
+                }
+                Task.detached { [weak self] in
+                    defer { self?.finish(jobID: request.jobID) }
+                    do {
+                        continuation.resume(
+                            returning: try DirectCurlTransport.perform(request, context: context)
+                        )
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        } onCancel: {
+            _ = self.cancelSync(jobID: request.jobID)
+        }
+    }
+
     func cancel(jobID: String) async -> CancelState { cancelSync(jobID: jobID) }
 
     func activeJobCount() -> Int { lock.withLock { active.count } }
@@ -147,8 +204,7 @@ final class HTTPClient: @unchecked Sendable {
     private func cancelSync(jobID: String) -> CancelState {
         let job = lock.withLock { active.removeValue(forKey: jobID) }
         if let job {
-            job.task.cancel()
-            job.session.invalidateAndCancel()
+            job.cancel()
             _ = lock.withLock { completed.insert(jobID) }
             return .cancelled
         }

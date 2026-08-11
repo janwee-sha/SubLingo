@@ -18,6 +18,8 @@ native/.build/
 @data/
 @tmp/
 *.vault.json
+credentials.json
+*.credentials.json
 docs/validation/artifacts/
 
 # macOS / editors

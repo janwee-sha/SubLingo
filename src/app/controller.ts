@@ -46,6 +46,8 @@ export class PlaybackController {
   status: SessionStatus = "waitingForSubtitle";
   private source: ControllerSource | null = null;
   private readonly translations = new Map<string, string>();
+  private readonly terminallyFailedCueIds = new Set<string>();
+  private lastAttemptError: ProviderAttemptError | null = null;
   private readonly pipeline = new TranslationPipeline();
   private readonly cache: SessionTranslationCache;
   private requestSequence = 0;
@@ -62,10 +64,16 @@ export class PlaybackController {
     return this.cache.size;
   }
 
+  get providerError(): ProviderAttemptError | null {
+    return this.lastAttemptError ? { ...this.lastAttemptError } : null;
+  }
+
   setSource(source: ControllerSource | null): void {
     this.session.onTrackChanged();
     this.source = source;
     this.translations.clear();
+    this.terminallyFailedCueIds.clear();
+    this.lastAttemptError = null;
     this.cache.clear();
     // IINA emits transient source-track changes while it attaches and selects
     // an external secondary subtitle. Keep the currently published track
@@ -79,6 +87,8 @@ export class PlaybackController {
       this.options.track.cleanup();
       this.status = "disabled";
     } else {
+      this.terminallyFailedCueIds.clear();
+      this.lastAttemptError = null;
       this.status = this.nextIdleStatus();
     }
   }
@@ -93,6 +103,8 @@ export class PlaybackController {
     if (this.source && sourceLanguage) this.source = { ...this.source, language: sourceLanguage };
     this.session.onTrackChanged();
     this.translations.clear();
+    this.terminallyFailedCueIds.clear();
+    this.lastAttemptError = null;
     this.cache.clear();
     this.options.track.cleanup();
     this.status = this.nextIdleStatus();
@@ -111,6 +123,8 @@ export class PlaybackController {
       input.providerSemanticFingerprint ?? input.endpointFingerprint;
     this.session.onTrackChanged();
     this.translations.clear();
+    this.terminallyFailedCueIds.clear();
+    this.lastAttemptError = null;
     this.cache.clear();
     this.options.track.cleanup();
     this.status = this.nextIdleStatus();
@@ -123,6 +137,8 @@ export class PlaybackController {
     delete this.options.providerSemanticFingerprint;
     this.session.onTrackChanged();
     this.translations.clear();
+    this.terminallyFailedCueIds.clear();
+    this.lastAttemptError = null;
     this.cache.clear();
     this.options.track.cleanup();
     this.status = this.session.enabled ? "waitingForConfiguration" : "disabled";
@@ -174,7 +190,9 @@ export class PlaybackController {
       const cached = this.cache.get(identity, cue.id);
       if (cached) this.translations.set(cue.id, cached);
     }
-    const pending = window.filter((cue) => !this.translations.has(cue.id));
+    const pending = window.filter(
+      (cue) => !this.translations.has(cue.id) && !this.terminallyFailedCueIds.has(cue.id),
+    );
     if (pending.length === 0) {
       if (this.translations.size > 0) this.status = "running";
       return;
@@ -187,6 +205,7 @@ export class PlaybackController {
     const fingerprint = this.session.fingerprint();
     const requestNumber = ++this.requestSequence;
     this.status = "preparing";
+    this.lastAttemptError = null;
     this.pipeline.run(async () => {
       let remaining = [...batch];
       let terminalError: ProviderAttemptError | null = null;
@@ -242,6 +261,8 @@ export class PlaybackController {
         if (!current) return;
       }
       if (!this.session.accepts(fingerprint) || this.source === null) return;
+      for (const cue of remaining) this.terminallyFailedCueIds.add(cue.id);
+      this.lastAttemptError = remaining.length > 0 ? terminalError : null;
       const rendered = renderSrt(this.source.cues, this.translations);
       if (rendered) {
         try {
@@ -341,9 +362,22 @@ export class PlaybackController {
     return this.pipeline.whenIdle();
   }
 
+  endFile(): void {
+    this.session.onFileChanged();
+    this.source = null;
+    this.translations.clear();
+    this.terminallyFailedCueIds.clear();
+    this.lastAttemptError = null;
+    this.cache.clear();
+    this.options.track.cleanup();
+    this.status = this.nextIdleStatus();
+  }
+
   close(): void {
     this.session.close();
     this.translations.clear();
+    this.terminallyFailedCueIds.clear();
+    this.lastAttemptError = null;
     this.cache.clear();
     this.options.track.cleanup();
     this.status = "disabled";

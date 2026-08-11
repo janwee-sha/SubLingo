@@ -1,4 +1,3 @@
-import { base64Decode } from "../domain/codec.js";
 import { SubLingoError } from "../domain/errors.js";
 
 export interface LocalHttpBridge {
@@ -17,7 +16,8 @@ export const TRANSPORT_RPC_ERROR_CODES = [
   "unauthorized",
   "request-too-large",
   "not-found",
-  "invalid-random-request",
+  "invalid-credential-request",
+  "credential-store-unavailable",
   "invalid-cancel-request",
   "helper-rpc-failed",
 ] as const;
@@ -49,6 +49,10 @@ function rpcError(error: TransportRpcError): SubLingoError {
       return new SubLingoError("REQUEST_CANCELLED", "cancelled", "NONE");
     case "response-too-large":
       return new SubLingoError("HELPER_RESPONSE_TOO_LARGE", "protocol", "CHECK_ENDPOINT");
+    case "credential-store-unavailable":
+      return new SubLingoError("CREDENTIAL_STORE_UNAVAILABLE", "configuration", "RESTART_IINA");
+    case "unauthorized":
+      return new SubLingoError("HELPER_UNAVAILABLE", "network", "RESTART_IINA", true);
     default:
       return new SubLingoError("HELPER_PROTOCOL", "protocol", "RESTART_IINA");
   }
@@ -59,6 +63,7 @@ export interface TransportRequest {
   method: "GET" | "POST";
   url: string;
   headers: Record<string, string>;
+  proxyMode?: "system" | "direct";
   body?: unknown;
   timeoutMs: number;
   maxResponseBytes: number;
@@ -77,7 +82,17 @@ export interface TransportSession {
   token: string;
 }
 
-export class TransportClient {
+export interface TransportRpcClient {
+  health(): Promise<void>;
+  credentialRead(profileId: string): Promise<Record<string, string> | null>;
+  credentialWrite(profileId: string, fields: Record<string, string>): Promise<void>;
+  credentialDelete(profileId: string): Promise<void>;
+  request(request: TransportRequest): Promise<TransportResponse>;
+  cancel(jobId: string): Promise<"cancelled" | "already-completed" | "unknown">;
+  shutdown(): Promise<void>;
+}
+
+export class TransportClient implements TransportRpcClient {
   constructor(
     private readonly session: TransportSession,
     private readonly bridge: LocalHttpBridge,
@@ -102,12 +117,37 @@ export class TransportClient {
     }
   }
 
-  async random(bytes: 12 | 32, purpose: "vault-nonce" | "vault-dek"): Promise<Uint8Array> {
-    const response = await this.post<{ bytesB64: string }>("/v1/random", { bytes, purpose });
-    const decoded = base64Decode(response.bytesB64);
-    if (decoded.length !== bytes)
+  async health(): Promise<void> {
+    const response = await this.post<{ state: "ok" }>("/v1/health", {});
+    if (response.state !== "ok")
       throw new SubLingoError("HELPER_PROTOCOL", "protocol", "RESTART_IINA");
-    return decoded;
+  }
+
+  async credentialRead(profileId: string): Promise<Record<string, string> | null> {
+    const response = await this.post<{ fields: Record<string, string> | null }>("/v1/credentials", {
+      action: "read",
+      profileId,
+    });
+    return response.fields ? { ...response.fields } : null;
+  }
+
+  async credentialWrite(profileId: string, fields: Record<string, string>): Promise<void> {
+    const response = await this.post<{ state: "saved" }>("/v1/credentials", {
+      action: "write",
+      profileId,
+      fields,
+    });
+    if (response.state !== "saved")
+      throw new SubLingoError("HELPER_PROTOCOL", "protocol", "RESTART_IINA");
+  }
+
+  async credentialDelete(profileId: string): Promise<void> {
+    const response = await this.post<{ state: "deleted" }>("/v1/credentials", {
+      action: "delete",
+      profileId,
+    });
+    if (response.state !== "deleted")
+      throw new SubLingoError("HELPER_PROTOCOL", "protocol", "RESTART_IINA");
   }
 
   request(request: TransportRequest): Promise<TransportResponse> {

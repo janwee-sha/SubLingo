@@ -99,6 +99,24 @@ button {
   background: var(--accent);
   font-weight: 700;
   cursor: pointer;
+  transition:
+    transform 120ms ease,
+    filter 120ms ease,
+    opacity 120ms ease,
+    border-color 120ms ease;
+}
+button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+button[aria-busy="true"] {
+  cursor: progress;
 }
 button.secondary {
   border-color: var(--border);
@@ -110,7 +128,7 @@ button.secondary {
   font-weight: 400;
 }
 .section-heading p,
-.danger-zone p {
+.credential-state {
   margin-top: 0.2rem;
   color: var(--muted);
   font-size: 0.82rem;
@@ -149,21 +167,30 @@ button.secondary {
 }
 .profile-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.45rem;
 }
-.danger-zone {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-  padding: 0.25rem 0.1rem;
+.profile.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
 }
-.danger-zone button {
-  width: auto;
-  white-space: nowrap;
+.form-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
 }
-.danger-zone button.danger {
+.operation-status,
+.credential-state {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.operation-status[data-state="success"] {
+  color: #218653;
+}
+.operation-status[data-state="error"] {
+  color: #d83b3e;
+}
+.profile-actions .danger {
   color: #d83b3e;
 }
 
@@ -176,12 +203,9 @@ button.secondary {
     padding: 0.7rem;
   }
   header,
-  .danger-zone {
+  .form-actions {
     align-items: stretch;
-    flex-direction: column;
-  }
-  .danger-zone button {
-    width: 100%;
+    grid-template-columns: 1fr;
   }
   .profile-actions {
     grid-template-columns: 1fr;

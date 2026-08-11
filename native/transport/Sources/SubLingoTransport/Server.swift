@@ -16,13 +16,21 @@ final class TransportServer: @unchecked Sendable {
     private let liveness: LivenessState
     private var readyContinuation: CheckedContinuation<UInt16, Error>?
 
-    init(token: String, liveness: LivenessState) throws {
+    init(
+        token: String,
+        liveness: LivenessState,
+        credentialStore: CredentialStoreAccess
+    ) throws {
         self.liveness = liveness
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: NWEndpoint.Host(Self.boundHost), port: .any)
         parameters.allowLocalEndpointReuse = false
         self.listener = try NWListener(using: parameters)
-        self.handler = ProtocolHandler(token: token, shutdown: { liveness.requestShutdown() })
+        self.handler = ProtocolHandler(
+            token: token,
+            credentialStore: credentialStore,
+            shutdown: { liveness.requestShutdown() }
+        )
     }
 
     func start() async throws -> UInt16 {

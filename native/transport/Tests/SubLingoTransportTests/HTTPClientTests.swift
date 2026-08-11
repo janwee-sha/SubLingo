@@ -1,6 +1,17 @@
 import Foundation
 
 func runHTTPClientTests() async throws {
+    let sanitizedEnvironment = ProxyEnvironment.sanitized([
+        "PATH": "/usr/bin",
+        "HTTPS_PROXY": "http://127.0.0.1:10808",
+        "all_proxy": "socks5://127.0.0.1:10808",
+        "NO_PROXY": "localhost",
+    ])
+    try check(
+        sanitizedEnvironment == ["PATH": "/usr/bin", "NO_PROXY": "localhost"],
+        "the helper must relaunch without inherited HTTP/SOCKS proxy variables"
+    )
+
     try UpstreamPolicy.validate(URL(string: "https://provider.example/v1")!)
     try UpstreamPolicy.validate(URL(string: "http://127.0.0.1:11434/api/chat")!)
     try expectFailure("remote plaintext HTTP must be rejected") {
@@ -26,6 +37,14 @@ func runHTTPClientTests() async throws {
     try check(selected == ["retry-after": "2", "x-request-id": "safe-id"], "response headers must be allowlisted")
 
     let client = HTTPClient()
+    try check(
+        HTTPClient.transportKind(for: "direct") == .libcurl,
+        "direct mode must use the explicit no-proxy libcurl transport"
+    )
+    try check(
+        HTTPClient.transportKind(for: "system") == .urlSession,
+        "system mode must continue to use macOS URLSession proxy settings"
+    )
     let cancellation = await client.cancel(jobID: "unknown")
     try check(cancellation == .unknown, "cancellation must address the exact job")
     try expectFailure("invalid jobs must fail before transport") {
@@ -34,6 +53,7 @@ func runHTTPClientTests() async throws {
             method: "POST",
             url: "https://example.test",
             headers: [:],
+            proxyMode: "system",
             body: Data(),
             timeoutMilliseconds: 1_000,
             maxResponseBytes: 1_024

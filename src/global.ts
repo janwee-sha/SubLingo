@@ -1,11 +1,10 @@
 import { sha256Hex } from "./domain/identity.js";
 import { normalizeProviderError } from "./domain/errors.js";
 import { sanitizedProfileView, parseProfileSelection, parseSecretSet } from "./domain/messages.js";
-import { IinaVaultKeychain } from "./adapters/iina/keychain.js";
+import { HelperCredentialStore, CredentialStoreError } from "./credentials/store.js";
 import { createDeferredPlayerPost } from "./adapters/iina/deferred-post.js";
 import { IinaLocalHttpBridge, IinaProcessLauncher } from "./adapters/iina/provider-transport.js";
 import { discoverHelperExecutable, TransportProcess } from "./adapters/iina/transport-process.js";
-import { IinaVaultFiles } from "./adapters/iina/vault-files.js";
 import { ProviderBroker } from "./providers/broker.js";
 import { OllamaProvider } from "./providers/ollama.js";
 import { OpenAICompatibleProvider } from "./providers/openai.js";
@@ -14,7 +13,7 @@ import type { TranslationProvider } from "./providers/provider.js";
 import type { ProviderProfileSnapshot, TranslationBatchRequest } from "./providers/types.js";
 import { HelperProviderTransport as ProviderTransportAdapter } from "./adapters/iina/provider-transport.js";
 import { TransportClient } from "./transport/client.js";
-import { CredentialVaultStore } from "./vault/store.js";
+import { TransportSupervisor } from "./transport/supervisor.js";
 
 let idSequence = 0;
 function localUuid(): string {
@@ -24,9 +23,8 @@ function localUuid(): string {
 }
 
 const profiles = new ProviderProfiles(localUuid);
-let transportPromise: Promise<TransportClient> | null = null;
 const providerCache = new Map<string, Promise<TranslationProvider>>();
-const activeProviderTests = new Set<TranslationProvider>();
+const activeProviderTests = new Map<TranslationProvider, string>();
 
 function restoreProfileMetadata(): void {
   const raw = iina.preferences.get("providerProfilesJson");
@@ -54,6 +52,7 @@ function restoreProfileMetadata(): void {
           kind: value.kind,
           endpoint: value.endpoint,
           model: value.model,
+          proxyMode: value.proxyMode === "direct" ? "direct" : "system",
           ...(value.capability === "strict-json-schema" ||
           value.capability === "json-object" ||
           value.capability === "prompt-json"
@@ -76,6 +75,7 @@ function persistProfileMetadata(): void {
     kind: profile.kind,
     endpoint: profile.endpoint,
     model: profile.model ?? "",
+    proxyMode: profile.proxyMode ?? "system",
     ...(profile.capability ? { capability: profile.capability } : {}),
   }));
   iina.preferences.set("providerProfilesJson", JSON.stringify(saved));
@@ -84,40 +84,37 @@ function persistProfileMetadata(): void {
 
 restoreProfileMetadata();
 
-async function transportClient(): Promise<TransportClient> {
-  if (!transportPromise) {
-    transportPromise = TransportProcess.bootstrap(
-      new IinaProcessLauncher(iina.utils),
-      discoverHelperExecutable({
-        exists: (path) => iina.file.exists(path),
-        resolvePath: (path) => iina.utils.resolvePath(path),
-      }),
-    )
-      .then((session) => new TransportClient(session, new IinaLocalHttpBridge(iina.http)))
-      .catch((error) => {
-        transportPromise = null;
-        throw error;
-      });
-  }
-  return transportPromise;
-}
-
-const vault = new CredentialVaultStore({
-  pluginId: "io.sublingo.iina",
-  files: new IinaVaultFiles(iina.file),
-  keychain: new IinaVaultKeychain(iina.utils),
-  random: async (length) =>
-    (await transportClient()).random(length, length === 32 ? "vault-dek" : "vault-nonce"),
-  id: localUuid,
+const transport = new TransportSupervisor(async () => {
+  const session = await TransportProcess.bootstrap(
+    new IinaProcessLauncher(iina.utils),
+    { dataDirectory: iina.utils.resolvePath("@data/.") },
+    discoverHelperExecutable({
+      exists: (path) => iina.file.exists(path),
+      resolvePath: (path) => iina.utils.resolvePath(path),
+      list: (path) => iina.file.list(path, { includeSubDir: false }),
+      read: (path) => iina.file.read(path) ?? null,
+    }),
+  );
+  return new TransportClient(session, new IinaLocalHttpBridge(iina.http));
 });
-void vault.reload();
+
+const credentials = new HelperCredentialStore(transport);
+// Keychain is no longer consulted. Remove only obsolete encrypted envelopes;
+// users re-enter an API key once into the new explicit local-storage model.
+for (const legacyVaultPath of ["@data/vault-a.json", "@data/vault-b.json"]) {
+  try {
+    if (iina.file.exists(legacyVaultPath)) iina.file.delete(legacyVaultPath);
+  } catch {
+    /* Legacy encrypted files are inert and may be cleaned up on a later run. */
+  }
+}
 
 function providerCacheKey(profile: ProviderProfileSnapshot): string {
   return `${profile.profileId}\u0000${profile.revision}`;
 }
 
 async function buildProvider(profile: ProviderProfileSnapshot): Promise<TranslationProvider> {
-  const transport = new ProviderTransportAdapter(await transportClient(), localUuid);
+  const providerTransport = new ProviderTransportAdapter(transport, localUuid);
   switch (profile.kind) {
     case "azure":
       throw {
@@ -134,15 +131,16 @@ async function buildProvider(profile: ProviderProfileSnapshot): Promise<Translat
           providerCode: "MODEL_REQUIRED",
           userAction: "CHECK_MODEL",
         };
-      const secret = await vault.getSecret(profile.profileId);
+      const secret = await credentials.getSecret(profile.profileId);
       const openai = new OpenAICompatibleProvider(
         {
           endpoint: profile.endpoint,
           model: profile.model,
           ...(secret?.apiKey ? { apiKey: secret.apiKey } : {}),
           ...(profile.capability ? { capability: profile.capability } : {}),
+          proxyMode: profile.proxyMode ?? "system",
         },
-        transport,
+        providerTransport,
       );
       return openai;
     }
@@ -154,7 +152,14 @@ async function buildProvider(profile: ProviderProfileSnapshot): Promise<Translat
           providerCode: "MODEL_REQUIRED",
           userAction: "CHECK_MODEL",
         };
-      return new OllamaProvider({ endpoint: profile.endpoint, model: profile.model }, transport);
+      return new OllamaProvider(
+        {
+          endpoint: profile.endpoint,
+          model: profile.model,
+          proxyMode: profile.proxyMode ?? "system",
+        },
+        providerTransport,
+      );
     }
   }
 }
@@ -172,6 +177,37 @@ function providerFor(profile: ProviderProfileSnapshot): Promise<TranslationProvi
 }
 
 const broker = new ProviderBroker(profiles, providerFor);
+
+function credentialFailure(error: unknown): {
+  state: "unavailable";
+  code: string;
+  category: string;
+  userAction: string;
+} {
+  if (error instanceof CredentialStoreError) {
+    return {
+      state: "unavailable",
+      code: error.code,
+      category: "configuration",
+      userAction: "RESTART_IINA",
+    };
+  }
+  const safe = normalizeProviderError(error);
+  if (safe.providerCode && safe.providerCode !== "UNKNOWN_PROVIDER_ERROR") {
+    return {
+      state: "unavailable",
+      code: safe.providerCode,
+      category: safe.category,
+      userAction: safe.userAction,
+    };
+  }
+  return {
+    state: "unavailable",
+    code: "CREDENTIAL_STORE_UNAVAILABLE",
+    category: "protocol",
+    userAction: "RESTART_IINA",
+  };
+}
 
 function payload(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("INVALID_MESSAGE");
@@ -203,7 +239,14 @@ const postToPlayer = createDeferredPlayerPost(
 async function profileViews(): Promise<unknown[]> {
   return Promise.all(
     profiles.listLatest().map(async (profile) => {
-      const credential = await vault.getSecret(profile.profileId);
+      let credential: Record<string, string> | null = null;
+      if (profile.kind === "openai") {
+        try {
+          credential = await credentials.getSecret(profile.profileId);
+        } catch {
+          /* Profile metadata remains usable when the credential file is unavailable. */
+        }
+      }
       return sanitizedProfileView({ ...profile, ...(credential ? { credential } : {}) });
     }),
   );
@@ -245,6 +288,7 @@ iina.global.onMessage("profile:create-revision", async (raw: unknown, playerId?:
   if (!playerId) return;
   try {
     const values = payload(raw);
+    const previousSelection = profiles.selection(playerId);
     const profile = profiles.save({
       ...(typeof values.profileId === "string" ? { profileId: values.profileId } : {}),
       ...(typeof values.expectedRevision === "number"
@@ -254,6 +298,7 @@ iina.global.onMessage("profile:create-revision", async (raw: unknown, playerId?:
       displayName: String(values.displayName ?? "Provider"),
       kind: supportedProviderKind(values.kind),
       endpoint: String(values.endpoint ?? ""),
+      proxyMode: values.proxyMode === "direct" ? "direct" : "system",
       ...(typeof values.model === "string" ? { model: values.model } : {}),
       ...(typeof values.region === "string" ? { region: values.region } : {}),
     });
@@ -261,33 +306,74 @@ iina.global.onMessage("profile:create-revision", async (raw: unknown, playerId?:
     postToPlayer(playerId, "profile:revision-created", {
       requestId: requestId(raw),
       profile: sanitizedProfileView(profile),
+      selectionInvalidated:
+        previousSelection?.profileId === profile.profileId && profile.revision > 1,
     });
   } catch {
     postToPlayer(playerId, "operation:error", {
+      requestId: requestId(raw),
       code: "PROFILE_SAVE_FAILED",
       userAction: "CHECK_ENDPOINT",
     });
   }
 });
 
-iina.global.onMessage("vault:set-secret", async (raw: unknown, playerId?: string) => {
+iina.global.onMessage("profile:delete", async (raw: unknown, playerId?: string) => {
+  if (!playerId) return;
+  try {
+    const values = payload(raw);
+    const profileId = String(values.profileId ?? "");
+    const expectedRevision = Number(values.expectedRevision);
+    const profile = profiles.get(profileId);
+    if (!profile || profile.revision !== expectedRevision)
+      throw new Error("STALE_PROFILE_REVISION");
+    await broker.cancelProfile(profileId);
+    await Promise.allSettled(
+      [...activeProviderTests]
+        .filter(([, activeProfileId]) => activeProfileId === profileId)
+        .map(([provider]) => provider.cancel?.("provider-test")),
+    );
+    for (const [provider, activeProfileId] of [...activeProviderTests])
+      if (activeProfileId === profileId) activeProviderTests.delete(provider);
+    await credentials.deleteSecret(profileId);
+    const affectedPlayerIds = profiles.delete(profileId);
+    for (const key of [...providerCache.keys()])
+      if (key.startsWith(`${profileId}\u0000`)) providerCache.delete(key);
+    persistProfileMetadata();
+    for (const target of new Set([playerId, ...affectedPlayerIds]))
+      postToPlayer(target, "profile:deleted", {
+        requestId: requestId(raw),
+        profileId,
+        selectionInvalidated: affectedPlayerIds.includes(target),
+      });
+  } catch {
+    postToPlayer(playerId, "operation:error", {
+      requestId: requestId(raw),
+      code: "PROFILE_DELETE_FAILED",
+      userAction: "NONE",
+    });
+  }
+});
+
+iina.global.onMessage("credential:set", async (raw: unknown, playerId?: string) => {
   if (!playerId) return;
   try {
     const secret = parseSecretSet(payload(raw));
     const profile = profiles.get(secret.profileId);
     if (!profile || profile.revision !== secret.expectedRevision)
       throw new Error("STALE_PROFILE_REVISION");
-    await vault.setSecret(secret.profileId, secret.fields);
+    await credentials.setSecret(secret.profileId, secret.fields);
     providerCache.delete(`${secret.profileId}\u0000${secret.expectedRevision}`);
-    postToPlayer(playerId, "vault:result", {
+    postToPlayer(playerId, "credential:result", {
       requestId: requestId(raw),
       state: "ready",
       profileId: secret.profileId,
     });
-  } catch {
-    postToPlayer(playerId, "vault:state", {
-      state: vault.state === "locked" ? "locked" : "corrupt",
-      code: "VAULT_WRITE_FAILED",
+  } catch (error) {
+    const failure = credentialFailure(error);
+    postToPlayer(playerId, "credential:state", {
+      requestId: requestId(raw),
+      ...failure,
     });
   }
 });
@@ -301,6 +387,7 @@ iina.global.onMessage("profile:select", (raw: unknown, playerId?: string) => {
     postToPlayer(playerId, "profile:selected", { requestId: requestId(raw), selection });
   } catch {
     postToPlayer(playerId, "operation:error", {
+      requestId: requestId(raw),
       code: "PROFILE_SELECTION_FAILED",
       userAction: "SELECT_PROFILE",
     });
@@ -317,7 +404,7 @@ iina.global.onMessage("provider:test", async (raw: unknown, playerId?: string) =
     provider = (await providerFor(profile)) as TranslationProvider & {
       probe?: () => Promise<unknown>;
     };
-    activeProviderTests.add(provider);
+    activeProviderTests.set(provider, profile.profileId);
     const result = provider.probe ? await provider.probe() : { ok: true };
     postToPlayer(playerId, "provider:test-result", {
       requestId: requestId(raw),
@@ -370,35 +457,4 @@ iina.global.onMessage("profile:release", (raw: unknown, playerId?: string) => {
   if (!playerId) return;
   const values = payload(raw);
   broker.release(playerId, String(values.profileId), Number(values.revision));
-});
-
-iina.global.onMessage("vault:reset", async (raw: unknown, playerId?: string) => {
-  if (!playerId) return;
-  if (payload(raw).confirmed !== true) {
-    postToPlayer(playerId, "vault:state", { state: "cancelled" });
-    return;
-  }
-  const targets = new Set([playerId]);
-  try {
-    await broker.cancelAll();
-    await Promise.allSettled(
-      [...activeProviderTests].map((provider) => provider.cancel?.("provider-test")),
-    );
-    providerCache.clear();
-    for (const affectedPlayerId of profiles.clearAuthorizations()) targets.add(affectedPlayerId);
-    await vault.reset();
-    for (const target of targets)
-      postToPlayer(target, "vault:state", {
-        state: "ready",
-        credentialsCleared: true,
-        selectionInvalidated: true,
-      });
-  } catch {
-    for (const target of targets)
-      postToPlayer(target, "vault:state", {
-        state: "locked",
-        code: "VAULT_RESET_FAILED",
-        selectionInvalidated: true,
-      });
-  }
 });

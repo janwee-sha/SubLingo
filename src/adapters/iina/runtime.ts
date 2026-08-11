@@ -34,16 +34,3 @@ export function finitePosition(position: unknown): number | null {
     ? position
     : null;
 }
-
-export function safeKeychainRead(
-  utils: IINA.API.Utils | undefined,
-  service: string,
-  name: string,
-): string | null {
-  try {
-    const value = utils?.keyChainRead(service, name);
-    return typeof value === "string" ? value : null;
-  } catch {
-    return null;
-  }
-}

@@ -10,7 +10,7 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(mainSource).toContain('runtime.sidebar.onMessage("ui:poll"');
     expect(sidebarSource).toContain('postMessage("ui:poll"');
 
-    const timerStart = mainSource.indexOf("const tickInterval = setInterval");
+    const timerStart = mainSource.indexOf("setInterval(() =>");
     const timerEnd = mainSource.indexOf('runtime.event.on("iina.window-will-close"', timerStart);
     const timerSource = mainSource.slice(timerStart, timerEnd);
 
@@ -19,9 +19,20 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(timerSource).not.toContain("sidebar.postMessage");
   });
 
-  it("stops the player timer before the IINA window is destroyed", () => {
-    expect(mainSource).toContain("clearInterval(tickInterval)");
+  it("keeps the in-memory tick alive when IINA reuses a closed player context", () => {
+    expect(mainSource).not.toContain("clearInterval(");
     expect(mainSource).toContain("clearTimeout(sourceSelectionTimer)");
+    const closeStart = mainSource.indexOf('runtime.event.on("iina.window-will-close"');
+    const closeSource = mainSource.slice(closeStart);
+    expect(closeSource).toContain("controller.endFile()");
+    expect(closeSource).toContain("controller.clearProviderSelection()");
+    expect(closeSource).not.toContain("controller.close()");
+  });
+
+  it("tears down an ended file without permanently closing the player controller", () => {
+    expect(mainSource).toContain('runtime.event.on("mpv.end-file", () => controller.endFile())');
+    expect(mainSource).toContain('runtime.event.on("iina.window-will-close"');
+    expect(mainSource).toContain("controller.endFile()");
   });
 
   it("debounces IINA's transient primary-subtitle changes during generated-track publication", () => {
@@ -61,10 +72,18 @@ describe("IINA sidebar lifecycle contract", () => {
     );
   });
 
-  it("requests reset from Main and uses IINA's native confirmation UI", () => {
-    expect(sidebarSource).toContain('postMessage("vault:reset-request"');
+  it("requests profile deletion from Main and uses IINA's native confirmation UI", () => {
+    expect(sidebarSource).toContain('"profile:delete-request"');
+    expect(sidebarSource).not.toContain('postMessage("vault:reset-request"');
     expect(sidebarSource).not.toContain("window.confirm");
-    expect(mainSource).toContain('runtime.sidebar.onMessage("vault:reset-request"');
-    expect(mainSource).toContain("confirmVaultReset(runtime.utils)");
+    expect(mainSource).toContain('runtime.sidebar.onMessage("profile:delete-request"');
+    expect(mainSource).toContain("runtime.utils.ask");
+  });
+
+  it("keeps request-correlated operation feedback separate from session polling", () => {
+    expect(sidebarSource).toContain("pendingOperations");
+    expect(sidebarSource).toContain('onMessage("operation:result"');
+    expect(sidebarSource).toContain("requestId");
+    expect(sidebarSource).toContain("aria-busy");
   });
 });

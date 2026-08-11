@@ -8,6 +8,7 @@ let package = Package(
         .executable(name: "sublingo-transport", targets: ["SubLingoTransport"])
     ],
     targets: [
-        .executableTarget(name: "SubLingoTransport")
+        .systemLibrary(name: "CCurl", path: "Sources/CCurl"),
+        .executableTarget(name: "SubLingoTransport", dependencies: ["CCurl"])
     ]
 )

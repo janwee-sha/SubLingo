@@ -1,4 +1,5 @@
 import type { TransportSession } from "../../transport/client.js";
+import { SubLingoError } from "../../domain/errors.js";
 
 export interface ReadyFrame {
   type: "ready";
@@ -44,14 +45,18 @@ export interface ProcessLauncher {
 export class TransportProcess {
   static async bootstrap(
     launcher: ProcessLauncher,
+    options: { dataDirectory: string; parentPid?: number },
     executable = "@plugin/dist/native/sublingo-transport",
-    parentPid?: number,
   ): Promise<TransportSession> {
     let stdout = "";
     let exitStatus: number | null = null;
     const completion = launcher.launch(
       executable,
-      parentPid === undefined ? [] : ["--parent-pid", String(parentPid)],
+      [
+        "--data-directory",
+        options.dataDirectory,
+        ...(options.parentPid === undefined ? [] : ["--parent-pid", String(options.parentPid)]),
+      ],
       (data) => {
         stdout += data;
       },
@@ -65,14 +70,20 @@ export class TransportProcess {
       },
     );
     for (let tries = 0; tries < 250 && !stdout.includes("\n"); tries += 1) {
-      if (exitStatus !== null) throw new Error(`Helper exited during startup (${exitStatus})`);
+      if (exitStatus !== null)
+        throw new SubLingoError("HELPER_START_FAILED", "protocol", "RESTART_IINA", true);
       await new Promise<void>((resolve) => setTimeout(resolve, 20));
     }
     if (!stdout.includes("\n")) {
       void completion;
-      throw new Error("Helper startup timed out");
+      throw new SubLingoError("HELPER_START_TIMEOUT", "timeout", "RESTART_IINA", true);
     }
-    const frame = parseReadyFrame(stdout.slice(0, stdout.indexOf("\n") + 1));
+    let frame: ReadyFrame;
+    try {
+      frame = parseReadyFrame(stdout.slice(0, stdout.indexOf("\n") + 1));
+    } catch {
+      throw new SubLingoError("HELPER_PROTOCOL", "protocol", "RESTART_IINA");
+    }
     return { port: frame.port, token: frame.token };
   }
 }
@@ -80,6 +91,8 @@ export class TransportProcess {
 export interface HelperExecutableLocator {
   exists(path: string): boolean;
   resolvePath(path: string): string;
+  list?(path: string): Array<{ filename: string; path: string; isDir: boolean }>;
+  read?(path: string): string | null;
 }
 
 export function discoverHelperExecutable(
@@ -99,5 +112,35 @@ export function discoverHelperExecutable(
   } catch {
     /* Fall through to a sanitized startup error. */
   }
-  throw new Error("PACKAGED_HELPER_NOT_FOUND");
+  const matches: string[] = [];
+  if (locator.list && locator.read) {
+    let entries: Array<{ filename: string; path: string; isDir: boolean }> = [];
+    try {
+      entries = locator.list(pluginsDirectory);
+    } catch {
+      entries = [];
+    }
+    for (const entry of entries) {
+      // IINA reports development package symlinks as non-directories on some
+      // releases, so validate candidates by package name, identifier and the
+      // helper itself instead of trusting isDir.
+      if (!/^[^/]+\.iinaplugin(?:-dev)?$/.test(entry.filename)) continue;
+      const root = `${pluginsDirectory}/${entry.filename}`;
+      try {
+        const metadataText = locator.read(`${root}/Info.json`);
+        if (!metadataText) continue;
+        const metadata = JSON.parse(metadataText) as Record<string, unknown>;
+        if (metadata.identifier !== pluginId) continue;
+        const helper = `${root}/dist/native/sublingo-transport`;
+        if (locator.exists(helper)) matches.push(helper);
+      } catch {
+        /* Ignore malformed or inaccessible unrelated plugin packages. */
+      }
+    }
+  }
+  const unique = [...new Set(matches)];
+  if (unique.length === 1) return unique[0]!;
+  if (unique.length > 1)
+    throw new SubLingoError("PACKAGED_HELPER_AMBIGUOUS", "configuration", "CHECK_INSTALLATION");
+  throw new SubLingoError("PACKAGED_HELPER_NOT_FOUND", "configuration", "CHECK_INSTALLATION");
 }

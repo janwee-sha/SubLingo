@@ -3,10 +3,10 @@ import { diagnostic } from "../../src/domain/logging.js";
 import { sanitizedProfileView } from "../../src/domain/messages.js";
 
 describe("credential and content leakage boundaries", () => {
-  it("keeps credentials, DEKs, loopback tokens, auth headers and bodies out of views/diagnostics", () => {
+  it("keeps credentials, local paths, loopback tokens, auth headers and bodies out of views/diagnostics", () => {
     const sensitive = [
       "provider-secret",
-      "dek-material",
+      "/private/plugin-data/credentials.json",
       "loopback-token",
       "Bearer private",
       "private subtitle",

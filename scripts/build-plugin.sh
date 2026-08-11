@@ -12,4 +12,4 @@ fi
 rm -f "$ROOT_DIR/dist/main.js" "$ROOT_DIR/dist/global.js"
 
 cd "$ROOT_DIR"
-parcel build --target entry --target globalEntry --target sidebar
+parcel build --no-cache --target entry --target globalEntry --target sidebar

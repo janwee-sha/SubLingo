@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 enum ProtocolLimits {
     static let maxRequestBytes = 2 * 1_024 * 1_024
@@ -50,6 +49,7 @@ enum SecureRandom {
 enum TransportProtocolError: Error, Equatable {
     case invalidRequest
     case entropyUnavailable
+    case credentialStoreUnavailable
     case forbiddenDestination
     case duplicateJob
     case responseTooLarge
@@ -68,6 +68,7 @@ struct TransportRequest: Sendable {
     let method: String
     let url: String
     let headers: [String: String]
+    let proxyMode: String
     let body: Data
     let timeoutMilliseconds: Int
     let maxResponseBytes: Int
@@ -76,6 +77,7 @@ struct TransportRequest: Sendable {
         guard UUID(uuidString: jobID) != nil,
               ["GET", "POST"].contains(method),
               let parsedURL = URL(string: url),
+              ["system", "direct"].contains(proxyMode),
               body.count <= ProtocolLimits.maxRequestBytes,
               (ProtocolLimits.minTimeoutMilliseconds...ProtocolLimits.maxTimeoutMilliseconds).contains(timeoutMilliseconds),
               (1...ProtocolLimits.maxResponseBytes).contains(maxResponseBytes),
@@ -140,11 +142,18 @@ final class LivenessState: @unchecked Sendable {
 actor ProtocolHandler {
     private let token: String
     private let httpClient: HTTPClient
+    private let credentialStore: CredentialStoreAccess
     private let shutdown: @Sendable () -> Void
 
-    init(token: String, httpClient: HTTPClient = HTTPClient(), shutdown: @escaping @Sendable () -> Void = {}) {
+    init(
+        token: String,
+        httpClient: HTTPClient = HTTPClient(),
+        credentialStore: CredentialStoreAccess,
+        shutdown: @escaping @Sendable () -> Void = {}
+    ) {
         self.token = token
         self.httpClient = httpClient
+        self.credentialStore = credentialStore
         self.shutdown = shutdown
     }
 
@@ -153,14 +162,43 @@ actor ProtocolHandler {
         guard body.count <= ProtocolLimits.maxRequestBytes else { return .json(statusCode: 413, ["error": "request-too-large"]) }
 
         switch path {
-        case "/v1/random":
+        case "/v1/health":
+            // IINA 1.4.4 serializes `data: {}` as a zero-byte POST body. Both
+            // encodings are side-effect-free and carry no caller-controlled
+            // fields, so accept either while rejecting every other payload.
+            guard body.isEmpty || body == Data("{}".utf8) else {
+                return .json(statusCode: 400, ["error": "invalid-request"])
+            }
+            return .json(statusCode: 200, ["state": "ok"])
+
+        case "/v1/credentials":
             guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-                  let count = json["bytes"] as? Int,
-                  let purpose = json["purpose"] as? String,
-                  (count == 12 && purpose == "vault-nonce") || (count == 32 && purpose == "vault-dek"),
-                  let random = try? SecureRandom.bytes(count: count)
-            else { return .json(statusCode: 400, ["error": "invalid-random-request"]) }
-            return .json(statusCode: 200, ["bytesB64": random.base64EncodedString()])
+                  let action = json["action"] as? String,
+                  let profileID = json["profileId"] as? String
+            else { return .json(statusCode: 400, ["error": "invalid-credential-request"]) }
+            do {
+                switch action {
+                case "read" where json.count == 2:
+                    let fields = try await credentialStore.read(profileID: profileID)
+                    let responseFields: Any = fields.map { $0 as Any } ?? NSNull()
+                    return .json(statusCode: 200, ["fields": responseFields])
+                case "write" where json.count == 3:
+                    guard let fields = json["fields"] as? [String: String] else {
+                        return .json(statusCode: 400, ["error": "invalid-credential-request"])
+                    }
+                    try await credentialStore.write(profileID: profileID, fields: fields)
+                    return .json(statusCode: 200, ["state": "saved"])
+                case "delete" where json.count == 2:
+                    try await credentialStore.delete(profileID: profileID)
+                    return .json(statusCode: 200, ["state": "deleted"])
+                default:
+                    return .json(statusCode: 400, ["error": "invalid-credential-request"])
+                }
+            } catch TransportProtocolError.invalidRequest {
+                return .json(statusCode: 400, ["error": "invalid-credential-request"])
+            } catch {
+                return .json(statusCode: 503, ["error": "credential-store-unavailable"])
+            }
 
         case "/v1/cancel":
             guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
@@ -224,12 +262,13 @@ actor ProtocolHandler {
               let timeout = json["timeoutMs"] as? Int,
               let maxResponse = json["maxResponseBytes"] as? Int
         else { throw TransportProtocolError.invalidRequest }
+        let proxyMode = json["proxyMode"] as? String ?? "system"
         let requestBody: Data
         if let object = json["body"] {
             requestBody = try JSONSerialization.data(withJSONObject: object, options: [])
         } else {
             requestBody = Data()
         }
-        return TransportRequest(jobID: jobID, method: method, url: url, headers: headers, body: requestBody, timeoutMilliseconds: timeout, maxResponseBytes: maxResponse)
+        return TransportRequest(jobID: jobID, method: method, url: url, headers: headers, proxyMode: proxyMode, body: requestBody, timeoutMilliseconds: timeout, maxResponseBytes: maxResponse)
     }
 }

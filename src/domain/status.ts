@@ -23,6 +23,7 @@ export const USER_ACTIONS = [
   "CONFIRM_SOURCE_LANGUAGE",
   "RESET_VAULT",
   "RESTART_IINA",
+  "CHECK_INSTALLATION",
 ] as const;
 
 export type UserActionCode = (typeof USER_ACTIONS)[number];

@@ -246,7 +246,7 @@ Ordered integration: T060 -> T061; T061/T062/T064/T065/T066 -> T067 -> T068 -> T
 1. **Foundation**: Secure local transport, typed RPC, fakes and safe diagnostics.
 2. **US1**: Real-time bilingual second-subtitle pipeline with injected provider.
 3. **US2**: Cost/privacy gates, bounded work, retry behavior and session-only reuse.
-4. **US3**: Encrypted saved credentials and all three provider categories.
+4. **US3**: Saved provider profiles, explicitly disclosed local credentials, and provider integrations.
 5. **Polish**: Cross-version/two-architecture validation and packed plugin.
 
 ## Notes
@@ -259,8 +259,46 @@ Ordered integration: T060 -> T061; T061/T062/T064/T065/T066 -> T067 -> T068 -> T
 
 ## Phase 7: Convergence
 
-- [X] T080 Accept and canonicalize both OpenAI-compatible API roots and full `/chat/completions` URLs, and preserve capability-specific fallback without duplicating real translation attempts per FR-015 / US3-AC2 (partial)
+- [X] T080 Implement the original full-URL canonicalization convergence; the literal API-root acceptance requirement introduced later supersedes its endpoint behavior through T085–T086
 - [X] T081 Propagate sanitized authentication, endpoint, model, quota/rate-limit, timeout, network, protocol, and helper errors through native transport, Global/Main RPC, and actionable sidebar status per FR-016 / US3-AC4 (partial)
-- [X] T082 Replace WebView confirmation with IINA-native confirmed vault reset, then clear encrypted credentials, cached providers, in-flight work, and window selections while retaining sanitized profile metadata per FR-017 / T070 (partial)
+- [X] T082 Implement the original native-confirmed vault reset flow; the user-facing reset control is superseded and removed by per-Profile deletion through T087–T090
 - [ ] T083 Add regression coverage and rerun authorized OpenAI-compatible plus Ollama IINA acceptance, correcting validation evidence so only completed end-to-end scenarios are marked passed per SC-006 / T078 (partial)
 - [X] T084 Resynchronize external subtitle discovery on IINA `sid` and `track-list` changes, retry delayed `@sub` exposure, and retain specific safe source failure states without resetting an unchanged source
+
+## Phase 8: Acceptance Remediation
+
+- [X] T085 [P] Add failing helper-discovery and literal OpenAI API-root request tests for development links, ambiguous packages, and `/chat/completions` composition
+- [X] T086 Fix helper discovery for canonical and `.iinaplugin-dev` installs, preserve user-entered API roots, and return installation-specific safe errors
+- [X] T087 [P] Add failing profile update/delete, vault credential deletion, targeted cancellation, and multi-window invalidation tests
+- [X] T088 Implement revision-aware Profile editing, confirmed deletion, per-profile credential removal, targeted request cancellation, and connected-window refresh
+- [X] T089 [P] Add failing sidebar contracts for removal of Reset Vault, Profile CRUD controls, and request-correlated operation feedback
+- [X] T090 Implement Profile editor state plus loading/success/error/selected button feedback that cannot be overwritten by session polling
+- [X] T091 [P] Add failing same-window `end-file`/reopen controller lifecycle and generated-track cleanup coverage
+- [X] T092 Implement reusable video-session teardown distinct from permanent window close
+- [X] T093 Update 001 contracts/validation guidance and run TypeScript, Swift, build, package, live OpenAI, and available IINA/Ollama acceptance checks
+
+## Phase 9: Helper Lease and Credential Remediation
+
+- [X] T094 [P] Add failing transport-supervisor regressions for expired helper sessions, concurrent restart coalescing, safe entropy retry, and no provider POST replay
+- [X] T095 Implement a restartable shared helper supervisor and make cached Provider adapters plus the credential vault acquire the current transport session for every operation
+- [X] T096 [P] Add failing vault-stage error and Sidebar state contracts that separate selection consent, credential persistence, connection testing, and helper/Keychain/vault failures
+- [X] T097 Implement safe vault failure propagation and neutral Profile selection feedback without plaintext credential fallback or implicit Test gating
+- [X] T098 Update development-link versus installed-package guidance and add the five-minute-idle, credential-restart, OpenAI, and Ollama acceptance procedure
+- [ ] T099 Run the complete TypeScript/Swift/build/package suite and validate the formally installed IINA package against the available live providers
+- [X] T100 Add a fixed-purpose, write-only Security.framework bridge for IINA 1.4.4 first Keychain item creation, parent-IINA access control, async vault integration, and regression tests without exposing a wrapping-key read/generic Keychain RPC
+- [X] T101 Decode IINA's rejected non-2xx helper Promise into safe RPC errors, retire invalidated helper processes, and suppress automatic resubmission after a batch exhausts its retry policy
+- [X] T102 Use IINA 1.4.4's actual lowercase Keychain runtime exports with compatibility fallback and add restart-oriented credential-vault regression coverage
+- [X] T103 Bound OpenAI-compatible chat requests to two subtitle items, aggregate restored results, and expose sanitized provider failure details in Session status
+
+## Phase 10: Keychain Removal and Direct Transport Remediation
+
+T100 and T102 remain as historical acceptance work but are superseded by the user-approved storage decision below.
+
+- [X] T104 [P] Replace Keychain/AES-vault tests with failing helper credential read/write/delete, safe-error, fixed-path and POSIX `0600` contract tests
+- [X] T105 Implement atomic plugin-private `credentials.json` persistence, migrate RPC/UI messages from vault to credential state, remove Keychain APIs/bridge and AES dependencies, and clean obsolete encrypted envelope files without reading Keychain
+- [X] T106 Implement a libcurl-backed direct route with explicit `CURLOPT_NOPROXY="*"`, retain URLSession for macOS proxy mode, and verify a credential-free OpenAI endpoint probe no longer uses `127.0.0.1:10808`
+- [X] T107 Bound Ollama chat requests to two subtitle items, aggregate ordered results/usage, and cancel each active split request
+- [X] T108 Update specifications, privacy text and validation records; run TypeScript, Swift, universal build, bundle, package verification and formal packaging
+- [ ] T109 Install the new formal package and validate OpenAI-compatible plus Ollama Test/actual six-cue second-subtitle output, credential restart, profile CRUD, button feedback and five-minute helper recovery in IINA 1.4.4
+- [X] T110 [P] Add a native regression for IINA 1.4.4 omitting the serialized `{}` health body after the installed 0.1.1 package returned HTTP 400
+- [X] T111 Accept only zero-byte or literal `{}` health bodies, preserve bearer authentication, and release the correction as 0.1.2

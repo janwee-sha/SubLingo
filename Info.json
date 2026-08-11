@@ -1,6 +1,6 @@
 {
   "name": "SubLingo",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "identifier": "io.sublingo.iina",
   "description": "Translate nearby external SRT/ASS cues into an IINA second subtitle track.",
   "author": {
@@ -16,8 +16,8 @@
   "allowedDomains": ["127.0.0.1"],
   "permissionDescriptions": {
     "network-request": "Connect to the bundled loopback helper, which contacts only the translation service you select.",
-    "file-system": "Read the selected external subtitle and maintain an encrypted credential vault and temporary translated track.",
-    "show-alert": "Confirm destructive credential-vault reset operations."
+    "file-system": "Read the selected external subtitle, store optional provider keys in a plugin-private local file, and maintain the temporary translated track.",
+    "show-alert": "Confirm permanent deletion of a translation profile and its saved credential."
   },
   "preferenceDefaults": {
     "enabledByDefault": false,

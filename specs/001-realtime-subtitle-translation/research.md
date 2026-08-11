@@ -12,13 +12,13 @@
 
 ## 多窗口运行边界
 
-**Decision**: 每个播放器 main entry 独立拥有 `PlaybackSession`、调度、重试、缓存、状态和字幕轨；global entry 只拥有加密 vault、不可变 provider revisions 和单次 provider broker。
+**Decision**: 每个播放器 main entry 独立拥有 `PlaybackSession`、调度、重试、缓存、状态和字幕轨；global entry 只拥有凭据 broker、不可变 provider revisions 和单次 provider broker。
 
 **Rationale**: IINA 明确为每个 player 创建独立 core、mpv 和插件 main instance，并为 global entry 创建单独的单例。global 消息回调提供 host-supplied player ID，可安全路由返回结果。[Getting Started](https://docs.iina.io/pages/getting-started.html)；[Global Entry](https://docs.iina.io/pages/global-entry.html)；[Global API](https://docs.iina.io/interfaces/IINA.API.Global)
 
 活动窗口引用不可变 `{profileId, revision, endpointFingerprint}`。编辑 profile 创建新 revision 并清除编辑窗口的选择授权；其他窗口继续租用旧的内存 snapshot，直到其会话结束。global 不实现共享 retry queue、negative circuit breaker 或 session cache。
 
-**Alternatives considered**: 全部逻辑放 global 会混合播放器生命周期；每个窗口并发写同一个 vault 会产生竞态；全局可变 active provider 会让一个窗口的设置变化污染其他窗口。
+**Alternatives considered**: 全部逻辑放 global 会混合播放器生命周期；每个窗口并发写同一个 credential document 会产生竞态；全局可变 active provider 会让一个窗口的设置变化污染其他窗口。
 
 ## 可读取字幕范围
 
@@ -52,15 +52,23 @@
 
 **Alternatives considered**: overlay 不是真实第二字幕；每批新增不回收会泄漏轨道；覆写同一 SRT 再 reload 更容易读到半写文件。异常崩溃不能保证逐视频清理，但 `@tmp` 仍由 IINA 临时目录生命周期回收；正常关闭路径满足 FR-023。
 
-## 凭据加密与本地 vault
+## 插件私有凭据文件
 
-**Decision**: provider 凭据以 AES-256-GCM authenticated ciphertext 存储在 `@data/` A/B vault；随机 256-bit DEK 存放于 plugin-scoped macOS Keychain，provider secret 本身不作为 Keychain password 保存。每次写入使用唯一 96-bit nonce，AAD 绑定 plugin/vault/profile/revision。
+**Decision**: 2026-08-11 用户明确选择移除 macOS Keychain。OpenAI-compatible API key 由 token-authenticated helper 写入固定 `@data/credentials.json`；temporary replacement 以 `O_EXCL|O_NOFOLLOW` 与 `0600` 创建，完整写入并 `fsync` 后原子 rename。插件数据目录限制为 `0700`。Ollama 不访问 credential RPC。
 
-**Rationale**: IINA 官方提供 `keyChainWrite/keyChainRead` 和 plugin data directory。将 provider secret 作为本地密文保存满足 FR-017；将 DEK 与密文分离可避免同目录密钥的伪加密。A/B slot 在 File API 没有 atomic rename 时提供写后校验和最高 authenticated revision 恢复。[Utils/Keychain API](https://docs.iina.io/interfaces/IINA.API.Utils)；[File API](https://docs.iina.io/interfaces/IINA.API.File)；[noble-ciphers](https://github.com/paulmillr/noble-ciphers)
+**Rationale**: Keychain 能提供密钥与文件分离的静态保护，但实机 ACL/签名行为导致反复系统密码提示，且 IINA 1.4.4 首次写入存在兼容问题。把“加密密钥”与密文放在同一目录不能抵御已经能读取该目录的进程，因此新模型不做伪加密，改为清楚披露当前用户文件权限边界。provider key 仍不进入 preferences、安装包、Sidebar、日志或诊断。[IINA File API](https://docs.iina.io/interfaces/IINA.API.File)
 
-helper 使用系统安全随机源向 global 提供 DEK/nonce 熵；global 使用固定版本的 `@noble/ciphers` 并提供经过测试的 UTF-8/base64 codec，不假设 JavaScriptCore 具备 Web Crypto、`TextEncoder` 或 `crypto.getRandomValues`。Keychain/vault/认证任一失败均 fail closed。
+Legacy AES/Keychain 代码和依赖被删除；启动只清理旧 `vault-a.json`/`vault-b.json`，不读取或删除系统 Keychain item，从而不会触发密码对话框。升级用户需重新输入一次 OpenAI key。
 
-**Alternatives considered**: 直接将 provider secret 存 Keychain 不符合选定“插件本地密文”模型；把 key 放同一 `@data` 文件无法提供有效静态保护；主密码派生可以避免 Keychain，但每次启动解锁和遗忘后不可恢复不利于 MVP 主流程；明文 preferences 明确禁止。
+**Alternatives considered**: session-only credential 会要求每次重启重输；同目录加密没有实际隔离；继续调试 Keychain ACL 无法满足用户“不考虑引入”的决定；将 secret 放命令参数会进入进程列表和 IINA 日志。
+
+## macOS 代理与 direct 路由
+
+**Decision**: Profile 明确保存 `system | direct`。system 使用 URLSession 与 macOS proxy policy；direct 使用系统 libcurl 并固定 `CURLOPT_NOPROXY="*"`，不复用 CFNetwork 的 proxy dictionary。
+
+**Rationale**: macOS 26 实机中，即使清除继承的 `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` 并把旧 `connectionProxyDictionary` 的 HTTP/HTTPS/SOCKS enable 全设为 false，helper 系统日志仍显示 direct 请求连接 `127.0.0.1:10808`。同一 endpoint 的 libcurl no-proxy 探测直接返回预期 HTTP 401，且 helper 日志不再出现该代理地址。Apple 已建议使用新的 proxy configuration API，但空数组仍表示采用 system settings，不能表达强制 direct。[URLSession proxy configurations](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/proxyconfigurations)
+
+**Alternatives considered**: 仅在 process 启动后 unset env 对 macOS 26 已缓存状态无效；旧 CFNetwork dictionary 实测无法强制 direct；调用 `/usr/bin/curl` 会增加子进程生命周期并容易错误暴露 header，因此选择进程内 libcurl C API。
 
 ## IINA HTTP 能力与严格 Retry-After
 
@@ -68,9 +76,11 @@ helper 使用系统安全随机源向 global 提供 DEK/nonce 熵；global 使�
 
 **Rationale**: IINA 1.4.4 官方实现返回 `text/data/statusCode/reason`，没有响应 headers，也没有 abort/timeout handle，因此无法严格实现 FR-020。WebView fetch 有 headers/AbortController，但任意 OpenAI-compatible endpoint 未必允许 CORS；IINA `utils.exec` 会记录命令参数，直接调用 curl 会泄露 credential header。URLSession helper 可安全读取 `Retry-After`、执行真实超时/取消，并保持 provider endpoint 兼容性。[IINA HTTP API](https://docs.iina.io/interfaces/IINA.API.HTTP)；[HTTP response type](https://github.com/iina/iina-plugin-definition/blob/master/iina/index.d.ts)；[IINA HTTP implementation](https://github.com/iina/iina/blob/v1.4.4/iina/JavascriptAPIHttp.swift)；[IINA exec implementation](https://github.com/iina/iina/blob/v1.4.4/iina/JavascriptAPIUtils.swift)
 
-helper 绑定 loopback ephemeral port，自行生成并仅通过 stdout hook 返回 bearer token。它限制 body/response 大小、只允许 HTTPS remote 或 loopback HTTP、阻止跨 origin redirect 泄露 auth，并以 job ID 支持 cancel。所有 provider adapter 一次只执行一个 attempt；main entry 决定是否/何时重试。
+helper 绑定 loopback ephemeral port，自行生成并仅通过 stdout hook 返回 bearer token。它限制 body/response 大小、只允许 HTTPS remote 或 loopback HTTP，以 job ID 支持 cancel，并提供固定路径 credential read/replace/delete。system 网络路由阻止跨 origin redirect 泄露 auth；direct 路由禁用自动 redirect。所有 provider adapter 一次只执行一个 attempt；main entry 决定是否/何时重试。
 
-**Alternatives considered**: 放宽为“可见时才遵守 Retry-After”会改变明确规格；WebView fetch 缩小 OpenAI-compatible 范围；curl 参数会进入 IINA 日志；通用本地代理或长期后台服务超出需要。helper 只实现受限 request/cancel/random RPC，不保存业务状态。
+**Acceptance remediation**: helper 的 300 秒 idle lease 保留，但 Global 不再永久缓存一个 session。共享 supervisor 在每次 provider dispatch 前以 `/v1/random` 探活，过期时合并并发重启；provider adapter 即使被缓存也在每次调用时使用 supervisor。探活发生在 provider body 发送前，entropy 可安全重试一次，已派发 provider POST 则只失效 session 而不由 supervisor 重放。
+
+**Alternatives considered**: 放宽为“可见时才遵守 Retry-After”会改变明确规格；WebView fetch 缩小 OpenAI-compatible 范围；curl 命令参数会进入 IINA 日志；通用本地代理或长期后台服务超出需要。helper 只实现受限 request/cancel/health/credential RPC，不保存播放器或 provider 策略状态。
 
 ## 统一重试规则
 
@@ -93,6 +103,8 @@ Azure 不返回调用方 cue ID，因此仅在 response count 与请求一致且
 ## OpenAI-compatible 契约
 
 **Decision**: 使用 `{apiRoot}/chat/completions`、`stream:false` 和可选 Bearer key。连接检查依次协商 strict `json_schema`、`json_object`、prompt-only JSON 并缓存 capability；真实字幕批次不做失败后格式 fallback。
+
+**Acceptance remediation**: endpoint 字段只接受并展示 API root 语义，保存用户输入且不把完整 `/chat/completions` URL 折叠成 root。请求构造统一去除末尾 `/` 后追加 `/chat/completions`；界面同步显示该实际地址，因此误填完整路径会显式形成重复后缀并按服务响应失败。
 
 **Rationale**: Chat Completions 是第三方兼容服务的最大共同接口。Strict Structured Outputs 可保证 schema；JSON mode 只保证有效 JSON，所以所有层级仍须本地校验 opaque cue ID、唯一性和非空文本。[Chat API](https://developers.openai.com/api/reference/resources/chat)；[Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
 

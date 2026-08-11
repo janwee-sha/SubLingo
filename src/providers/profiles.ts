@@ -10,6 +10,7 @@ export interface SaveProfileInput {
   displayName: string;
   kind: Kind;
   endpoint: string;
+  proxyMode?: "system" | "direct";
   model?: string;
   region?: string;
   capability?: "strict-json-schema" | "json-object" | "prompt-json";
@@ -31,7 +32,7 @@ export function normalizeProviderEndpoint(kind: Kind, value: string): string {
   const match = candidate.match(
     /^(https?):\/\/([^/?#]+)(\/[^?#]*)?(?:\?[^#]*)?(?:#.*)?$/i,
   );
-  if (!match || /#/.test(candidate)) throw new Error("INVALID_ENDPOINT");
+  if (!match || /[?#]/.test(candidate)) throw new Error("INVALID_ENDPOINT");
   const scheme = match[1]!.toLowerCase();
   const authority = match[2]!;
   if (authority.includes("@") || /\s/.test(authority)) throw new Error("INVALID_ENDPOINT");
@@ -40,8 +41,8 @@ export function normalizeProviderEndpoint(kind: Kind, value: string): string {
     : authority.split(":")[0]!.toLowerCase();
   const loopback = ["127.0.0.1", "::1", "localhost"].includes(hostname);
   if (scheme !== "https" && !(kind === "ollama" && loopback)) throw new Error("INSECURE_ENDPOINT");
-  let path = (match[3] ?? "").replace(/\/+$/, "");
-  if (kind === "openai") path = path.replace(/\/chat\/completions$/i, "");
+  if (kind === "openai") return trimmed;
+  const path = (match[3] ?? "").replace(/\/+$/, "");
   return `${scheme}://${authority.toLowerCase()}${path}`;
 }
 
@@ -70,6 +71,7 @@ export class ProviderProfiles {
     const endpointFingerprint = identityHash({
       kind: input.kind,
       endpoint,
+      proxyMode: input.proxyMode ?? "system",
     }) as unknown as EndpointFingerprint;
     const snapshot: ProviderProfileSnapshot = {
       profileId: profileId as ProfileId,
@@ -78,6 +80,7 @@ export class ProviderProfiles {
       kind: input.kind,
       endpoint,
       endpointFingerprint,
+      proxyMode: input.proxyMode ?? "system",
       ...(input.model?.trim() ? { model: input.model.trim() } : {}),
       ...(input.region?.trim() ? { region: input.region.trim() } : {}),
       ...(input.capability ? { capability: input.capability } : {}),
@@ -86,7 +89,12 @@ export class ProviderProfiles {
     profileRevisions.set(revision, snapshot);
     this.revisions.set(profileId, profileRevisions);
     this.latest.set(profileId, revision);
-    if (input.editingWindowId) this.selections.delete(input.editingWindowId);
+    if (
+      input.editingWindowId &&
+      input.profileId &&
+      this.selections.get(input.editingWindowId)?.profileId === input.profileId
+    )
+      this.selections.delete(input.editingWindowId);
     return snapshot;
   }
 
@@ -129,6 +137,25 @@ export class ProviderProfiles {
 
   release(windowId: string, profileId: string, revision: number): void {
     this.leases.delete(`${windowId}\u0000${profileId}\u0000${revision}`);
+  }
+
+  delete(profileId: string): string[] {
+    if (!this.revisions.has(profileId)) throw new Error("PROFILE_NOT_FOUND");
+    const affected = new Set<string>();
+    for (const [windowId, selection] of this.selections) {
+      if (selection.profileId !== profileId) continue;
+      affected.add(windowId);
+      this.selections.delete(windowId);
+    }
+    for (const lease of [...this.leases]) {
+      const [windowId, leasedProfileId] = lease.split("\u0000");
+      if (leasedProfileId !== profileId) continue;
+      if (windowId) affected.add(windowId);
+      this.leases.delete(lease);
+    }
+    this.latest.delete(profileId);
+    this.revisions.delete(profileId);
+    return [...affected].sort();
   }
 
   clearAuthorizations(): string[] {

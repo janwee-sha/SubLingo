@@ -18,7 +18,7 @@ describe("immutable provider profile revisions", () => {
       endpoint: "https://api.example.test/v2",
       model: "model-a",
     });
-    expect(first).toMatchObject({ revision: 1, endpoint: "https://api.example.test/v1" });
+    expect(first).toMatchObject({ revision: 1, endpoint: "https://api.example.test/v1/" });
     expect(second.revision).toBe(2);
     expect(second.endpointFingerprint).not.toBe(first.endpointFingerprint);
     expect(profiles.get(first.profileId, 1)).toEqual(first);
@@ -32,6 +32,30 @@ describe("immutable provider profile revisions", () => {
         model: "m",
       }),
     ).toThrow(/STALE_PROFILE_REVISION/);
+  });
+
+  it("treats the network route as selected profile identity", () => {
+    const profiles = new ProviderProfiles(() => "route-profile");
+    const system = profiles.save({
+      displayName: "Remote",
+      kind: "openai",
+      endpoint: "https://api.example.test/v1",
+      model: "model",
+      proxyMode: "system",
+    });
+    const direct = profiles.save({
+      profileId: system.profileId,
+      expectedRevision: 1,
+      displayName: "Remote",
+      kind: "openai",
+      endpoint: "https://api.example.test/v1",
+      model: "model",
+      proxyMode: "direct",
+    });
+
+    expect(system.proxyMode).toBe("system");
+    expect(direct.proxyMode).toBe("direct");
+    expect(direct.endpointFingerprint).not.toBe(system.endpointFingerprint);
   });
 
   it("requires exact per-window selection and leases old revisions independently", () => {
@@ -88,10 +112,10 @@ describe("immutable provider profile revisions", () => {
     );
   });
 
-  it("canonicalizes a full OpenAI chat-completions URL to the same API root", () => {
+  it("preserves every OpenAI endpoint as a literal API root", () => {
     expect(
       normalizeProviderEndpoint("openai", "https://api.example.test/v1/chat/completions/"),
-    ).toBe("https://api.example.test/v1");
+    ).toBe("https://api.example.test/v1/chat/completions/");
 
     const profiles = new ProviderProfiles(() => "unused");
     const root = profiles.save({
@@ -110,8 +134,9 @@ describe("immutable provider profile revisions", () => {
       endpoint: "https://api.example.test/v1/chat/completions",
       model: "model",
     });
-    expect(full.endpoint).toBe(root.endpoint);
-    expect(full.endpointFingerprint).toBe(root.endpointFingerprint);
+    expect(root.endpoint).toBe("https://api.example.test/v1");
+    expect(full.endpoint).toBe("https://api.example.test/v1/chat/completions");
+    expect(full.endpointFingerprint).not.toBe(root.endpointFingerprint);
   });
 
   it("clears every window selection and lease without deleting profile metadata", () => {
@@ -130,5 +155,46 @@ describe("immutable provider profile revisions", () => {
     expect(profiles.selection("window-A")).toBeNull();
     expect(profiles.selection("window-B")).toBeNull();
     expect(profiles.get(saved.profileId, saved.revision)).toEqual(saved);
+  });
+
+  it("deletes every revision and reports only windows using that profile", () => {
+    let sequence = 0;
+    const profiles = new ProviderProfiles(() => `profile-${++sequence}`);
+    const deleted = profiles.save({
+      displayName: "Delete me",
+      kind: "openai",
+      endpoint: "https://delete.example/v1",
+      model: "model",
+    });
+    profiles.save({
+      profileId: deleted.profileId,
+      expectedRevision: 1,
+      displayName: "Delete me",
+      kind: "openai",
+      endpoint: "https://delete.example/v2",
+      model: "model",
+    });
+    const retained = profiles.save({
+      displayName: "Keep me",
+      kind: "ollama",
+      endpoint: "http://127.0.0.1:11434",
+      model: "qwen",
+    });
+    profiles.select(
+      "window-A",
+      deleted.profileId,
+      2,
+      profiles.get(deleted.profileId, 2)!.endpointFingerprint,
+    );
+    profiles.select("window-B", retained.profileId, 1, retained.endpointFingerprint);
+    profiles.lease("window-C", deleted.profileId, 1);
+
+    expect(profiles.delete(deleted.profileId)).toEqual(["window-A", "window-C"]);
+    expect(profiles.get(deleted.profileId, 1)).toBeNull();
+    expect(profiles.get(deleted.profileId, 2)).toBeNull();
+    expect(profiles.selection("window-A")).toBeNull();
+    expect(profiles.selection("window-B")).toMatchObject({ profileId: retained.profileId });
+    expect(profiles.listLatest()).toEqual([retained]);
+    expect(() => profiles.delete(deleted.profileId)).toThrow(/PROFILE_NOT_FOUND/);
   });
 });

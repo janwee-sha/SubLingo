@@ -3,6 +3,7 @@ export interface ProviderTransportRequest {
   method: "GET" | "POST";
   url: string;
   headers: Record<string, string>;
+  proxyMode?: "system" | "direct";
   body?: unknown;
   timeoutMs: number;
   maxResponseBytes: number;

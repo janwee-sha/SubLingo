@@ -24,11 +24,19 @@
       "inputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/DirectCurlTransport.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/HTTPClient.swift"
         },
         {
           "kind" : "file",
           "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Protocol.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/SecureCredentialStore.swift"
         },
         {
           "kind" : "file",
@@ -51,8 +59,10 @@
       "moduleName" : "SubLingoTransport",
       "moduleOutputPath" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/Modules/SubLingoTransport.swiftmodule",
       "objects" : [
+        "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/DirectCurlTransport.swift.o",
         "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/HTTPClient.swift.o",
         "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Protocol.swift.o",
+        "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/SecureCredentialStore.swift.o",
         "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Server.swift.o",
         "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/main.swift.o"
       ],
@@ -67,6 +77,8 @@
         "-j15",
         "-DSWIFT_PACKAGE",
         "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-Xcc",
+        "-fmodule-map-file=/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/CCurl/module.modulemap",
         "-module-cache-path",
         "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/ModuleCache",
         "-parseable-output",
@@ -100,11 +112,19 @@
       "outputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/DirectCurlTransport.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/HTTPClient.swift.o"
         },
         {
           "kind" : "file",
           "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Protocol.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/SecureCredentialStore.swift.o"
         },
         {
           "kind" : "file",
@@ -121,8 +141,10 @@
       ],
       "prepareForIndexing" : false,
       "sources" : [
+        "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/DirectCurlTransport.swift",
         "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/HTTPClient.swift",
         "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Protocol.swift",
+        "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/SecureCredentialStore.swift",
         "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Server.swift",
         "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/main.swift"
       ],
@@ -141,8 +163,10 @@
       "-package-name",
       "transport",
       "-c",
+      "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/DirectCurlTransport.swift",
       "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/HTTPClient.swift",
       "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Protocol.swift",
+      "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/SecureCredentialStore.swift",
       "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Server.swift",
       "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/main.swift",
       "-I",
@@ -157,6 +181,8 @@
       "-j15",
       "-DSWIFT_PACKAGE",
       "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-Xcc",
+      "-fmodule-map-file=/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/CCurl/module.modulemap",
       "-module-cache-path",
       "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/ModuleCache",
       "-parseable-output",
@@ -191,7 +217,7 @@
   },
   "targetDependencyMap" : {
     "SubLingoTransport" : [
-
+      "CCurl"
     ]
   },
   "testDiscoveryCommands" : {
@@ -215,11 +241,19 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/DirectCurlTransport.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/HTTPClient.swift"
         },
         {
           "kind" : "file",
           "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/Protocol.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/Sources/SubLingoTransport/SecureCredentialStore.swift"
         },
         {
           "kind" : "file",
@@ -241,11 +275,19 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/DirectCurlTransport.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/HTTPClient.swift.o"
         },
         {
           "kind" : "file",
           "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/Protocol.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/ianhsia/Projects/Frontend/SubLingo/native/transport/.build/arm64-apple-macosx/release/SubLingoTransport.build/SecureCredentialStore.swift.o"
         },
         {
           "kind" : "file",

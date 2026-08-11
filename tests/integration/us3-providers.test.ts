@@ -119,7 +119,7 @@ describe("US3 provider broker integration", () => {
     expect(aResult.translations[0]?.text).not.toBe(bResult.translations[0]?.text);
   });
 
-  it("cancels every in-flight provider job during a vault reset", async () => {
+  it("cancels every in-flight provider job during global shutdown", async () => {
     const profiles = new ProviderProfiles(() => "00000000-0000-4000-8000-000000000001");
     let rejectAttempt: ((reason: unknown) => void) | undefined;
     const cancellations: string[] = [];
@@ -153,5 +153,62 @@ describe("US3 provider broker integration", () => {
     await broker.cancelAll();
     expect(cancellations).toEqual(["reset-me"]);
     await expect(pending).rejects.toMatchObject({ category: "cancelled" });
+  });
+
+  it("cancels only jobs owned by a deleted profile", async () => {
+    let sequence = 0;
+    const profiles = new ProviderProfiles(() => `profile-${++sequence}`);
+    const cancellations: string[] = [];
+    const resolvers = new Map<
+      string,
+      (value: { translations: Array<{ id: string; text: string }> }) => void
+    >();
+    const broker = new ProviderBroker(profiles, () => ({
+      attempt: (request) =>
+        new Promise((resolve) => {
+          resolvers.set(request.requestId, resolve);
+        }),
+      cancel: async (requestId) => {
+        cancellations.push(requestId);
+        resolvers.get(requestId)?.({ translations: [] });
+      },
+    }));
+    const deleted = profiles.save({
+      displayName: "Deleted",
+      kind: "openai",
+      endpoint: "https://deleted.example/v1",
+      model: "m",
+    });
+    const retained = profiles.save({
+      displayName: "Retained",
+      kind: "openai",
+      endpoint: "https://retained.example/v1",
+      model: "m",
+    });
+    broker.select("A", deleted.profileId, 1, deleted.endpointFingerprint);
+    broker.select("B", retained.profileId, 1, retained.endpointFingerprint);
+    const aRequest = {
+      ...makeProviderRequest(),
+      requestId: "delete-A" as ReturnType<typeof makeProviderRequest>["requestId"],
+      profileId: deleted.profileId,
+      endpointFingerprint: deleted.endpointFingerprint,
+    };
+    const bRequest = {
+      ...makeProviderRequest(),
+      requestId: "keep-B" as ReturnType<typeof makeProviderRequest>["requestId"],
+      profileId: retained.profileId,
+      endpointFingerprint: retained.endpointFingerprint,
+    };
+    const pendingA = broker.attempt("A", aRequest);
+    const pendingB = broker.attempt("B", bRequest);
+    await Promise.resolve();
+
+    await broker.cancelProfile(deleted.profileId);
+    expect(cancellations).toEqual(["delete-A"]);
+    resolvers.get("keep-B")?.({ translations: [{ id: "c1", text: "still-running" }] });
+    await expect(pendingA).resolves.toEqual({ translations: [] });
+    await expect(pendingB).resolves.toMatchObject({
+      translations: [{ text: "still-running" }],
+    });
   });
 });

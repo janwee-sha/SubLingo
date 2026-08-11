@@ -17,4 +17,6 @@ docs/validation/
 @data/
 @tmp/
 *.vault.json
+credentials.json
+*.credentials.json
 *.iinaplgz

@@ -2,7 +2,8 @@ import {
   isTransportRpcErrorCode,
   TransportRpcError,
   type LocalHttpBridge,
-  type TransportClient,
+  type TransportRpcErrorCode,
+  type TransportRpcClient,
 } from "../../transport/client.js";
 import type {
   ProviderTransport,
@@ -11,29 +12,41 @@ import type {
 } from "../../providers/transport.js";
 import type { ProcessLauncher } from "./transport-process.js";
 
+function helperErrorCode(value: unknown): TransportRpcErrorCode | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const response = value as Record<string, unknown>;
+  const data = response.data;
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const code = (data as Record<string, unknown>).error;
+    if (isTransportRpcErrorCode(code)) return code;
+  }
+  if (typeof response.text !== "string") return undefined;
+  try {
+    const parsed = JSON.parse(response.text) as Record<string, unknown>;
+    return isTransportRpcErrorCode(parsed.error) ? parsed.error : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class IinaLocalHttpBridge implements LocalHttpBridge {
   constructor(private readonly http: IINA.API.HTTP) {}
 
   async post<T>(url: string, bearerToken: string, body: unknown): Promise<T> {
-    const response = await this.http.post(url, {
-      params: {},
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearerToken}` },
-      data: body as Record<string, unknown>,
-    });
+    let response: IINA.HTTPResponse;
+    try {
+      response = await this.http.post(url, {
+        params: {},
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearerToken}` },
+        data: body as Record<string, unknown>,
+      });
+    } catch (error) {
+      // IINA rejects its Promise for every non-2xx response. Preserve only the
+      // helper's allowlisted safe code; never surface response text or tokens.
+      throw new TransportRpcError(helperErrorCode(error) ?? "helper-rpc-failed");
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      let code: unknown =
-        response.data && typeof response.data === "object"
-          ? (response.data as Record<string, unknown>).error
-          : undefined;
-      if (!isTransportRpcErrorCode(code)) {
-        try {
-          const parsed = JSON.parse(response.text) as Record<string, unknown>;
-          code = parsed.error;
-        } catch {
-          code = undefined;
-        }
-      }
-      throw new TransportRpcError(isTransportRpcErrorCode(code) ? code : "helper-rpc-failed");
+      throw new TransportRpcError(helperErrorCode(response) ?? "helper-rpc-failed");
     }
     if (response.data && typeof response.data === "object") return response.data as T;
     try {
@@ -60,7 +73,7 @@ export class HelperProviderTransport implements ProviderTransport {
   private readonly helperJobs = new Map<string, string>();
 
   constructor(
-    private readonly client: TransportClient,
+    private readonly client: TransportRpcClient,
     private readonly createHelperJobId: () => string,
   ) {}
 

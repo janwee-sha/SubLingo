@@ -1,6 +1,6 @@
 {
   "name": "sublingo",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "description": "Real-time bilingual subtitle translation for IINA 1.4+",
   "entry": "dist/main.js",
@@ -48,7 +48,6 @@
     }
   },
   "dependencies": {
-    "@noble/ciphers": "2.3.0",
     "@noble/hashes": "2.3.0"
   },
   "devDependencies": {

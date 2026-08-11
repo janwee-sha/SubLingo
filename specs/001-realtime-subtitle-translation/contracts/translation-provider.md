@@ -59,11 +59,13 @@ Azure is positional rather than ID-based. It accepts results only when the respo
 
 ## OpenAI-compatible Chat Completions
 
-- Accept either `{apiRoot}` or a full `{apiRoot}/chat/completions` configuration, canonicalize both to the same API root/fingerprint, and send exactly `POST {apiRoot}/chat/completions`.
+- Treat the saved endpoint literally as `{apiRoot}`, preserve it for disclosure/fingerprinting, trim only trailing `/` while composing a request, and send exactly `POST {apiRoot}/chat/completions`.
+- A value already ending in `/chat/completions` is still treated as an API root and therefore requests `/chat/completions/chat/completions`; the UI MUST preview that address instead of silently rewriting the saved value.
 - Optional standard `Authorization: Bearer <key>` only.
 - `stream:false`; subtitle items are JSON-encoded untrusted data, never interpolated as instructions.
 - Capability selected by explicit connection probe: strict `json_schema` -> `json_object` -> prompt-only JSON. Fallback is permitted only for recognized response-format incompatibility; authentication, model, quota/rate-limit, timeout, network and other endpoint errors stop immediately.
 - A real subtitle batch MUST NOT be resent under a fallback response format.
+- Split a logical batch into ordered chat requests of at most two items. Each source item is sent exactly once; results are restored to the original cue IDs and usage is aggregated.
 - Output: `{ "translations": [{ "id": "c1", "text": "..." }] }`.
 - Suggested logical deadline: 30 seconds unless the saved profile explicitly changes it within a safe range.
 
@@ -72,6 +74,7 @@ Azure is positional rather than ID-based. It accepts results only when the respo
 - Local default `http://127.0.0.1:11434`; non-loopback HTTP is rejected.
 - Probe `GET /api/version`, `GET /api/tags`, then a one-item schema generation.
 - `POST /api/chat` with `stream:false`, common JSON Schema `format`, temperature 0, and `think:false` when supported.
+- Split a logical batch into ordered chat requests of at most two items. Each source item is sent exactly once; results are restored to the original cue IDs and usage is aggregated.
 - Parse and validate JSON in `message.content` using the common ID contract.
 - Suggested logical deadline: 60 seconds to permit local cold model loading.
 

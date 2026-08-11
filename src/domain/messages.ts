@@ -11,16 +11,17 @@ export const SIDEBAR_MESSAGE_NAMES = [
   "profile:save",
   "secret:set",
   "profile:select",
+  "profile:delete-request",
   "provider:test",
   "translation:set-enabled",
-  "vault:reset-request",
 ] as const;
 
 export const GLOBAL_MESSAGE_NAMES = [
   "profiles:list",
   "profile:create-revision",
-  "vault:set-secret",
-  "vault:reset",
+  "profile:delete",
+  "profile:select",
+  "credential:set",
   "provider:test",
   "provider:attempt",
   "provider:cancel",
@@ -53,6 +54,7 @@ export function sanitizedProfileView(profile: {
   kind: "azure" | "openai" | "ollama";
   endpoint: string;
   endpointFingerprint: string;
+  proxyMode?: "system" | "direct";
   model?: string;
   credential?: Record<string, string>;
 }): {
@@ -62,6 +64,7 @@ export function sanitizedProfileView(profile: {
   kind: "azure" | "openai" | "ollama";
   endpoint: string;
   endpointFingerprint: string;
+  proxyMode: "system" | "direct";
   model?: string;
   credentialConfigured: boolean;
 } {
@@ -72,6 +75,7 @@ export function sanitizedProfileView(profile: {
     kind: profile.kind,
     endpoint: profile.endpoint,
     endpointFingerprint: profile.endpointFingerprint,
+    proxyMode: profile.proxyMode ?? "system",
     ...(profile.model === undefined ? {} : { model: profile.model }),
     credentialConfigured: Boolean(
       profile.credential && Object.values(profile.credential).some(Boolean),

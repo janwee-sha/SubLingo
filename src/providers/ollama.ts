@@ -4,27 +4,19 @@ import type { ProviderTransport, ProviderTransportResponse } from "./transport.j
 import { providerHttpError, protocolError } from "./errors.js";
 import { normalizeProviderEndpoint } from "./profiles.js";
 import { validateIdOutput } from "./validation.js";
+import { encodeWireItems, providerOutputSchema } from "./wire-items.js";
 
-const OUTPUT_SCHEMA = {
-  type: "object",
-  required: ["translations"],
-  properties: {
-    translations: {
-      type: "array",
-      items: {
-        type: "object",
-        required: ["id", "text"],
-        properties: { id: { type: "string" }, text: { type: "string" } },
-      },
-    },
-  },
-} as const;
+const MAX_ITEMS_PER_CHAT_REQUEST = 2;
 
 export class OllamaProvider implements TranslationProvider {
   private readonly endpoint: string;
   private readonly activeJobs = new Set<string>();
   constructor(
-    private readonly config: { endpoint: string; model: string },
+    private readonly config: {
+      endpoint: string;
+      model: string;
+      proxyMode?: "system" | "direct";
+    },
     private readonly transport: ProviderTransport,
   ) {
     this.endpoint = normalizeProviderEndpoint("ollama", config.endpoint);
@@ -64,24 +56,39 @@ export class OllamaProvider implements TranslationProvider {
   }
 
   async attempt(request: TranslationBatchRequest): Promise<TranslationBatchResult> {
-    const response = await this.chat(
-      request.requestId,
-      request.items,
-      request.sourceLanguage,
-      request.targetLanguage,
-      60_000,
-    );
-    if (response.statusCode < 200 || response.statusCode >= 300)
-      throw providerHttpError(response.statusCode, response.headers);
-    return this.parse(
-      request.items.map((item) => item.id),
-      response,
-    );
+    const wire = encodeWireItems(request.items);
+    const combined: TranslationBatchResult = { translations: [] };
+    for (let offset = 0; offset < wire.items.length; offset += MAX_ITEMS_PER_CHAT_REQUEST) {
+      const items = wire.items.slice(offset, offset + MAX_ITEMS_PER_CHAT_REQUEST);
+      const part = Math.floor(offset / MAX_ITEMS_PER_CHAT_REQUEST) + 1;
+      const response = await this.chat(
+        `${request.requestId}-part-${part}`,
+        items,
+        request.sourceLanguage,
+        request.targetLanguage,
+        60_000,
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300)
+        throw providerHttpError(response.statusCode, response.headers);
+      const parsed = this.parse(
+        items.map((item) => item.id),
+        response,
+      );
+      combined.translations.push(...parsed.translations);
+      for (const key of ["input", "output", "characters"] as const) {
+        const value = parsed.usage?.[key];
+        if (value === undefined) continue;
+        combined.usage ??= {};
+        combined.usage[key] = (combined.usage[key] ?? 0) + value;
+      }
+    }
+    return wire.restore(combined);
   }
 
   async cancel(requestId: string): Promise<void> {
     const jobs = [...this.activeJobs].filter(
-      (jobId) => jobId === requestId || jobId.startsWith("probe-"),
+      (jobId) =>
+        jobId === requestId || jobId.startsWith(`${requestId}-part-`) || jobId.startsWith("probe-"),
     );
     await Promise.allSettled(jobs.map((jobId) => this.transport.cancel?.(jobId)));
   }
@@ -94,6 +101,7 @@ export class OllamaProvider implements TranslationProvider {
         method: "GET",
         url: `${this.endpoint}${path}`,
         headers: {},
+        proxyMode: this.config.proxyMode ?? "system",
         timeoutMs: 10_000,
         maxResponseBytes: 1_048_576,
       });
@@ -116,11 +124,12 @@ export class OllamaProvider implements TranslationProvider {
         method: "POST",
         url: `${this.endpoint}/api/chat`,
         headers: { "Content-Type": "application/json" },
+        proxyMode: this.config.proxyMode ?? "system",
         body: {
           model: this.config.model,
           stream: false,
           think: false,
-          format: OUTPUT_SCHEMA,
+          format: providerOutputSchema(items.map((item) => item.id)),
           options: { temperature: 0 },
           messages: [
             {

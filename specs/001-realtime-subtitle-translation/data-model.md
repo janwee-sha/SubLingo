@@ -17,13 +17,13 @@ Validation: target/source language 使用规范化 BCP 47；基础语言相同�
 - `revision: positive integer`
 - `displayName: string`
 - `kind: "azure" | "openai" | "ollama"`
-- `endpoint: normalized URL`
+- `endpoint: validated URL`（OpenAI-compatible 保存用户输入的 API root；其他 provider 可做 provider-specific normalization）
 - `endpointFingerprint: SHA-256`
 - `model?: string`
 - `capability?: "strict-json-schema" | "json-object" | "prompt-json"`
 - `apiVersion/promptVersion`
 - Azure: `region?: string`、`deployment="general"`、`apiVersion="2026-06-06"`
-- `credentialRef?: { vaultId, secretRevision }`
+- `credentialConfigured: boolean`（仅用于 sanitized view；不持久化秘密值）
 - `createdAt`
 
 Validation:
@@ -32,28 +32,26 @@ Validation:
 - URL 不允许 username/password、fragment 或非 HTTP(S) scheme。
 - Azure endpoint/key 必填，region 按 resource 类型条件必填，model 固定标准 NMT。
 - OpenAI-compatible model 必填，Bearer key 可选，capability 只由显式 connection probe 写入。
+- OpenAI-compatible endpoint 不折叠 `/chat/completions`；请求地址始终由保存值去除末尾 `/` 后追加 `/chat/completions`。endpoint fingerprint 使用保存值，避免 UI 披露与实际授权不一致。
 - Ollama model 必填，MVP 不承诺 remote custom headers/auth。
 - profile edit 创建新 revision；不得原地修改活动 revision。
+- profile delete 删除该 identity 的全部 revision 与 credential reference，并清理其 selections/leases；其他 profile 不变。
 
-## CredentialVaultEnvelope
+## CredentialStoreDocument
 
+- fixed path: `@data/credentials.json`
+- POSIX mode: file `0600`, plugin data directory `0700`
 - `formatVersion: 1`
-- `vaultId: UUID`
-- `revision: positive integer`
-- `algorithm: "A256GCM"`
-- `nonceB64: 12-byte unique nonce`
-- `ciphertextAndTagB64`
-- `entries: [{profileId, secretRevision, fieldNames}]`（非秘密索引可放 envelope 外层）
+- `credentials: Record<profile UUID, {apiKey: non-empty string}>`
 
-Lifecycle: absent -> initializing -> unlocked | locked -> rewriting -> verified。A/B slot 中 authenticated revision 最大且可成功解密者为当前 vault。
+Lifecycle: absent -> read | atomic replacement -> persisted。helper 在同目录以不可跟随 symlink 的 exclusive temporary file 创建 replacement，完整写入、`fchmod(0600)`、`fsync` 后原子 rename。Profile delete 是幂等的单 entry 删除；文档上限 1 MiB。
 
 Validation:
 
-- DEK 必须是 helper 安全随机生成的 32 bytes，并仅通过 plugin-scoped Keychain item 持久化。
-- AAD 必须规范编码 plugin ID、vault ID、format version、revision。
-- 每次 write/re-encrypt 使用新 nonce；nonce 不得由 counter、时间或 `Math.random` 产生。
-- 写入 inactive slot 后立即 read/decrypt/compare，验证成功才视为 committed。
-- Keychain、tag、AAD、schema 或 verify 失败均 locked/fail closed；绝不回退明文。
+- RPC 只接受 UUID profile ID 与唯一 `apiKey` 字段，最大 8,192 UTF-8 bytes。
+- helper 读取时要求 regular file、当前用户 owner、最大尺寸，并恢复/确认 `0600`。
+- 凭据不进入 preferences、安装包、UI 回传、普通状态、日志或诊断。
+- 该文档不使用 Keychain且不宣称静态加密；同一 macOS 用户下具备文件读取能力的其他进程属于明确披露的剩余风险。
 
 ## WindowProviderSelection
 
@@ -212,6 +210,13 @@ absent -> full file written -> loaded/detected -> selected as second
 - `helperPid/liveness`
 - `state: starting | ready | failed | stopped`
 
+`TransportSupervisor`:
+
+- current replaceable `TransportSession | null`
+- coalesced `starting` and `healthCheck` promises
+- operations: `health`, fixed-path `credentialRead/Write/Delete`, `request`, `cancel`, `shutdown`, session invalidation
+- a side-effect-free `/v1/random` health check before every provider dispatch
+
 `TransportJob`:
 
 - `jobId`
@@ -220,4 +225,4 @@ absent -> full file written -> loaded/detected -> selected as second
 - `state: pending | completed | cancelled | timedOut`
 - selected response metadata: status, `retry-after`, `x-request-id`, content type
 
-Validation: token/request secrets/bodies never log；remote URL must be HTTPS, except loopback HTTP；redirect cannot change origin with authorization；response/header/body limits enforced；cancel affects only exact job ID。
+Validation: token/request secrets/bodies never log；remote URL must be HTTPS, except loopback HTTP；system route 使用 URLSession，direct route 使用 libcurl `CURLOPT_NOPROXY="*"`；response/header/body limits enforced；cancel affects only exact job ID。credential RPC 不能选择文件路径或任意字段。空闲 helper 退出后 supervisor 在 provider body 派发前重建 session；health 与幂等 credential read/full-replace/delete 可安全重试一次，但已经调用 `/v1/request` 的 provider POST 不在 supervisor 层重放。
