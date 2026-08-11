@@ -30,7 +30,7 @@ npm run pack
 
 ```sh
 /Applications/IINA.app/Contents/MacOS/iina-plugin unlink .
-open build/package/SubLingo-0.1.4.iinaplgz
+open build/package/SubLingo-0.1.0.iinaplgz
 ```
 
 `iina-plugin link .` 只创建 `.iinaplugin-dev` 开发链接；IINA 对这种链接禁用“卸载”按钮是预期行为，开发链接应使用 `iina-plugin unlink .` 移除。正式 `.iinaplgz` 安装项必须可以从 IINA 插件管理面板卸载。

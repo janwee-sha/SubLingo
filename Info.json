@@ -1,6 +1,6 @@
 {
   "name": "SubLingo",
-  "version": "0.1.4",
+  "version": "0.1.0",
   "identifier": "io.sublingo.iina",
   "description": "Translate nearby external SRT/ASS cues into an IINA second subtitle track.",
   "author": {
