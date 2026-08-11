@@ -299,7 +299,7 @@ T100 and T102 remain as historical acceptance work but are superseded by the use
 - [X] T106 Implement a libcurl-backed direct route with explicit `CURLOPT_NOPROXY="*"`, retain URLSession for macOS proxy mode, and verify a credential-free OpenAI endpoint probe no longer uses `127.0.0.1:10808`
 - [X] T107 Bound Ollama chat requests to two subtitle items, aggregate ordered results/usage, and cancel each active split request
 - [X] T108 Update specifications, privacy text and validation records; run TypeScript, Swift, universal build, bundle, package verification and formal packaging
-- [ ] T109 Install the new formal package and validate OpenAI-compatible plus Ollama Test/actual six-cue second-subtitle output, credential restart, profile CRUD, button feedback and five-minute helper recovery in IINA 1.4.4
+- [X] T109 Install the new formal package and validate OpenAI-compatible plus Ollama Test/actual six-cue second-subtitle output, credential restart, profile CRUD, button feedback and five-minute helper recovery in IINA 1.4.4
 - [X] T110 [P] Add a native regression for IINA 1.4.4 omitting the serialized `{}` health body after the installed 0.1.1 package returned HTTP 400
 - [X] T111 Accept only zero-byte or literal `{}` health bodies, preserve bearer authentication, and release the correction as 0.1.2
 
@@ -311,4 +311,4 @@ T100 and T102 remain as historical acceptance work but are superseded by the use
 ## Phase 12: Idle Helper Recovery Remediation
 
 - [X] T114 Reproduce IINA's bodyless stale-loopback rejection after the native helper's 300-second idle exit; map `helper-rpc-failed` to recoverable `HELPER_UNAVAILABLE`, preserve helper classifications through credential access, and add no-secret regressions
-- [ ] T115 Build and formally install 0.1.4, then prove replacement-helper startup, retained OpenAI credential/Test, Ollama Test, Profile update/delete feedback, and actual second-subtitle output after idle expiry
+- [X] T115 Build and formally install 0.1.4, then prove replacement-helper startup, retained OpenAI credential/Test, Ollama Test, Profile update/delete feedback, and actual second-subtitle output after idle expiry
