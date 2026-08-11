@@ -202,6 +202,20 @@ describe("transport helper client", () => {
     await expect(client.cancel("job-1")).rejects.not.toThrow(/private body|secret-token/);
   });
 
+  it("maps IINA's bodyless loopback rejection to an expired helper session", async () => {
+    const bridge = new IinaLocalHttpBridge({
+      post: async () => Promise.reject(new Error("connection refused with private detail")),
+    } as unknown as IINA.API.HTTP);
+    const client = new TransportClient({ port: 49152, token: "secret-token" }, bridge);
+
+    await expect(client.health()).rejects.toMatchObject({
+      code: "HELPER_UNAVAILABLE",
+      retryable: true,
+      userAction: "RESTART_IINA",
+    });
+    await expect(client.health()).rejects.not.toThrow(/private detail|secret-token/);
+  });
+
   it("preserves safe upstream timeout and network classifications from the helper", async () => {
     for (const [rpcCode, expected] of [
       [

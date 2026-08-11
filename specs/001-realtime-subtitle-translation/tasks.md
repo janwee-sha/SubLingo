@@ -302,3 +302,13 @@ T100 and T102 remain as historical acceptance work but are superseded by the use
 - [ ] T109 Install the new formal package and validate OpenAI-compatible plus Ollama Test/actual six-cue second-subtitle output, credential restart, profile CRUD, button feedback and five-minute helper recovery in IINA 1.4.4
 - [X] T110 [P] Add a native regression for IINA 1.4.4 omitting the serialized `{}` health body after the installed 0.1.1 package returned HTTP 400
 - [X] T111 Accept only zero-byte or literal `{}` health bodies, preserve bearer authentication, and release the correction as 0.1.2
+
+## Phase 11: Structured Output Cardinality Remediation
+
+- [X] T112 [P] Add a failing provider-output regression proving each OpenAI/Ollama split request requires exactly one result per requested wire ID
+- [X] T113 Add exact `minItems`/`maxItems` request-schema bounds without weakening partial-response validation, rerun live Ollama six-cue IINA acceptance, and release the correction
+
+## Phase 12: Idle Helper Recovery Remediation
+
+- [X] T114 Reproduce IINA's bodyless stale-loopback rejection after the native helper's 300-second idle exit; map `helper-rpc-failed` to recoverable `HELPER_UNAVAILABLE`, preserve helper classifications through credential access, and add no-secret regressions
+- [ ] T115 Build and formally install 0.1.4, then prove replacement-helper startup, retained OpenAI credential/Test, Ollama Test, Profile update/delete feedback, and actual second-subtitle output after idle expiry

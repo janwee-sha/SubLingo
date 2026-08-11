@@ -39,7 +39,7 @@ Expected:
 /Applications/IINA.app/Contents/MacOS/iina-plugin unlink .
 ```
 
-Release and acceptance testing MUST use the packed artifact. After unlinking the workspace, open `build/package/SubLingo-0.1.2.iinaplgz` with IINA, restart IINA, grant the declared permissions, and confirm the installed plugin's Uninstall action is enabled. Do not keep an installed package and a development link with the same identifier during acceptance.
+Release and acceptance testing MUST use the packed artifact. After unlinking the workspace, open `build/package/SubLingo-0.1.4.iinaplgz` with IINA, restart IINA, grant the declared permissions, and confirm the installed plugin's Uninstall action is enabled. Do not keep an installed package and a development link with the same identifier during acceptance.
 
 Open the SubLingo sidebar. On first OpenAI-compatible credential save, verify `@data/credentials.json` is created with mode `0600`, its parent directory is `0700`, and the provider secret does not appear in preferences, Sidebar messages, logs or diagnostics. The product must label this file as local plaintext rather than encrypted storage. Saving/selecting/testing Ollama must not create or read a credential entry.
 

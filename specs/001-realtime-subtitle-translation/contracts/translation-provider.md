@@ -46,6 +46,8 @@ Provider requests MUST contain no video bytes or unrelated user data. Adapters a
 
 All ID-based providers use [provider-output.schema.json](./provider-output.schema.json). Application validation accepts only unique requested IDs with trim-non-empty text; unknown, duplicate, empty or invalid results remain uncached. Partial valid ID results MAY succeed independently, and only missing IDs MAY be retried.
 
+For structured-output requests, the dynamically generated schema sets `minItems` and `maxItems` to the number of wire IDs in that split request, and the prompt requires every ID exactly once. Local validation still treats provider non-compliance as a partial result so one unambiguous translation is never discarded because a sibling item is missing or invalid.
+
 Azure is positional rather than ID-based. It accepts results only when the response count exactly equals request count and every position contains one valid target-language result. Any positional shape/count ambiguity makes the entire attempt a protocol failure and caches zero entries.
 
 ## Azure Translator 2026-06-06

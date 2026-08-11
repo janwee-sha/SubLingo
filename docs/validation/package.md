@@ -1,8 +1,8 @@
 # Release package — 2026-08-11
 
-- Artifact: `build/package/SubLingo-0.1.2.iinaplgz`
-- Size: 301,021 bytes
-- SHA-256: `c32af406c243d28ff1fdd2e4b65df5b624e25af1bc3a2dbbe67bf455ead7d409`
+- Artifact: `build/package/SubLingo-0.1.4.iinaplgz`
+- Size: 301,241 bytes
+- SHA-256: `9e05a15bfa73b0e7e55c3eb457be64e090c704486d7ac33b4dfca2d746faed41`
 - Created with: `/Applications/IINA.app/Contents/MacOS/iina-plugin pack SubLingo`
 
 ## Inspected contents

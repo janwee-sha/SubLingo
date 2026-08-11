@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HelperCredentialStore, CredentialStoreError } from "../../src/credentials/store.js";
+import { SubLingoError } from "../../src/domain/errors.js";
 import type { TransportRpcClient } from "../../src/transport/client.js";
 
 const firstProfile = "7a90a4e6-cc4f-4f59-99b7-8ff522f887ae";
@@ -8,20 +9,27 @@ const secondProfile = "8a90a4e6-cc4f-4f59-99b7-8ff522f887ae";
 class MemoryCredentialTransport {
   readonly values = new Map<string, Record<string, string>>();
   fail = false;
+  helperUnavailable = false;
+
+  private assertAvailable(): void {
+    if (this.helperUnavailable)
+      throw new SubLingoError("HELPER_UNAVAILABLE", "network", "RESTART_IINA", true);
+    if (this.fail) throw new Error("private transport detail");
+  }
 
   async credentialRead(profileId: string): Promise<Record<string, string> | null> {
-    if (this.fail) throw new Error("private transport detail");
+    this.assertAvailable();
     const fields = this.values.get(profileId);
     return fields ? { ...fields } : null;
   }
 
   async credentialWrite(profileId: string, fields: Record<string, string>): Promise<void> {
-    if (this.fail) throw new Error("private transport detail");
+    this.assertAvailable();
     this.values.set(profileId, { ...fields });
   }
 
   async credentialDelete(profileId: string): Promise<void> {
-    if (this.fail) throw new Error("private transport detail");
+    this.assertAvailable();
     this.values.delete(profileId);
   }
 }
@@ -78,5 +86,17 @@ describe("plugin-private credential store", () => {
     await expect(store.setSecret(firstProfile, { apiKey: "private-key" })).rejects.not.toThrow(
       /private transport detail|private-key/,
     );
+  });
+
+  it("preserves expired-helper classification so the UI does not blame the credential file", async () => {
+    const transport = new MemoryCredentialTransport();
+    transport.helperUnavailable = true;
+    const store = new HelperCredentialStore(transport as unknown as TransportRpcClient);
+
+    await expect(store.getSecret(firstProfile)).rejects.toMatchObject({
+      code: "HELPER_UNAVAILABLE",
+      category: "network",
+      userAction: "RESTART_IINA",
+    });
   });
 });

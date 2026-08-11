@@ -1,4 +1,5 @@
 import type { TransportRpcClient } from "../transport/client.js";
+import { SubLingoError } from "../domain/errors.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -42,6 +43,7 @@ export class HelperCredentialStore {
       return fields ? validatedFields(fields) : null;
     } catch (error) {
       if (error instanceof CredentialStoreError) throw error;
+      if (error instanceof SubLingoError) throw error;
       throw new CredentialStoreError("CREDENTIAL_STORE_UNAVAILABLE");
     }
   }
@@ -51,7 +53,8 @@ export class HelperCredentialStore {
     const validated = validatedFields(fields);
     try {
       await this.transport.credentialWrite(profileId, validated);
-    } catch {
+    } catch (error) {
+      if (error instanceof SubLingoError) throw error;
       throw new CredentialStoreError("CREDENTIAL_STORE_UNAVAILABLE");
     }
   }
@@ -60,7 +63,8 @@ export class HelperCredentialStore {
     validateProfileId(profileId);
     try {
       await this.transport.credentialDelete(profileId);
-    } catch {
+    } catch (error) {
+      if (error instanceof SubLingoError) throw error;
       throw new CredentialStoreError("CREDENTIAL_STORE_UNAVAILABLE");
     }
   }

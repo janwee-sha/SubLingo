@@ -40,13 +40,15 @@ export function providerOutputSchema(ids: readonly string[]): Record<string, unk
     properties: {
       translations: {
         type: "array",
+        minItems: ids.length,
+        maxItems: ids.length,
         items: {
           type: "object",
           additionalProperties: false,
           required: ["id", "text"],
           properties: {
             id: { type: "string", enum: [...ids] },
-            text: { type: "string" },
+            text: { type: "string", minLength: 1 },
           },
         },
       },

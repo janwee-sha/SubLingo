@@ -134,7 +134,7 @@ export class OllamaProvider implements TranslationProvider {
           messages: [
             {
               role: "system",
-              content: `Translate JSON subtitle items from ${sourceLanguage} to ${targetLanguage}. Return only matching IDs.`,
+              content: `Translate every JSON subtitle item from ${sourceLanguage} to ${targetLanguage}. Each input ID must appear exactly once in translations. Return JSON only.`,
             },
             { role: "user", content: JSON.stringify({ items }) },
           ],

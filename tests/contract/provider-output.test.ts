@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateAzureOutput, validateIdOutput } from "../../src/providers/validation.js";
+import { providerOutputSchema } from "../../src/providers/wire-items.js";
 
 describe("strict provider output", () => {
   it("accepts only unique requested IDs with non-empty text while retaining partial valid results", () => {
@@ -34,5 +35,17 @@ describe("strict provider output", () => {
     expect(() =>
       validateAzureOutput(["c1", "c2"], { value: [{ translations: [{ text: "one" }] }] }),
     ).toThrow(/AZURE_POSITIONAL_MISMATCH/);
+  });
+
+  it("requires exactly one structured translation per requested wire ID", () => {
+    const oneItem = providerOutputSchema(["c1"]);
+    const twoItems = providerOutputSchema(["c1", "c2"]);
+
+    expect(oneItem).toMatchObject({
+      properties: { translations: { minItems: 1, maxItems: 1 } },
+    });
+    expect(twoItems).toMatchObject({
+      properties: { translations: { minItems: 2, maxItems: 2 } },
+    });
   });
 });

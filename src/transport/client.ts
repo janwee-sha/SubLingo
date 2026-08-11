@@ -51,6 +51,12 @@ function rpcError(error: TransportRpcError): SubLingoError {
       return new SubLingoError("HELPER_RESPONSE_TOO_LARGE", "protocol", "CHECK_ENDPOINT");
     case "credential-store-unavailable":
       return new SubLingoError("CREDENTIAL_STORE_UNAVAILABLE", "configuration", "RESTART_IINA");
+    case "helper-rpc-failed":
+      // IINA rejects its HTTP Promise without a response body when the
+      // loopback helper has exited after its idle timeout. Treat that as an
+      // expired session so TransportSupervisor can replace it. A malformed
+      // response from a live helper is classified separately by the client.
+      return new SubLingoError("HELPER_UNAVAILABLE", "network", "RESTART_IINA", true);
     case "unauthorized":
       return new SubLingoError("HELPER_UNAVAILABLE", "network", "RESTART_IINA", true);
     default:
