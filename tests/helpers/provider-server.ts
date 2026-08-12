@@ -7,35 +7,76 @@ export interface SimulatedResponse {
   delayMs?: number;
 }
 
+export type ProviderSimulatorMode = "success" | "quota";
+
+export interface ProviderSimulatorCall {
+  path: string;
+  method: string;
+}
+
 export class ProviderSimulator {
-  readonly calls: Array<{
-    path: string;
-    headers: Record<string, string | string[] | undefined>;
-    body: string;
-  }> = [];
+  readonly calls: ProviderSimulatorCall[] = [];
   private readonly responses: SimulatedResponse[] = [];
+  private readonly countWaiters: Array<{ count: number; resolve: () => void }> = [];
   private server: Server | null = null;
+  private mode: ProviderSimulatorMode = "success";
+  private requestGate: Promise<void> = Promise.resolve();
+  private releaseGate: (() => void) | null = null;
   url = "";
+
+  get requestCount(): number {
+    return this.calls.length;
+  }
 
   enqueue(response: SimulatedResponse): void {
     this.responses.push(response);
   }
 
+  setMode(mode: ProviderSimulatorMode): void {
+    this.mode = mode;
+  }
+
+  blockRequests(): void {
+    if (this.releaseGate) return;
+    this.requestGate = new Promise<void>((resolve) => {
+      this.releaseGate = resolve;
+    });
+  }
+
+  releaseRequests(): void {
+    const release = this.releaseGate;
+    this.releaseGate = null;
+    this.requestGate = Promise.resolve();
+    release?.();
+  }
+
+  async waitForRequestCount(count: number): Promise<void> {
+    if (this.requestCount >= count) return;
+    await new Promise<void>((resolve) => this.countWaiters.push({ count, resolve }));
+  }
+
   async start(): Promise<void> {
     this.server = createServer((request, response) => {
-      const chunks: Buffer[] = [];
-      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.resume();
       request.on("end", () => {
         this.calls.push({
           path: request.url ?? "/",
-          headers: request.headers,
-          body: Buffer.concat(chunks).toString("utf8"),
+          method: request.method ?? "GET",
         });
-        const next = this.responses.shift() ?? { status: 200, body: {} };
-        setTimeout(() => {
-          response.writeHead(next.status, { "Content-Type": "application/json", ...next.headers });
-          response.end(typeof next.body === "string" ? next.body : JSON.stringify(next.body ?? {}));
-        }, next.delayMs ?? 0);
+        this.resolveCountWaiters();
+        const gate = this.requestGate;
+        void gate.then(() => {
+          const next = this.responses.shift() ?? this.responseForMode();
+          setTimeout(() => {
+            response.writeHead(next.status, {
+              "Content-Type": "application/json",
+              ...next.headers,
+            });
+            response.end(
+              typeof next.body === "string" ? next.body : JSON.stringify(next.body ?? {}),
+            );
+          }, next.delayMs ?? 0);
+        });
       });
     });
     await new Promise<void>((resolve, reject) => {
@@ -49,6 +90,7 @@ export class ProviderSimulator {
 
   async close(): Promise<void> {
     if (!this.server) return;
+    this.releaseRequests();
     if (!this.server.listening) {
       this.server = null;
       return;
@@ -57,5 +99,25 @@ export class ProviderSimulator {
       this.server!.close((error) => (error ? reject(error) : resolve())),
     );
     this.server = null;
+  }
+
+  private responseForMode(): SimulatedResponse {
+    if (this.mode === "quota") {
+      return {
+        status: 429,
+        body: { error: { code: "insufficient_quota", message: "quota exceeded" } },
+      };
+    }
+    return { status: 200, body: {} };
+  }
+
+  private resolveCountWaiters(): void {
+    for (let index = this.countWaiters.length - 1; index >= 0; index -= 1) {
+      const waiter = this.countWaiters[index];
+      if (waiter && this.requestCount >= waiter.count) {
+        this.countWaiters.splice(index, 1);
+        waiter.resolve();
+      }
+    }
   }
 }

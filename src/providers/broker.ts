@@ -17,7 +17,11 @@ export class ProviderBrokerError extends Error {
 export class ProviderBroker {
   private readonly active = new Map<
     string,
-    { provider: TranslationProvider; requestId: string; profileId: string }
+    {
+      provider: TranslationProvider;
+      providerRequestId: string;
+      profileId: string;
+    }
   >();
   private authorizationEpoch = 0;
 
@@ -70,11 +74,16 @@ export class ProviderBroker {
       throw new ProviderBrokerError("PROFILE_NOT_SELECTED");
     const key = `${authoritativePlayerId}\u0000${request.requestId}`;
     if (this.active.has(key)) throw new ProviderBrokerError("DUPLICATE_REQUEST");
-    const active = { provider, requestId: request.requestId, profileId: profile.profileId };
+    const providerRequestId = `${authoritativePlayerId.length}:${authoritativePlayerId}${request.requestId}`;
+    const active = { provider, providerRequestId, profileId: profile.profileId };
     this.active.set(key, active);
     try {
       return await provider.attempt(
-        { ...request, playerId: authoritativePlayerId as PlayerId },
+        {
+          ...request,
+          playerId: authoritativePlayerId as PlayerId,
+          requestId: providerRequestId as TranslationBatchRequest["requestId"],
+        },
         (progress) => {
           if (this.active.get(key) === active) onProgress?.(progress);
         },
@@ -87,7 +96,7 @@ export class ProviderBroker {
   async cancel(authoritativePlayerId: string, requestId: string): Promise<void> {
     const key = `${authoritativePlayerId}\u0000${requestId}`;
     const active = this.active.get(key);
-    await active?.provider.cancel?.(requestId);
+    await active?.provider.cancel?.(active.providerRequestId);
     this.active.delete(key);
   }
 
@@ -96,7 +105,7 @@ export class ProviderBroker {
     const active = [...this.active.entries()];
     this.active.clear();
     await Promise.allSettled(
-      active.map(([, request]) => request.provider.cancel?.(request.requestId)),
+      active.map(([, request]) => request.provider.cancel?.(request.providerRequestId)),
     );
   }
 
@@ -106,7 +115,7 @@ export class ProviderBroker {
     );
     for (const [key] of active) this.active.delete(key);
     await Promise.allSettled(
-      active.map(([, request]) => request.provider.cancel?.(request.requestId)),
+      active.map(([, request]) => request.provider.cancel?.(request.providerRequestId)),
     );
   }
 }

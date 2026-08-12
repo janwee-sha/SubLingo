@@ -42,6 +42,7 @@ describe("US3 provider broker integration", () => {
   it("routes progress through the authoritative player request and stops after terminal or cancel", async () => {
     const profiles = new ProviderProfiles(() => "00000000-0000-4000-8000-000000000001");
     const progressHandlers = new Map<string, (text: string) => void>();
+    const requestPlayers = new Map<string, string>();
     const resolvers = new Map<
       string,
       (value: { translations: Array<{ id: string; text: string }> }) => void
@@ -49,13 +50,15 @@ describe("US3 provider broker integration", () => {
     const provider: TranslationProvider = {
       attempt: (request, onProgress) =>
         new Promise((resolve) => {
+          requestPlayers.set(request.requestId, request.playerId);
           progressHandlers.set(request.playerId, (text) =>
             onProgress?.({ translations: [{ id: "c1", text }] }),
           );
           resolvers.set(request.playerId, resolve);
         }),
       cancel: (requestId) => {
-        if (requestId === "request") resolvers.get("window-A")?.({ translations: [] });
+        const playerId = requestPlayers.get(requestId);
+        if (playerId) resolvers.get(playerId)?.({ translations: [] });
       },
     };
     const broker = new ProviderBroker(profiles, () => provider);
@@ -207,10 +210,12 @@ describe("US3 provider broker integration", () => {
       profileRevision: saved.revision,
       endpointFingerprint: saved.endpointFingerprint,
     });
+    void pending.catch(() => undefined);
 
     await Promise.resolve();
     await broker.cancelAll();
-    expect(cancellations).toEqual(["reset-me"]);
+    expect(cancellations).toHaveLength(1);
+    expect(cancellations[0]).toMatch(/reset-me$/);
     await expect(pending).rejects.toMatchObject({ category: "cancelled" });
   });
 
@@ -218,6 +223,7 @@ describe("US3 provider broker integration", () => {
     let sequence = 0;
     const profiles = new ProviderProfiles(() => `profile-${++sequence}`);
     const cancellations: string[] = [];
+    const requestPlayers = new Map<string, string>();
     const resolvers = new Map<
       string,
       (value: { translations: Array<{ id: string; text: string }> }) => void
@@ -225,11 +231,13 @@ describe("US3 provider broker integration", () => {
     const broker = new ProviderBroker(profiles, () => ({
       attempt: (request) =>
         new Promise((resolve) => {
-          resolvers.set(request.requestId, resolve);
+          requestPlayers.set(request.requestId, request.playerId);
+          resolvers.set(request.playerId, resolve);
         }),
       cancel: async (requestId) => {
         cancellations.push(requestId);
-        resolvers.get(requestId)?.({ translations: [] });
+        const playerId = requestPlayers.get(requestId);
+        if (playerId) resolvers.get(playerId)?.({ translations: [] });
       },
     }));
     const deleted = profiles.save({
@@ -263,8 +271,9 @@ describe("US3 provider broker integration", () => {
     await Promise.resolve();
 
     await broker.cancelProfile(deleted.profileId);
-    expect(cancellations).toEqual(["delete-A"]);
-    resolvers.get("keep-B")?.({ translations: [{ id: "c1", text: "still-running" }] });
+    expect(cancellations).toHaveLength(1);
+    expect(cancellations[0]).toMatch(/delete-A$/);
+    resolvers.get("B")?.({ translations: [{ id: "c1", text: "still-running" }] });
     await expect(pendingA).resolves.toEqual({ translations: [] });
     await expect(pendingB).resolves.toMatchObject({
       translations: [{ text: "still-running" }],

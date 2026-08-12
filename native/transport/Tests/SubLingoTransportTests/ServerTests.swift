@@ -107,4 +107,49 @@ func runServerTests() async throws {
     try check(liveness.shouldExit(parentIsAlive: false), "parent loss must request exit")
     liveness.requestShutdown()
     try check(liveness.shouldExit(parentIsAlive: true), "authenticated shutdown must request exit")
+
+    BlockingURLProtocol.reset()
+    let lifecycleClient = makeControlledHTTPClient()
+    let lifecycleHandler = ProtocolHandler(
+        token: "correct-token",
+        httpClient: lifecycleClient,
+        credentialStore: credentialStore
+    )
+    let activeJobID = UUID().uuidString
+    let activeRequest = try encodedTransportRequest(jobID: activeJobID)
+    let activeResponse = Task {
+        await lifecycleHandler.handle(
+            path: "/v1/request",
+            authorization: "Bearer correct-token",
+            body: activeRequest
+        )
+    }
+    let activeRequestStarted = await BlockingURLProtocol.waitUntilStarted(1)
+    try check(
+        activeRequestStarted,
+        "the shutdown contract requires an active upstream request"
+    )
+    let firstShutdown = await lifecycleHandler.handle(
+        path: "/v1/shutdown",
+        authorization: "Bearer correct-token",
+        body: Data("{}".utf8)
+    )
+    let repeatedShutdown = await lifecycleHandler.handle(
+        path: "/v1/shutdown",
+        authorization: "Bearer correct-token",
+        body: Data("{}".utf8)
+    )
+    try check(firstShutdown.statusCode == 200, "shutdown must retain its existing response")
+    try check(repeatedShutdown.statusCode == 200, "repeated shutdown must be idempotent")
+    try check(lifecycleClient.activeJobCount() == 0, "shutdown must clear all active jobs")
+    let cancelledResponse = await activeResponse.value
+    try check(cancelledResponse.statusCode == 409, "shutdown must give the active request one cancelled terminal response")
+    let rejectedResponse = await lifecycleHandler.handle(
+        path: "/v1/request",
+        authorization: "Bearer correct-token",
+        body: try encodedTransportRequest(jobID: UUID().uuidString)
+    )
+    try check(rejectedResponse.statusCode == 409, "shutdown must reject new upstream requests")
+    BlockingURLProtocol.completeAll()
+    try check(lifecycleClient.activeJobCount() == 0, "late callbacks must not restore closed jobs")
 }

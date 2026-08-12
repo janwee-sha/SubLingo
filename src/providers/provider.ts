@@ -12,3 +12,9 @@ export interface TranslationProvider {
   ): Promise<TranslationBatchResult>;
   cancel?(requestId: string): Promise<void> | void;
 }
+
+export interface ProviderConnectionTester {
+  testConnection(testId: string): Promise<unknown>;
+}
+
+export type ConfiguredProvider = TranslationProvider & ProviderConnectionTester;

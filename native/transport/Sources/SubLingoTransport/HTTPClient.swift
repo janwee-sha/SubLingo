@@ -45,8 +45,9 @@ enum UpstreamPolicy {
     }
 }
 
-private final class RedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+final class RedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     private let originalURL: URL
+    private let lock = NSLock()
     private var redirects = 0
 
     init(originalURL: URL) { self.originalURL = originalURL }
@@ -58,8 +59,11 @@ private final class RedirectDelegate: NSObject, URLSessionTaskDelegate, @uncheck
         newRequest request: URLRequest,
         completionHandler: @escaping (URLRequest?) -> Void
     ) {
-        redirects += 1
-        guard redirects <= 3, let target = request.url,
+        let redirectCount = lock.withLock {
+            redirects += 1
+            return redirects
+        }
+        guard redirectCount <= 3, let target = request.url,
               UpstreamPolicy.sameOrigin(originalURL, target)
         else {
             completionHandler(nil)
@@ -70,18 +74,59 @@ private final class RedirectDelegate: NSObject, URLSessionTaskDelegate, @uncheck
 }
 
 final class HTTPClient: @unchecked Sendable {
+    static let maximumConnectionsPerHost = 4
+
     enum TransportKind: Equatable {
         case urlSession
         case libcurl
     }
 
-    private struct ActiveJob {
-        let cancel: @Sendable () -> Void
+    private final class ActiveJob: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cancelOperation: (@Sendable () -> Void)?
+        private var cancellationRequested = false
+
+        func install(cancel operation: @escaping @Sendable () -> Void) {
+            let cancelImmediately = lock.withLock {
+                if cancellationRequested { return true }
+                cancelOperation = operation
+                return false
+            }
+            if cancelImmediately { operation() }
+        }
+
+        func cancel() {
+            let operation = lock.withLock { () -> (@Sendable () -> Void)? in
+                guard !cancellationRequested else { return nil }
+                cancellationRequested = true
+                let operation = cancelOperation
+                cancelOperation = nil
+                return operation
+            }
+            operation?()
+        }
+    }
+
+    private enum RegistrationResult {
+        case accepted(ActiveJob)
+        case duplicate
+        case closed
     }
 
     private let lock = NSLock()
+    private let systemSession: URLSession
     private var active: [String: ActiveJob] = [:]
     private var completed: Set<String> = []
+    private var acceptingRequests = true
+
+    init(systemConfiguration: URLSessionConfiguration = .ephemeral) {
+        systemConfiguration.timeoutIntervalForRequest = Double(ProtocolLimits.maxTimeoutMilliseconds) / 1_000
+        systemConfiguration.timeoutIntervalForResource = Double(ProtocolLimits.maxTimeoutMilliseconds) / 1_000
+        systemConfiguration.httpShouldSetCookies = false
+        systemConfiguration.urlCache = nil
+        systemConfiguration.httpMaximumConnectionsPerHost = Self.maximumConnectionsPerHost
+        systemSession = URLSession(configuration: systemConfiguration)
+    }
 
     static func classify(_ error: URLError) -> TransportProtocolError {
         error.code == .timedOut ? .timedOut : .upstreamNetwork
@@ -93,12 +138,27 @@ final class HTTPClient: @unchecked Sendable {
 
     func perform(_ rawRequest: TransportRequest) async throws -> TransportResponse {
         let request = try rawRequest.validated()
-        return try await Self.transportKind(for: request.proxyMode) == .libcurl
-            ? performDirect(request)
-            : performURLSession(request)
+        let job = try register(jobID: request.jobID)
+        return try await withTaskCancellationHandler {
+            do {
+                let response = try await Self.transportKind(for: request.proxyMode) == .libcurl
+                    ? performDirect(request, job: job)
+                    : performURLSession(request, job: job)
+                guard finish(jobID: request.jobID) else { throw CancellationError() }
+                return response
+            } catch {
+                guard finish(jobID: request.jobID) else { throw CancellationError() }
+                throw error
+            }
+        } onCancel: {
+            _ = self.cancelSync(jobID: request.jobID)
+        }
     }
 
-    private func performURLSession(_ request: TransportRequest) async throws -> TransportResponse {
+    private func performURLSession(
+        _ request: TransportRequest,
+        job: ActiveJob
+    ) async throws -> TransportResponse {
         guard let url = URL(string: request.url) else { throw TransportProtocolError.invalidRequest }
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method
@@ -106,116 +166,116 @@ final class HTTPClient: @unchecked Sendable {
         urlRequest.timeoutInterval = Double(request.timeoutMilliseconds) / 1_000
         for (name, value) in request.headers { urlRequest.setValue(value, forHTTPHeaderField: name) }
 
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                let configuration = URLSessionConfiguration.ephemeral
-                configuration.timeoutIntervalForRequest = Double(request.timeoutMilliseconds) / 1_000
-                configuration.timeoutIntervalForResource = Double(request.timeoutMilliseconds) / 1_000
-                configuration.httpShouldSetCookies = false
-                configuration.urlCache = nil
-                let delegate = RedirectDelegate(originalURL: url)
-                let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
-                let task = session.dataTask(with: urlRequest) { [weak self] data, response, error in
-                    guard let self else { return }
-                    self.finish(jobID: request.jobID)
-                    defer { session.finishTasksAndInvalidate() }
-                    if let error = error as? URLError {
-                        continuation.resume(
-                            throwing: error.code == .cancelled
-                                ? CancellationError()
-                                : Self.classify(error)
-                        )
-                        return
-                    }
-                    if error != nil {
-                        continuation.resume(throwing: TransportProtocolError.upstreamNetwork)
-                        return
-                    }
-                    guard let http = response as? HTTPURLResponse else {
-                        continuation.resume(throwing: TransportProtocolError.invalidRequest)
-                        return
-                    }
-                    let body = data ?? Data()
-                    guard body.count <= request.maxResponseBytes else {
-                        continuation.resume(throwing: TransportProtocolError.responseTooLarge)
-                        return
-                    }
-                    continuation.resume(returning: TransportResponse(
-                        jobID: request.jobID,
-                        transportState: "completed",
-                        statusCode: http.statusCode,
-                        headers: UpstreamPolicy.selectedHeaders(http.allHeaderFields),
-                        body: body
-                    ))
-                }
-                let inserted = self.lock.withLock { () -> Bool in
-                    guard self.active[request.jobID] == nil else { return false }
-                    self.active[request.jobID] = ActiveJob(cancel: {
-                        task.cancel()
-                        session.invalidateAndCancel()
-                    })
-                    return true
-                }
-                guard inserted else {
-                    session.invalidateAndCancel()
-                    continuation.resume(throwing: TransportProtocolError.duplicateJob)
-                    return
-                }
-                task.resume()
+        let delegate = RedirectDelegate(originalURL: url)
+        let task = Task {
+            try await systemSession.data(for: urlRequest, delegate: delegate)
+        }
+        job.install { task.cancel() }
+        do {
+            let (body, response) = try await task.value
+            guard let http = response as? HTTPURLResponse else {
+                throw TransportProtocolError.invalidRequest
             }
-        } onCancel: {
-            _ = self.cancelSync(jobID: request.jobID)
+            guard body.count <= request.maxResponseBytes else {
+                throw TransportProtocolError.responseTooLarge
+            }
+            return TransportResponse(
+                jobID: request.jobID,
+                transportState: "completed",
+                statusCode: http.statusCode,
+                headers: UpstreamPolicy.selectedHeaders(http.allHeaderFields),
+                body: body
+            )
+        } catch let error as URLError {
+            throw error.code == .cancelled ? CancellationError() : Self.classify(error)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as TransportProtocolError {
+            throw error
+        } catch {
+            throw TransportProtocolError.upstreamNetwork
         }
     }
 
-    private func performDirect(_ request: TransportRequest) async throws -> TransportResponse {
+    private func performDirect(
+        _ request: TransportRequest,
+        job: ActiveJob
+    ) async throws -> TransportResponse {
         let context = CurlRequestContext(maximumResponseBytes: request.maxResponseBytes)
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                let inserted = lock.withLock { () -> Bool in
-                    guard active[request.jobID] == nil else { return false }
-                    active[request.jobID] = ActiveJob(cancel: { context.cancel() })
-                    return true
-                }
-                guard inserted else {
-                    continuation.resume(throwing: TransportProtocolError.duplicateJob)
-                    return
-                }
-                Task.detached { [weak self] in
-                    defer { self?.finish(jobID: request.jobID) }
-                    do {
-                        continuation.resume(
-                            returning: try DirectCurlTransport.perform(request, context: context)
-                        )
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-        } onCancel: {
-            _ = self.cancelSync(jobID: request.jobID)
+        let task = Task.detached {
+            try DirectCurlTransport.perform(request, context: context)
         }
+        job.install {
+            context.cancel()
+            task.cancel()
+        }
+        return try await task.value
     }
 
     func cancel(jobID: String) async -> CancelState { cancelSync(jobID: jobID) }
 
     func activeJobCount() -> Int { lock.withLock { active.count } }
 
-    private func cancelSync(jobID: String) -> CancelState {
-        let job = lock.withLock { active.removeValue(forKey: jobID) }
-        if let job {
-            job.cancel()
-            _ = lock.withLock { completed.insert(jobID) }
-            return .cancelled
-        }
-        return lock.withLock { completed.contains(jobID) ? .alreadyCompleted : .unknown }
+    func systemSessionMaximumConnectionsPerHost() -> Int {
+        systemSession.configuration.httpMaximumConnectionsPerHost
     }
 
-    private func finish(jobID: String) {
+    func systemSessionIdentity() -> ObjectIdentifier { ObjectIdentifier(systemSession) }
+
+    func close() {
+        let jobs = lock.withLock { () -> [ActiveJob]? in
+            guard acceptingRequests else { return nil }
+            acceptingRequests = false
+            let jobs = Array(active.values)
+            for jobID in active.keys { recordCompletion(jobID) }
+            active.removeAll()
+            return jobs
+        }
+        guard let jobs else { return }
+        for job in jobs { job.cancel() }
+        systemSession.invalidateAndCancel()
+    }
+
+    private func register(jobID: String) throws -> ActiveJob {
+        let result = lock.withLock { () -> RegistrationResult in
+            guard acceptingRequests else { return .closed }
+            guard active[jobID] == nil else { return .duplicate }
+            let job = ActiveJob()
+            active[jobID] = job
+            return .accepted(job)
+        }
+        switch result {
+        case .accepted(let job): return job
+        case .duplicate: throw TransportProtocolError.duplicateJob
+        case .closed: throw CancellationError()
+        }
+    }
+
+    private func cancelSync(jobID: String) -> CancelState {
+        let result = lock.withLock { () -> (ActiveJob?, CancelState) in
+            if let job = active.removeValue(forKey: jobID) {
+                recordCompletion(jobID)
+                return (job, .cancelled)
+            }
+            return (nil, completed.contains(jobID) ? .alreadyCompleted : .unknown)
+        }
+        result.0?.cancel()
+        return result.1
+    }
+
+    private func finish(jobID: String) -> Bool {
         lock.withLock {
-            active.removeValue(forKey: jobID)
+            guard active.removeValue(forKey: jobID) != nil else { return false }
+            recordCompletion(jobID)
+            return true
+        }
+    }
+
+    private func recordCompletion(_ jobID: String) {
+        completed.insert(jobID)
+        if completed.count > 1_024 {
+            completed.removeAll(keepingCapacity: true)
             completed.insert(jobID)
-            if completed.count > 1_024 { completed.removeAll(keepingCapacity: true) }
         }
     }
 }

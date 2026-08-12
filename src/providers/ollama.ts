@@ -1,4 +1,4 @@
-import type { TranslationProvider } from "./provider.js";
+import type { ConfiguredProvider } from "./provider.js";
 import type {
   ProviderAttemptError,
   TranslationBatchRequest,
@@ -13,7 +13,7 @@ import { encodeWireItems, providerOutputSchema } from "./wire-items.js";
 
 const MAX_ITEMS_PER_CHAT_REQUEST = 2;
 
-export class OllamaProvider implements TranslationProvider {
+export class OllamaProvider implements ConfiguredProvider {
   private readonly endpoint: string;
   private readonly activeJobs = new Set<string>();
   private readonly activeRequests = new Set<string>();
@@ -31,11 +31,29 @@ export class OllamaProvider implements TranslationProvider {
   }
 
   async probe(): Promise<{ version: string; model: string }> {
-    const versionResponse = await this.get("probe-version", "/api/version");
+    return this.runProbe("probe");
+  }
+
+  async testConnection(testId: string): Promise<{ version: string; model: string }> {
+    this.cancelledRequests.delete(testId);
+    this.activeRequests.add(testId);
+    try {
+      return await this.runProbe(testId);
+    } finally {
+      this.activeRequests.delete(testId);
+      this.cancelledRequests.delete(testId);
+    }
+  }
+
+  private async runProbe(scopeId: string): Promise<{ version: string; model: string }> {
+    this.throwIfCancelled(scopeId);
+    const versionResponse = await this.get(`${scopeId}-version`, "/api/version");
+    this.throwIfCancelled(scopeId);
     if (versionResponse.statusCode !== 200)
       throw providerHttpError(versionResponse.statusCode, versionResponse.headers);
     const version = this.json(versionResponse.bodyText).version;
-    const tagsResponse = await this.get("probe-tags", "/api/tags");
+    const tagsResponse = await this.get(`${scopeId}-tags`, "/api/tags");
+    this.throwIfCancelled(scopeId);
     if (tagsResponse.statusCode !== 200)
       throw providerHttpError(tagsResponse.statusCode, tagsResponse.headers);
     const models = this.json(tagsResponse.bodyText).models;
@@ -51,12 +69,13 @@ export class OllamaProvider implements TranslationProvider {
       throw protocolError("OLLAMA_MODEL_MISSING", "model");
     }
     const response = await this.chat(
-      "probe-schema",
+      `${scopeId}-schema`,
       [{ id: "probe", text: "hello" }],
       "en",
       "es",
       15_000,
     );
+    this.throwIfCancelled(scopeId);
     if (response.statusCode !== 200) throw providerHttpError(response.statusCode, response.headers);
     this.parse(["probe"], response);
     return { version: typeof version === "string" ? version : "unknown", model: this.config.model };
@@ -112,7 +131,7 @@ export class OllamaProvider implements TranslationProvider {
     if (this.activeRequests.has(requestId)) this.cancelledRequests.add(requestId);
     const jobs = [...this.activeJobs].filter(
       (jobId) =>
-        jobId === requestId || jobId.startsWith(`${requestId}-part-`) || jobId.startsWith("probe-"),
+        jobId === requestId || jobId.startsWith(`${requestId}-`),
     );
     await Promise.allSettled(jobs.map((jobId) => this.transport.cancel?.(jobId)));
   }

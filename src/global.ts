@@ -11,10 +11,11 @@ import { createDeferredPlayerPost } from "./adapters/iina/deferred-post.js";
 import { IinaLocalHttpBridge, IinaProcessLauncher } from "./adapters/iina/provider-transport.js";
 import { discoverHelperExecutable, TransportProcess } from "./adapters/iina/transport-process.js";
 import { ProviderBroker } from "./providers/broker.js";
+import { ProviderConnectionTests } from "./providers/connection-tests.js";
 import { OllamaProvider } from "./providers/ollama.js";
 import { OpenAICompatibleProvider } from "./providers/openai.js";
 import { ProviderProfiles } from "./providers/profiles.js";
-import type { TranslationProvider } from "./providers/provider.js";
+import type { ConfiguredProvider } from "./providers/provider.js";
 import type { ProviderProfileSnapshot, TranslationBatchRequest } from "./providers/types.js";
 import { HelperProviderTransport as ProviderTransportAdapter } from "./adapters/iina/provider-transport.js";
 import { TransportClient } from "./transport/client.js";
@@ -28,8 +29,8 @@ function localUuid(): string {
 }
 
 const profiles = new ProviderProfiles(localUuid);
-const providerCache = new Map<string, Promise<TranslationProvider>>();
-const activeProviderTests = new Map<TranslationProvider, string>();
+const providerCache = new Map<string, Promise<ConfiguredProvider>>();
+const providerConnectionTests = new ProviderConnectionTests(localUuid);
 
 function restoreProfileMetadata(): void {
   const raw = iina.preferences.get("providerProfilesJson");
@@ -109,7 +110,7 @@ function providerCacheKey(profile: ProviderProfileSnapshot): string {
   return `${profile.profileId}\u0000${profile.revision}`;
 }
 
-async function buildProvider(profile: ProviderProfileSnapshot): Promise<TranslationProvider> {
+async function buildProvider(profile: ProviderProfileSnapshot): Promise<ConfiguredProvider> {
   const providerTransport = new ProviderTransportAdapter(transport, localUuid);
   switch (profile.kind) {
     case "openai": {
@@ -153,7 +154,7 @@ async function buildProvider(profile: ProviderProfileSnapshot): Promise<Translat
   }
 }
 
-function providerFor(profile: ProviderProfileSnapshot): Promise<TranslationProvider> {
+function providerFor(profile: ProviderProfileSnapshot): Promise<ConfiguredProvider> {
   const key = providerCacheKey(profile);
   const cached = providerCache.get(key);
   if (cached) return cached;
@@ -290,6 +291,10 @@ iina.global.onMessage("profile:create-revision", async (raw: unknown, playerId?:
       proxyMode: values.proxyMode === "direct" ? "direct" : "system",
       ...(typeof values.model === "string" ? { model: values.model } : {}),
     });
+    await Promise.all([
+      broker.cancelProfile(profile.profileId),
+      providerConnectionTests.cancelProfile(profile.profileId),
+    ]);
     persistProfileMetadata();
     postToPlayer(playerId, "profile:revision-created", {
       requestId: requestId(raw),
@@ -316,13 +321,7 @@ iina.global.onMessage("profile:delete", async (raw: unknown, playerId?: string) 
     if (!profile || profile.revision !== expectedRevision)
       throw new Error("STALE_PROFILE_REVISION");
     await broker.cancelProfile(profileId);
-    await Promise.allSettled(
-      [...activeProviderTests]
-        .filter(([, activeProfileId]) => activeProfileId === profileId)
-        .map(([provider]) => provider.cancel?.("provider-test")),
-    );
-    for (const [provider, activeProfileId] of [...activeProviderTests])
-      if (activeProfileId === profileId) activeProviderTests.delete(provider);
+    await providerConnectionTests.cancelProfile(profileId);
     await credentials.deleteSecret(profileId);
     const affectedPlayerIds = profiles.delete(profileId);
     for (const key of [...providerCache.keys()])
@@ -384,25 +383,39 @@ iina.global.onMessage("profile:select", (raw: unknown, playerId?: string) => {
 
 iina.global.onMessage("provider:test", async (raw: unknown, playerId?: string) => {
   if (!playerId) return;
-  let provider: (TranslationProvider & { probe?: () => Promise<unknown> }) | null = null;
+  const externalRequestId = requestId(raw);
+  let testId: string | null = null;
   try {
     const values = payload(raw);
-    const profile = profiles.get(String(values.profileId), Number(values.revision));
-    if (!profile) throw new Error("PROFILE_NOT_FOUND");
-    provider = (await providerFor(profile)) as TranslationProvider & {
-      probe?: () => Promise<unknown>;
-    };
-    activeProviderTests.set(provider, profile.profileId);
-    const result = provider.probe ? await provider.probe() : { ok: true };
-    postToPlayer(playerId, "provider:test-result", {
-      requestId: requestId(raw),
+    const profile = profiles.get(String(values.profileId));
+    if (!profile || profile.revision !== Number(values.revision))
+      throw new Error("PROFILE_NOT_FOUND");
+    const provider = await providerFor(profile);
+    if (profiles.get(profile.profileId)?.revision !== profile.revision)
+      throw new Error("PROFILE_NOT_FOUND");
+    const task = providerConnectionTests.start({
+      playerId,
+      requestId: externalRequestId,
+      profileId: profile.profileId,
+      profileRevision: profile.revision,
+      provider,
+    });
+    testId = task.testId;
+    const result = await provider.testConnection(task.testId);
+    const completed = providerConnectionTests.complete(task.testId);
+    if (!completed) return;
+    testId = null;
+    postToPlayer(completed.playerId, "provider:test-result", {
+      requestId: completed.requestId,
       ok: true,
       result,
     });
   } catch (error) {
+    const completed = testId ? providerConnectionTests.complete(testId) : null;
+    if (testId && !completed) return;
     const safe = normalizeProviderError(error);
-    postToPlayer(playerId, "provider:test-result", {
-      requestId: requestId(raw),
+    postToPlayer(completed?.playerId ?? playerId, "provider:test-result", {
+      requestId: completed?.requestId ?? externalRequestId,
       ok: false,
       category: safe.category,
       retryable: safe.retryable,
@@ -411,8 +424,6 @@ iina.global.onMessage("provider:test", async (raw: unknown, playerId?: string) =
       ...(safe.retryAfterMs === undefined ? {} : { retryAfterMs: safe.retryAfterMs }),
       userAction: safe.userAction,
     });
-  } finally {
-    if (provider) activeProviderTests.delete(provider);
   }
 });
 
@@ -449,8 +460,9 @@ iina.global.onMessage("provider:cancel", async (raw: unknown, playerId?: string)
   postToPlayer(playerId, "provider:cancelled", { requestId: requestId(raw) });
 });
 
-iina.global.onMessage("profile:release", (raw: unknown, playerId?: string) => {
+iina.global.onMessage("profile:release", async (raw: unknown, playerId?: string) => {
   if (!playerId) return;
   const values = payload(raw);
+  await providerConnectionTests.cancelPlayer(playerId);
   broker.release(playerId, String(values.profileId), Number(values.revision));
 });

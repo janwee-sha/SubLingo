@@ -1,4 +1,4 @@
-import type { TranslationProvider } from "./provider.js";
+import type { ConfiguredProvider } from "./provider.js";
 import type {
   ProviderAttemptError,
   TranslationBatchRequest,
@@ -14,10 +14,9 @@ import { encodeWireItems, providerOutputSchema } from "./wire-items.js";
 type Capability = "strict-json-schema" | "json-object" | "prompt-json";
 const MAX_ITEMS_PER_CHAT_REQUEST = 2;
 
-export class OpenAICompatibleProvider implements TranslationProvider {
+export class OpenAICompatibleProvider implements ConfiguredProvider {
   private readonly endpoint: string;
   private capability: Capability | undefined;
-  private probePromise: Promise<Capability> | null = null;
   private readonly activeJobs = new Set<string>();
   private readonly activeRequests = new Set<string>();
   private readonly cancelledRequests = new Set<string>();
@@ -39,24 +38,52 @@ export class OpenAICompatibleProvider implements TranslationProvider {
 
   async probe(): Promise<Capability> {
     if (this.capability) return this.capability;
-    if (!this.probePromise) this.probePromise = this.runProbe();
-    try {
-      return await this.probePromise;
-    } finally {
-      if (!this.capability) this.probePromise = null;
-    }
+    return this.runProbe("probe");
   }
 
-  private async runProbe(): Promise<Capability> {
-    for (const capability of ["strict-json-schema", "json-object", "prompt-json"] as const) {
+  async testConnection(testId: string): Promise<Capability> {
+    this.cancelledRequests.delete(testId);
+    this.activeRequests.add(testId);
+    try {
+      const capability = this.capability;
+      if (!capability) return await this.runProbe(testId);
+      this.throwIfCancelled(testId);
       const response = await this.send(
-        `probe-${capability}`,
+        `${testId}-probe-${capability}`,
         [{ id: "probe", text: "hello" }],
         "en",
         "es",
         capability,
         10_000,
       );
+      this.throwIfCancelled(testId);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw providerHttpError(
+          response.statusCode,
+          response.headers,
+          this.providerCode(response.bodyText),
+        );
+      }
+      this.parseResponse(["probe"], response);
+      return capability;
+    } finally {
+      this.activeRequests.delete(testId);
+      this.cancelledRequests.delete(testId);
+    }
+  }
+
+  private async runProbe(scopeId: string): Promise<Capability> {
+    for (const capability of ["strict-json-schema", "json-object", "prompt-json"] as const) {
+      this.throwIfCancelled(scopeId);
+      const response = await this.send(
+        `${scopeId}-probe-${capability}`,
+        [{ id: "probe", text: "hello" }],
+        "en",
+        "es",
+        capability,
+        10_000,
+      );
+      this.throwIfCancelled(scopeId);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         const providerCode = this.providerCode(response.bodyText);
         if (this.isCapabilityIncompatibility(response, providerCode)) continue;
@@ -80,7 +107,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
     this.cancelledRequests.delete(request.requestId);
     this.activeRequests.add(request.requestId);
     try {
-      const capability = this.capability ?? (await this.probe());
+      const capability = this.capability ?? (await this.runProbe(request.requestId));
       this.throwIfCancelled(request.requestId);
       const wire = encodeWireItems(request.items);
       const combined: TranslationBatchResult = { translations: [] };
@@ -132,7 +159,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
     if (this.activeRequests.has(requestId)) this.cancelledRequests.add(requestId);
     const jobs = [...this.activeJobs].filter(
       (jobId) =>
-        jobId === requestId || jobId.startsWith(`${requestId}-part-`) || jobId.startsWith("probe-"),
+        jobId === requestId || jobId.startsWith(`${requestId}-`),
     );
     await Promise.allSettled(jobs.map((jobId) => this.transport.cancel?.(jobId)));
   }

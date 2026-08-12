@@ -232,6 +232,86 @@ describe("Ollama native provider", () => {
     expect(progress).toEqual([]);
   });
 
+  it("rechecks service, model and structured output for every connection test", async () => {
+    const jobs: string[] = [];
+    const provider = new OllamaProvider(
+      { endpoint: "http://127.0.0.1:11434", model: "qwen" },
+      {
+        request: async (request) => {
+          jobs.push(request.jobId);
+          if (request.url.endsWith("/api/version"))
+            return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
+          if (request.url.endsWith("/api/tags"))
+            return {
+              statusCode: 200,
+              headers: {},
+              bodyText: '{"models":[{"name":"qwen"}]}',
+            };
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText:
+              '{"message":{"content":"{\\"translations\\":[{\\"id\\":\\"probe\\",\\"text\\":\\"hola\\"}]}"}}',
+          };
+        },
+      },
+    );
+
+    await expect(provider.testConnection("test-a")).resolves.toMatchObject({ model: "qwen" });
+    await expect(provider.testConnection("test-b")).resolves.toMatchObject({ model: "qwen" });
+    expect(jobs).toEqual([
+      "test-a-version",
+      "test-a-tags",
+      "test-a-schema",
+      "test-b-version",
+      "test-b-tags",
+      "test-b-schema",
+    ]);
+  });
+
+  it("cancels only the matching connection-test jobs", async () => {
+    const cancelled: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const provider = new OllamaProvider(
+      { endpoint: "http://127.0.0.1:11434", model: "qwen" },
+      {
+        request: async (request) => {
+          await gate;
+          if (request.url.endsWith("/api/version"))
+            return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
+          if (request.url.endsWith("/api/tags"))
+            return {
+              statusCode: 200,
+              headers: {},
+              bodyText: '{"models":[{"name":"qwen"}]}',
+            };
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText:
+              '{"message":{"content":"{\\"translations\\":[{\\"id\\":\\"probe\\",\\"text\\":\\"hola\\"}]}"}}',
+          };
+        },
+        cancel: (jobId) => {
+          cancelled.push(jobId);
+        },
+      },
+    );
+    const first = provider.testConnection("test-a");
+    const second = provider.testConnection("test-b");
+    await Promise.resolve();
+
+    await provider.cancel("test-a");
+    release();
+
+    await expect(first).rejects.toMatchObject({ category: "cancelled" });
+    await expect(second).resolves.toMatchObject({ model: "qwen" });
+    expect(cancelled).toEqual(["test-a-version"]);
+  });
+
   it("rejects non-loopback HTTP endpoints", () => {
     expect(
       () =>

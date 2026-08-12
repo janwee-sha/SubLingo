@@ -52,4 +52,36 @@ describe("authoritative global RPC routing", () => {
     ]);
     expect(routed.sort()).toEqual(["A", "B"]);
   });
+
+  it("keeps provider connection tests with the same external ID scoped to their host players", async () => {
+    const routed: Array<{ playerId: string; resultPlayerId: unknown }> = [];
+    const router = new GlobalRpcRouter((playerId, _name, data) => {
+      routed.push({
+        playerId,
+        resultPlayerId: (data as Record<string, unknown>).playerId,
+      });
+    });
+    router.register("provider:test", async (message, context) => ({
+      playerId: context.playerId,
+      profileId: (message.payload as Record<string, unknown>).profileId,
+    }));
+
+    await Promise.all([
+      router.receive("A", "provider:test", {
+        requestId: "same-test",
+        revision: 3,
+        payload: { profileId: "profile-a", revision: 3 },
+      }),
+      router.receive("B", "provider:test", {
+        requestId: "same-test",
+        revision: 3,
+        payload: { profileId: "profile-b", revision: 3 },
+      }),
+    ]);
+
+    expect(routed).toEqual([
+      { playerId: "A", resultPlayerId: "A" },
+      { playerId: "B", resultPlayerId: "B" },
+    ]);
+  });
 });

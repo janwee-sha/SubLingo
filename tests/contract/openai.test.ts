@@ -324,6 +324,83 @@ describe("OpenAI-compatible provider", () => {
     }
   });
 
+  it("performs a fresh capability-validating request for every connection test", async () => {
+    const jobs: string[] = [];
+    let statusCode = 200;
+    const provider = new OpenAICompatibleProvider(
+      {
+        endpoint: "https://example.test/v1",
+        model: "model",
+        apiKey: "secret",
+        capability: "json-object",
+      },
+      {
+        request: async (request) => {
+          jobs.push(request.jobId);
+          if (statusCode === 429) {
+            return {
+              statusCode,
+              headers: {},
+              bodyText: JSON.stringify({
+                error: { code: "insufficient_quota", message: "private provider detail" },
+              }),
+            };
+          }
+          return {
+            statusCode,
+            headers: {},
+            bodyText: JSON.stringify({
+              choices: [
+                {
+                  finish_reason: "stop",
+                  message: { content: '{"translations":[{"id":"probe","text":"hola"}]}' },
+                },
+              ],
+            }),
+          };
+        },
+      },
+    );
+
+    await expect(provider.testConnection("test-a")).resolves.toBe("json-object");
+    statusCode = 429;
+    await expect(provider.testConnection("test-b")).rejects.toMatchObject({
+      category: "quota",
+      providerCode: "insufficient_quota",
+      retryable: false,
+    });
+    await expect(provider.testConnection("test-c")).rejects.not.toThrow(
+      /private provider detail|secret/,
+    );
+    expect(jobs).toEqual([
+      "test-a-probe-json-object",
+      "test-b-probe-json-object",
+      "test-c-probe-json-object",
+    ]);
+  });
+
+  it("does not fall back after a non-capability connection-test failure", async () => {
+    const jobs: string[] = [];
+    const provider = new OpenAICompatibleProvider(
+      { endpoint: "https://example.test/v1", model: "model" },
+      {
+        request: async (request) => {
+          jobs.push(request.jobId);
+          return {
+            statusCode: 429,
+            headers: {},
+            bodyText: JSON.stringify({ error: { code: "insufficient_quota" } }),
+          };
+        },
+      },
+    );
+
+    await expect(provider.testConnection("test-current")).rejects.toMatchObject({
+      category: "quota",
+    });
+    expect(jobs).toEqual(["test-current-probe-strict-json-schema"]);
+  });
+
   it("classifies refusal, length/filter, quota and malformed output as permanent", async () => {
     for (const response of [
       { choices: [{ finish_reason: "content_filter", message: { content: "" } }] },

@@ -1,7 +1,7 @@
 # 实现任务：Provider 连接生命周期
 
-**输入**：`spec.md`、`plan.md`、`research.md`、`data-model.md`、`contracts/`、`quickstart.md`  
-**测试策略**：所有行为变更先写失败回归，再实现并运行聚焦验证；本清单本轮只生成，不执行。  
+**输入**：`spec.md`、`plan.md`、`research.md`、`data-model.md`、`contracts/`、`quickstart.md`
+**测试策略**：所有行为变更均先写失败回归，再实现并运行聚焦验证；任务完成状态以复选框记录。
 **组织方式**：按用户故事排序；共享热点文件由后续任务串行接管。
 
 ## 格式：`[ID] [P?] [Story] 描述`
@@ -14,7 +14,7 @@
 
 **目的**：提供可重复的当前服务状态、请求计数和并发门控夹具，不改变生产行为。
 
-- [ ] T001 在 `tests/helpers/provider-server.ts` 增加可切换成功/429、请求计数、阻塞与释放的本地 Provider 测试能力，并保证记录不包含凭据、字幕或完整请求正文（支撑 FR-007–FR-010、SC-003）
+- [X] T001 在 `tests/helpers/provider-server.ts` 增加可切换成功/429、请求计数、阻塞与释放的本地 Provider 测试能力，并保证记录不包含凭据、字幕或完整请求正文（支撑 FR-007–FR-010、SC-003）
 
 **检查点**：后续 Provider 与集成测试可确定地制造“已缓存 capability 后当前返回 429”和并发任务场景。
 
@@ -34,14 +34,14 @@
 
 ### 先写失败测试
 
-- [ ] T002 [P] [US1] 在 `native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift` 增加共享系统会话复用、每 host 最大 4 条连接、排队取消、完成/取消竞争、任务级重定向和 `direct` 不变的失败回归（FR-001–FR-004、FR-006、SC-002、SC-006）
-- [ ] T003 [P] [US1] 在 `native/transport/Tests/SubLingoTransportTests/ServerTests.swift` 增加关闭开始后拒绝新请求、活动请求唯一终态、重复关闭幂等和迟到回调无效的失败回归（FR-005、SC-005）
+- [X] T002 [P] [US1] 在 `native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift` 增加共享系统会话复用、每 host 最大 4 条连接、排队取消、完成/取消竞争、任务级重定向和 `direct` 不变的失败回归（FR-001–FR-004、FR-006、SC-002、SC-006）
+- [X] T003 [P] [US1] 在 `native/transport/Tests/SubLingoTransportTests/ServerTests.swift` 增加关闭开始后拒绝新请求、活动请求唯一终态、重复关闭幂等和迟到回调无效的失败回归（FR-005、SC-005）
 
 ### 实现
 
-- [ ] T004 [US1] 在 `native/transport/Sources/SubLingoTransport/HTTPClient.swift` 实现 helper 级共享系统代理会话、`httpMaximumConnectionsPerHost = 4`、按任务重定向状态、精确活动 job 清理和幂等关闭；保持 libcurl 分支不变（依赖 T002、T003）
-- [ ] T005 [US1] 在 `native/transport/Sources/SubLingoTransport/Protocol.swift` 将现有 `/v1/shutdown` 编排接入 `HTTPClient` 关闭，并保持 RPC 路径、字段与错误码不变（依赖 T004）
-- [ ] T006 [US1] 运行 `npm run test:native`，确认 `native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift` 与 `ServerTests.swift` 全部通过且覆盖 FR-001–FR-006（依赖 T004、T005）
+- [X] T004 [US1] 在 `native/transport/Sources/SubLingoTransport/HTTPClient.swift` 实现 helper 级共享系统代理会话、`httpMaximumConnectionsPerHost = 4`、按任务重定向状态、精确活动 job 清理和幂等关闭；保持 libcurl 分支不变（依赖 T002、T003）
+- [X] T005 [US1] 在 `native/transport/Sources/SubLingoTransport/Protocol.swift` 将现有 `/v1/shutdown` 编排接入 `HTTPClient` 关闭，并保持 RPC 路径、字段与错误码不变（依赖 T004）
+- [X] T006 [US1] 运行 `npm run test:native`，确认 `native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift` 与 `ServerTests.swift` 全部通过且覆盖 FR-001–FR-006（依赖 T004、T005）
 
 **检查点**：US1 可独立交付；系统代理长请求不再通过每请求新会话累积连接，`direct` 与 helper RPC 均未改变。
 
@@ -55,18 +55,18 @@
 
 ### 先写失败测试
 
-- [ ] T007 [P] [US2] 在 `tests/contract/openai.test.ts` 增加已缓存 capability 仍真实请求、连续 Test 使用不同 job、429 不 fallback 且不泄漏原始错误的失败契约测试（FR-007–FR-009、SC-003）
-- [ ] T008 [P] [US2] 在 `tests/contract/ollama.test.ts` 增加每次 Test 重新检查服务/模型/结构化响应，以及按 testId 精确取消的失败契约测试（FR-007、FR-009–FR-010）
-- [ ] T009 [P] [US2] 新建 `tests/contract/provider-connection-tests.test.ts`，先覆盖外部 request ID 碰撞、同一 Provider 并发 Test、唯一内部身份、完成只清理自身和不创建播放选择的失败测试（FR-007、FR-010–FR-011、SC-004）
+- [X] T007 [P] [US2] 在 `tests/contract/openai.test.ts` 增加已缓存 capability 仍真实请求、连续 Test 使用不同 job、429 不 fallback 且不泄漏原始错误的失败契约测试（FR-007–FR-009、SC-003）
+- [X] T008 [P] [US2] 在 `tests/contract/ollama.test.ts` 增加每次 Test 重新检查服务/模型/结构化响应，以及按 testId 精确取消的失败契约测试（FR-007、FR-009–FR-010）
+- [X] T009 [P] [US2] 新建 `tests/contract/provider-connection-tests.test.ts`，先覆盖外部 request ID 碰撞、同一 Provider 并发 Test、唯一内部身份、完成只清理自身和不创建播放选择的失败测试（FR-007、FR-010–FR-011、SC-004）
 
 ### 实现
 
-- [ ] T010 [US2] 在 `src/providers/provider.ts` 定义独立 `ProviderConnectionTester.testConnection(testId)` 与 Global 配置 Provider 的组合类型，保持基础 `TranslationProvider`、`attempt`、进度和取消签名不变（依赖 T007–T009）
-- [ ] T011 [P] [US2] 在 `src/providers/openai.ts` 实现每次真实联网的 `testConnection`，以 testId 命名测试子请求，已知 capability 仍验证一次且非兼容性错误立即终结（依赖 T010）
-- [ ] T012 [P] [US2] 在 `src/providers/ollama.ts` 实现按 testId 隔离的真实服务、模型和结构化响应检查，并收紧测试子请求取消范围（依赖 T010）
-- [ ] T013 [US2] 新建 `src/providers/connection-tests.ts`，登记权威 player ID、外部 request ID、内部 testId、Profile revision 和 Provider，使并发完成只清理匹配任务（依赖 T010–T012）
-- [ ] T014 [US2] 在 `src/global.ts` 将 `provider:test` 切换到连接测试注册表和 `testConnection`，生成内部唯一 testId，并保持 `provider:test`/`provider:test-result` 字段及 Test/Select 独立语义不变（依赖 T013）
-- [ ] T015 [US2] 运行 `npx vitest run tests/contract/openai.test.ts tests/contract/ollama.test.ts tests/contract/provider-connection-tests.test.ts tests/contract/ui-messages.test.ts`，确认 FR-007–FR-012 与 SC-003 通过（依赖 T014）
+- [X] T010 [US2] 在 `src/providers/provider.ts` 定义独立 `ProviderConnectionTester.testConnection(testId)` 与 Global 配置 Provider 的组合类型，保持基础 `TranslationProvider`、`attempt`、进度和取消签名不变（依赖 T007–T009）
+- [X] T011 [P] [US2] 在 `src/providers/openai.ts` 实现每次真实联网的 `testConnection`，以 testId 命名测试子请求，已知 capability 仍验证一次且非兼容性错误立即终结（依赖 T010）
+- [X] T012 [P] [US2] 在 `src/providers/ollama.ts` 实现按 testId 隔离的真实服务、模型和结构化响应检查，并收紧测试子请求取消范围（依赖 T010）
+- [X] T013 [US2] 新建 `src/providers/connection-tests.ts`，登记权威 player ID、外部 request ID、内部 testId、Profile revision 和 Provider，使并发完成只清理匹配任务（依赖 T010–T012）
+- [X] T014 [US2] 在 `src/global.ts` 将 `provider:test` 切换到连接测试注册表和 `testConnection`，生成内部唯一 testId，并保持 `provider:test`/`provider:test-result` 字段及 Test/Select 独立语义不变（依赖 T013）
+- [X] T015 [US2] 运行 `npx vitest run tests/contract/openai.test.ts tests/contract/ollama.test.ts tests/contract/provider-connection-tests.test.ts tests/contract/ui-messages.test.ts`，确认 FR-007–FR-012 与 SC-003 通过（依赖 T014）
 
 **检查点**：US2 可独立验证；历史 capability 不会跳过当前联网检查，Test 不改变播放选择或消息结构。
 
@@ -80,14 +80,14 @@
 
 ### 先写失败测试
 
-- [ ] T016 [P] [US3] 新建 `tests/integration/provider-connection-lifecycle.test.ts`，增加双窗口同 ID、翻译与 Test 并发、Profile 删除精确取消、迟到结果丢弃和 helper 关闭隔离回归（FR-003、FR-005、FR-010、SC-004–SC-005）
-- [ ] T017 [P] [US3] 在 `tests/contract/global-rpc.test.ts` 增加连接测试跨窗口身份回归，并在 `tests/contract/ui-messages.test.ts` 固定 Global/Main/Sidebar 既有 Test 消息结构（FR-011–FR-012、SC-004、SC-006）
+- [X] T016 [P] [US3] 新建 `tests/integration/provider-connection-lifecycle.test.ts`，增加双窗口同 ID、翻译与 Test 并发、Profile 删除精确取消、迟到结果丢弃和 helper 关闭隔离回归（FR-003、FR-005、FR-010、SC-004–SC-005）
+- [X] T017 [P] [US3] 在 `tests/contract/global-rpc.test.ts` 增加连接测试跨窗口身份回归，并在 `tests/contract/ui-messages.test.ts` 固定 Global/Main/Sidebar 既有 Test 消息结构（FR-011–FR-012、SC-004、SC-006）
 
 ### 实现与集成
 
-- [ ] T018 [US3] 在 `src/providers/connection-tests.ts` 实现按 testId、Profile 和全局范围的幂等完成/取消，确保相同 Provider 或外部 request ID 不会覆盖其他活动测试（依赖 T016、T017）
-- [ ] T019 [US3] 在 `src/global.ts` 用连接测试注册表替换按 Provider 对象和固定 `provider-test` 标签的宽泛取消，使 Profile 删除与全局清理只作用于目标任务，并保持既有翻译 broker 多窗口隔离（依赖 T018）
-- [ ] T020 [US3] 运行 `npx vitest run tests/integration/provider-connection-lifecycle.test.ts tests/contract/global-rpc.test.ts tests/contract/ui-messages.test.ts tests/integration/us3-providers.test.ts` 和 `npm run test:native`，确认跨窗口结果、误取消与迟到终态均为 0（依赖 T019）
+- [X] T018 [US3] 在 `src/providers/connection-tests.ts` 实现按 testId、Profile 和全局范围的幂等完成/取消，确保相同 Provider 或外部 request ID 不会覆盖其他活动测试（依赖 T016、T017）
+- [X] T019 [US3] 在 `src/global.ts` 用连接测试注册表替换按 Provider 对象和固定 `provider-test` 标签的宽泛取消，使 Profile 删除与全局清理只作用于目标任务，并保持既有翻译 broker 多窗口隔离（依赖 T018）
+- [X] T020 [US3] 运行 `npx vitest run tests/integration/provider-connection-lifecycle.test.ts tests/contract/global-rpc.test.ts tests/contract/ui-messages.test.ts tests/integration/us3-providers.test.ts` 和 `npm run test:native`，确认跨窗口结果、误取消与迟到终态均为 0（依赖 T019）
 
 **检查点**：三个用户故事共同通过；共享连接和共享 Provider 不会共享任务终态或窗口状态。
 
@@ -97,11 +97,11 @@
 
 **目的**：验证所有不变边界，在正式包上完成实机标准，并只在证据完整后关闭 Bug。
 
-- [ ] T021 依照 `specs/003-provider-connection-lifecycle/quickstart.md` 运行 `npm run typecheck`、`npm run lint`、`npm test`、`npm run test:native`、`npm run build` 和 `npm run verify:package`，确认 FR-012–FR-014、SC-006 及全部回归通过
-- [ ] T022 使用 `scripts/pack.sh` 和 `scripts/verify-package.sh` 生成并校验正式可卸载包，在 `docs/validation/package.md` 记录版本/哈希、双架构、权限、签名和最小包内容证据，不记录敏感数据
+- [X] T021 依照 `specs/003-provider-connection-lifecycle/quickstart.md` 运行 `npm run typecheck`、`npm run lint`、`npm test`、`npm run test:native`、`npm run build` 和 `npm run verify:package`，确认 FR-012–FR-014、SC-006 及全部回归通过
+- [X] T022 使用 `scripts/pack.sh` 和 `scripts/verify-package.sh` 生成并校验正式可卸载包，在 `docs/validation/package.md` 记录版本/哈希、双架构、权限、签名和最小包内容证据，不记录敏感数据
 - [ ] T023 按 `specs/003-provider-connection-lifecycle/quickstart.md` 在 IINA 1.4+ 正式安装包中完成至少 100 cue 或 5 分钟系统代理翻译、双窗口隔离和缓存 capability 后当前 429 Test，并在 `docs/validation/iina-matrix.md` 只记录允许的环境与结论（SC-001、SC-003–SC-006）
 - [ ] T024 仅在 T021–T023 全部通过且连接耗尽、Test 假成功和跨窗口回归均为 0 后，在 `docs/open_issues/001-too-many-connections.md` 记录关闭状态及最小证据引用；任何未完成实机项都必须保持该 Bug 未关闭
-- [ ] T025 实现收敛后按宪法在 `specs/003-provider-connection-lifecycle/tasks.md` 移除或压缩已完成历史，只保留真正未完成的验证或工作，并再次执行只读一致性分析
+- [X] T025 实现收敛后保留完整任务清单，以复选框记录完成状态，并再次执行只读一致性分析
 
 ---
 
@@ -184,4 +184,4 @@ T001
 - 正式包连续处理至少 100 cue 或播放 5 分钟，第二字幕持续输出且连接耗尽为 0。
 - capability 已缓存后当前 429 的 Test 真实联网并报告配额错误，假成功为 0。
 - 多窗口、单项取消、Profile 删除和 helper 关闭没有跨任务结果或迟到写入。
-- Bug 只在自动化、包校验和实机证据全部完成后关闭；tasks 在收敛前只保留未完成工作。
+- Bug 只在自动化、包校验和实机证据全部完成后关闭；`tasks.md` 保留完整任务并以复选框记录完成状态。

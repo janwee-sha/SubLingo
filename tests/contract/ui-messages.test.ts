@@ -165,4 +165,27 @@ describe("Sidebar/Main/Global security messages", () => {
       /secret|credential|authorization/i,
     );
   });
+
+  it("keeps the provider test request and result message fields unchanged", () => {
+    const request = {
+      requestId: "request-id",
+      revision: 2,
+      payload: { profileId: profile.profileId, revision: 2 },
+    };
+    const result = {
+      requestId: "request-id",
+      ok: false,
+      category: "quota",
+      retryable: false,
+      statusCode: 429,
+      code: "insufficient_quota",
+      userAction: "CHECK_QUOTA",
+    };
+
+    expect(Object.keys(request).sort()).toEqual(["payload", "requestId", "revision"]);
+    expect(Object.keys(request.payload).sort()).toEqual(["profileId", "revision"]);
+    expect(result).not.toHaveProperty("testId");
+    expect(GLOBAL_MESSAGE_NAMES).toContain("provider:test");
+    expect(SIDEBAR_MESSAGE_NAMES).toContain("provider:test");
+  });
 });

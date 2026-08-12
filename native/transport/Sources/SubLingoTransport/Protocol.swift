@@ -208,6 +208,7 @@ actor ProtocolHandler {
             return .json(statusCode: 200, ["state": state.rawValue])
 
         case "/v1/shutdown":
+            httpClient.close()
             shutdown()
             return .json(statusCode: 200, ["state": "shutting-down"])
 
