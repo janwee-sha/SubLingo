@@ -28,7 +28,12 @@ describe("OpenAI-compatible provider", () => {
       },
     };
     const provider = new OpenAICompatibleProvider(
-      { endpoint: "https://example.test/v1", model: "model", apiKey: "key" },
+      {
+        endpoint: "https://example.test/v1",
+        model: "model",
+        apiKey: "key",
+        sessionId: "session",
+      },
       transport,
     );
     await expect(provider.probe()).resolves.toBe("json-object");
@@ -43,6 +48,7 @@ describe("OpenAI-compatible provider", () => {
         model: "model",
         apiKey: "key",
         capability: "strict-json-schema",
+        sessionId: "session",
       },
       {
         request: async (request) => {
@@ -91,6 +97,7 @@ describe("OpenAI-compatible provider", () => {
         endpoint: "https://example.test/v1",
         model: "model",
         capability: "json-object",
+        sessionId: "session",
       },
       {
         request: async (request) => {
@@ -134,12 +141,109 @@ describe("OpenAI-compatible provider", () => {
     expect(result.translations).toHaveLength(5);
   });
 
+  it("reuses one runtime session identity across tests and translation requests", async () => {
+    const sessionHeaders: Array<string | undefined> = [];
+    const provider = new OpenAICompatibleProvider(
+      {
+        endpoint: "https://example.test/v1",
+        model: "model",
+        capability: "json-object",
+        sessionId: "profile-runtime-session",
+      },
+      {
+        request: async (request) => {
+          sessionHeaders.push(request.headers["X-Session-Id"]);
+          const messages = (request.body as { messages: Array<{ content: string }> }).messages;
+          const payload = JSON.parse(messages.at(-1)!.content) as {
+            items: Array<{ id: string; text: string }>;
+          };
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: JSON.stringify({
+              choices: [
+                {
+                  finish_reason: "stop",
+                  message: {
+                    content: JSON.stringify({
+                      translations: payload.items.map((item) => ({
+                        id: item.id,
+                        text: `T:${item.text}`,
+                      })),
+                    }),
+                  },
+                },
+              ],
+            }),
+          };
+        },
+      },
+    );
+    const request = makeProviderRequest();
+    request.items.push(
+      { id: "c3", text: "three" },
+      { id: "c4", text: "four" },
+      { id: "c5", text: "five" },
+    );
+
+    await provider.testConnection("test-one");
+    await provider.attempt(request);
+    await provider.testConnection("test-two");
+
+    expect(sessionHeaders).toEqual(Array.from({ length: 5 }, () => "profile-runtime-session"));
+  });
+
+  it("keeps runtime session identities scoped to their provider instances", async () => {
+    const headers: string[] = [];
+    const transport: ProviderTransport = {
+      request: async (request) => {
+        headers.push(request.headers["X-Session-Id"]!);
+        return {
+          statusCode: 200,
+          headers: {},
+          bodyText: JSON.stringify({
+            choices: [
+              {
+                finish_reason: "stop",
+                message: { content: '{"translations":[{"id":"probe","text":"hola"}]}' },
+              },
+            ],
+          }),
+        };
+      },
+    };
+    const first = new OpenAICompatibleProvider(
+      {
+        endpoint: "https://example.test/v1",
+        model: "model",
+        capability: "json-object",
+        sessionId: "profile-session-one",
+      },
+      transport,
+    );
+    const second = new OpenAICompatibleProvider(
+      {
+        endpoint: "https://example.test/v1",
+        model: "model",
+        capability: "json-object",
+        sessionId: "profile-session-two",
+      },
+      transport,
+    );
+
+    await first.testConnection("first-test");
+    await second.testConnection("second-test");
+
+    expect(headers).toEqual(["profile-session-one", "profile-session-two"]);
+  });
+
   it("publishes each validated wire result with restored IDs before returning the aggregate", async () => {
     const provider = new OpenAICompatibleProvider(
       {
         endpoint: "https://example.test/v1",
         model: "model",
         capability: "json-object",
+        sessionId: "session",
       },
       {
         request: async (request) => {
@@ -205,6 +309,7 @@ describe("OpenAI-compatible provider", () => {
         endpoint: "https://example.test/v1",
         model: "model",
         capability: "prompt-json",
+        sessionId: "session",
       },
       {
         request: async () => {
@@ -252,6 +357,7 @@ describe("OpenAI-compatible provider", () => {
         endpoint: "https://example.test/v1/chat/completions",
         model: "model",
         capability: "prompt-json",
+        sessionId: "session",
       },
       {
         request: async (request) => {
@@ -307,7 +413,12 @@ describe("OpenAI-compatible provider", () => {
     ] as const) {
       let calls = 0;
       const provider = new OpenAICompatibleProvider(
-        { endpoint: "https://example.test/v1", model: "model", apiKey: "secret" },
+        {
+          endpoint: "https://example.test/v1",
+          model: "model",
+          apiKey: "secret",
+          sessionId: "session",
+        },
         {
           request: async () => {
             calls += 1;
@@ -333,6 +444,7 @@ describe("OpenAI-compatible provider", () => {
         model: "model",
         apiKey: "secret",
         capability: "json-object",
+        sessionId: "session",
       },
       {
         request: async (request) => {
@@ -382,7 +494,7 @@ describe("OpenAI-compatible provider", () => {
   it("does not fall back after a non-capability connection-test failure", async () => {
     const jobs: string[] = [];
     const provider = new OpenAICompatibleProvider(
-      { endpoint: "https://example.test/v1", model: "model" },
+      { endpoint: "https://example.test/v1", model: "model", sessionId: "session" },
       {
         request: async (request) => {
           jobs.push(request.jobId);
@@ -408,7 +520,12 @@ describe("OpenAI-compatible provider", () => {
       { choices: [{ finish_reason: "stop", message: { content: "not-json" } }] },
     ]) {
       const provider = new OpenAICompatibleProvider(
-        { endpoint: "https://example.test/v1", model: "m", capability: "prompt-json" },
+        {
+          endpoint: "https://example.test/v1",
+          model: "m",
+          capability: "prompt-json",
+          sessionId: "session",
+        },
         {
           request: async () => ({
             statusCode: 200,

@@ -57,6 +57,8 @@ Swift helper 只监听 `127.0.0.1` 临时端口，使用内存 bearer token，�
 
 请求只包含当前临近 cue 的 opaque ID、人类可读字幕文字、语言方向和少量相邻上下文，不包含视频内容或无关用户信息。诊断、状态与 UI 不包含凭据、Authorization、helper token、字幕/译文正文或 provider 原始 body。模型服务费用及内容政策由用户选择的服务决定；有限前瞻、批量和会话缓存用于控制调用量，但不构成费用保证。
 
+OpenAI-compatible Profile 在本次运行期内还会为 Test 与翻译请求共同携带一个无业务语义的 `X-Session-Id`，供支持会话亲和性的网关复用容量。该值不由 Profile、endpoint、字幕、窗口或凭据派生，不写入 preferences、凭据文件、日志或 UI；Provider 实例重建后即更换。
+
 ## Provider 配置
 
 - **OpenAI-compatible**：API root 与 model 必填；Bearer key 可选。保存后 endpoint 保持用户输入，不会把完整路径悄悄改写成 root；所有请求固定追加 `/chat/completions`。连接测试只在服务明确不支持当前 response format 时按 strict JSON Schema、JSON object、prompt JSON 顺序协商；认证、模型、配额、网络和超时错误会立即停止并给出对应操作。真实字幕批次不会因格式失败而自动换格式重发，避免重复计费；每次 wire request 最多包含两条 cue。

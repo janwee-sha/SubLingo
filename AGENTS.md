@@ -87,3 +87,7 @@ MUST 使用中文，MUST NOT 因模板原文为英文而保留英文套话。
 ## 已发现 Bug 清单
 
 [`docs/open_issues`](docs/open_issues) 目录记录了已发现的 Bug，只在用户指示修复时再读取对应文档。
+
+## 翻译服务 Provider
+
+[`docs/providers`](docs/providers) 目录提供了用于测试验证的翻译服务的 API 信息，不应将它们写入项目任何其他位置且不要版本化这些信息。

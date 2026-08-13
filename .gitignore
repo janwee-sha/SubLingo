@@ -9,7 +9,6 @@ build/
 coverage/
 *.log
 .env*
-/providers/
 
 # Native build output
 native/.build/
@@ -21,6 +20,8 @@ native/transport/.build/
 credentials.json
 *.credentials.json
 docs/validation/artifacts/
+docs/providers/
+docs/manual-test-recording/
 
 # macOS / editors
 .DS_Store

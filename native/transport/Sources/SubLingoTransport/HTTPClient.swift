@@ -73,6 +73,149 @@ final class RedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Senda
     }
 }
 
+final class HostRequestLimiter: @unchecked Sendable {
+    final class Permit: @unchecked Sendable {
+        private let lock = NSLock()
+        private var releaseOperation: (@Sendable () -> Void)?
+
+        init(release: @escaping @Sendable () -> Void) {
+            releaseOperation = release
+        }
+
+        func release() {
+            let operation = lock.withLock {
+                let operation = releaseOperation
+                releaseOperation = nil
+                return operation
+            }
+            operation?()
+        }
+
+        deinit { release() }
+    }
+
+    private struct Waiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Permit, Error>
+    }
+
+    private struct HostState {
+        var active = 0
+        var waiters: [Waiter] = []
+    }
+
+    private enum Admission {
+        case acquired
+        case queued
+        case cancelled
+    }
+
+    private let maximumActiveRequests: Int
+    private let lock = NSLock()
+    private var hosts: [String: HostState] = [:]
+    private var closed = false
+
+    init(maximumActiveRequests: Int) {
+        precondition(maximumActiveRequests > 0)
+        self.maximumActiveRequests = maximumActiveRequests
+    }
+
+    func acquire(host: String) async throws -> Permit {
+        let waiterID = UUID()
+        let permit = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let admission = lock.withLock { () -> Admission in
+                    guard !closed, !Task<Never, Never>.isCancelled else { return .cancelled }
+                    var state = hosts[host] ?? HostState()
+                    guard state.active < maximumActiveRequests else {
+                        state.waiters.append(Waiter(id: waiterID, continuation: continuation))
+                        hosts[host] = state
+                        return .queued
+                    }
+                    state.active += 1
+                    hosts[host] = state
+                    return .acquired
+                }
+                switch admission {
+                case .acquired:
+                    continuation.resume(returning: makePermit(host: host))
+                case .cancelled:
+                    continuation.resume(throwing: CancellationError())
+                case .queued:
+                    break
+                }
+            }
+        } onCancel: {
+            self.cancel(host: host, waiterID: waiterID)
+        }
+        guard !Task<Never, Never>.isCancelled else {
+            permit.release()
+            throw CancellationError()
+        }
+        return permit
+    }
+
+    func close() {
+        let continuations = lock.withLock { () -> [CheckedContinuation<Permit, Error>] in
+            guard !closed else { return [] }
+            closed = true
+            var continuations: [CheckedContinuation<Permit, Error>] = []
+            var remaining: [String: HostState] = [:]
+            for (host, var state) in hosts {
+                continuations.append(contentsOf: state.waiters.map(\.continuation))
+                state.waiters.removeAll()
+                if state.active > 0 { remaining[host] = state }
+            }
+            hosts = remaining
+            return continuations
+        }
+        for continuation in continuations {
+            continuation.resume(throwing: CancellationError())
+        }
+    }
+
+    func activeCount(host: String) -> Int {
+        lock.withLock { hosts[host]?.active ?? 0 }
+    }
+
+    func waitingCount(host: String) -> Int {
+        lock.withLock { hosts[host]?.waiters.count ?? 0 }
+    }
+
+    private func makePermit(host: String) -> Permit {
+        Permit { self.release(host: host) }
+    }
+
+    private func cancel(host: String, waiterID: UUID) {
+        let continuation = lock.withLock { () -> CheckedContinuation<Permit, Error>? in
+            guard var state = hosts[host],
+                  let index = state.waiters.firstIndex(where: { $0.id == waiterID })
+            else { return nil }
+            let continuation = state.waiters.remove(at: index).continuation
+            if state.active == 0 && state.waiters.isEmpty { hosts.removeValue(forKey: host) }
+            else { hosts[host] = state }
+            return continuation
+        }
+        continuation?.resume(throwing: CancellationError())
+    }
+
+    private func release(host: String) {
+        let next = lock.withLock { () -> CheckedContinuation<Permit, Error>? in
+            guard var state = hosts[host], state.active > 0 else { return nil }
+            guard !closed, !state.waiters.isEmpty else {
+                state.active -= 1
+                if state.active == 0 && state.waiters.isEmpty { hosts.removeValue(forKey: host) }
+                else { hosts[host] = state }
+                return nil
+            }
+            let continuation = state.waiters.removeFirst().continuation
+            hosts[host] = state
+            return continuation
+        }
+        next?.resume(returning: makePermit(host: host))
+    }
+}
+
 final class HTTPClient: @unchecked Sendable {
     static let maximumConnectionsPerHost = 4
 
@@ -115,6 +258,8 @@ final class HTTPClient: @unchecked Sendable {
 
     private let lock = NSLock()
     private let systemSession: URLSession
+    private let directTransport: DirectCurlTransport
+    private let upstreamRequestLimiter: HostRequestLimiter
     private var active: [String: ActiveJob] = [:]
     private var completed: Set<String> = []
     private var acceptingRequests = true
@@ -126,6 +271,10 @@ final class HTTPClient: @unchecked Sendable {
         systemConfiguration.urlCache = nil
         systemConfiguration.httpMaximumConnectionsPerHost = Self.maximumConnectionsPerHost
         systemSession = URLSession(configuration: systemConfiguration)
+        directTransport = DirectCurlTransport()
+        upstreamRequestLimiter = HostRequestLimiter(
+            maximumActiveRequests: Self.maximumConnectionsPerHost
+        )
     }
 
     static func classify(_ error: URLError) -> TransportProtocolError {
@@ -165,10 +314,14 @@ final class HTTPClient: @unchecked Sendable {
         urlRequest.httpBody = request.body.isEmpty ? nil : request.body
         urlRequest.timeoutInterval = Double(request.timeoutMilliseconds) / 1_000
         for (name, value) in request.headers { urlRequest.setValue(value, forHTTPHeaderField: name) }
+        urlRequest.setValue(nil, forHTTPHeaderField: "Connection")
 
         let delegate = RedirectDelegate(originalURL: url)
         let task = Task {
-            try await systemSession.data(for: urlRequest, delegate: delegate)
+            let permit = try await upstreamRequestLimiter.acquire(host: url.host?.lowercased() ?? "")
+            defer { permit.release() }
+            try Task.checkCancellation()
+            return try await systemSession.data(for: urlRequest, delegate: delegate)
         }
         job.install { task.cancel() }
         do {
@@ -201,9 +354,17 @@ final class HTTPClient: @unchecked Sendable {
         _ request: TransportRequest,
         job: ActiveJob
     ) async throws -> TransportResponse {
+        guard let url = URL(string: request.url), let host = url.host?.lowercased() else {
+            throw TransportProtocolError.invalidRequest
+        }
         let context = CurlRequestContext(maximumResponseBytes: request.maxResponseBytes)
+        let requestLimiter = upstreamRequestLimiter
+        let transport = directTransport
         let task = Task.detached {
-            try DirectCurlTransport.perform(request, context: context)
+            let permit = try await requestLimiter.acquire(host: host)
+            defer { permit.release() }
+            try Task.checkCancellation()
+            return try transport.perform(request, context: context)
         }
         job.install {
             context.cancel()
@@ -222,6 +383,14 @@ final class HTTPClient: @unchecked Sendable {
 
     func systemSessionIdentity() -> ObjectIdentifier { ObjectIdentifier(systemSession) }
 
+    func upstreamActiveRequestCount(host: String) -> Int {
+        upstreamRequestLimiter.activeCount(host: host.lowercased())
+    }
+
+    func upstreamWaitingRequestCount(host: String) -> Int {
+        upstreamRequestLimiter.waitingCount(host: host.lowercased())
+    }
+
     func close() {
         let jobs = lock.withLock { () -> [ActiveJob]? in
             guard acceptingRequests else { return nil }
@@ -233,6 +402,8 @@ final class HTTPClient: @unchecked Sendable {
         }
         guard let jobs else { return }
         for job in jobs { job.cancel() }
+        upstreamRequestLimiter.close()
+        directTransport.close()
         systemSession.invalidateAndCancel()
     }
 

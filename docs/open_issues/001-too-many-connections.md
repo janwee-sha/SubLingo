@@ -1,5 +1,15 @@
 # 翻译服务频繁创建连接且不释放
 
+## 状态
+
+已关闭（2026-08-14）。
+
+## 关闭依据
+
+- 根因是远程 OpenAI-compatible 网关将内容变化的字幕请求识别为不同活动会话，导致会话数持续增长并触发 429；运行期现为每个 Provider 实例复用稳定的 `X-Session-Id`，传输连接也受统一并发上限约束。
+- 自动化测试、原生测试和正式包信息见 [`package.md`](../validation/package.md)。
+- IINA 正式安装包人工验收 T023 已通过，见 [`iina-matrix.md`](../validation/iina-matrix.md)。
+
 ## 场景描述：
 
 1. 打开一段长视频并加载外挂字幕，然后选择 OpenAI-compatible Profile 执行翻译工作；

@@ -71,24 +71,30 @@ private let curlProgressCallback: @convention(c) (
         .takeUnretainedValue().isCancelled() ? 1 : 0
 }
 
-enum DirectCurlTransport {
+final class DirectCurlTransport: @unchecked Sendable {
     private static let initialized: Bool = curl_global_init(Int(CURL_GLOBAL_DEFAULT)) == CURLE_OK
+    private static let maximumIdleHandles = 4
+    private let lock = NSLock()
+    private var handles: [UnsafeMutableRawPointer] = []
+    private var closed = false
 
-    static func perform(_ request: TransportRequest, context: CurlRequestContext) throws -> TransportResponse {
-        guard initialized, let handle = curl_easy_init() else {
+    func perform(_ request: TransportRequest, context: CurlRequestContext) throws -> TransportResponse {
+        guard Self.initialized, let handle = acquireHandle() else {
             throw TransportProtocolError.upstreamNetwork
         }
-        defer { curl_easy_cleanup(handle) }
+        defer { releaseHandle(handle) }
+        curl_easy_reset(handle)
 
         let contextPointer = Unmanaged.passUnretained(context).toOpaque()
-        try setString(handle, CURLOPT_URL, request.url)
-        try setString(handle, CURLOPT_NOPROXY, "*")
-        try setLong(handle, CURLOPT_NOSIGNAL, 1)
-        try setLong(handle, CURLOPT_NOPROGRESS, 0)
-        try setLong(handle, CURLOPT_FOLLOWLOCATION, 0)
-        try setLong(handle, CURLOPT_FAILONERROR, 0)
-        try setLong(handle, CURLOPT_TIMEOUT_MS, request.timeoutMilliseconds)
-        try setLong(handle, CURLOPT_CONNECTTIMEOUT_MS, request.timeoutMilliseconds)
+        try Self.setString(handle, CURLOPT_URL, request.url)
+        try Self.setString(handle, CURLOPT_NOPROXY, "*")
+        try Self.setLong(handle, CURLOPT_NOSIGNAL, 1)
+        try Self.setLong(handle, CURLOPT_NOPROGRESS, 0)
+        try Self.setLong(handle, CURLOPT_FOLLOWLOCATION, 0)
+        try Self.setLong(handle, CURLOPT_FAILONERROR, 0)
+        try Self.setLong(handle, CURLOPT_MAXCONNECTS, 1)
+        try Self.setLong(handle, CURLOPT_TIMEOUT_MS, request.timeoutMilliseconds)
+        try Self.setLong(handle, CURLOPT_CONNECTTIMEOUT_MS, request.timeoutMilliseconds)
         guard sl_curl_setopt_write_callback(handle, curlWriteCallback) == CURLE_OK,
               sl_curl_setopt_header_callback(handle, curlHeaderCallback) == CURLE_OK,
               sl_curl_setopt_progress_callback(handle, curlProgressCallback) == CURLE_OK,
@@ -98,7 +104,7 @@ enum DirectCurlTransport {
         else { throw TransportProtocolError.upstreamNetwork }
 
         var headerList: UnsafeMutablePointer<curl_slist>?
-        for (name, value) in request.headers {
+        for (name, value) in request.headers where name.caseInsensitiveCompare("Connection") != .orderedSame {
             headerList = curl_slist_append(headerList, "\(name): \(value)")
         }
         headerList = curl_slist_append(headerList, "Expect:")
@@ -109,8 +115,8 @@ enum DirectCurlTransport {
 
         let result: CURLcode
         if request.method == "POST" {
-            try setLong(handle, CURLOPT_POST, 1)
-            try setOffset(handle, CURLOPT_POSTFIELDSIZE_LARGE, request.body.count)
+            try Self.setLong(handle, CURLOPT_POST, 1)
+            try Self.setOffset(handle, CURLOPT_POSTFIELDSIZE_LARGE, request.body.count)
             result = request.body.withUnsafeBytes { bytes in
                 guard sl_curl_setopt_pointer(
                     handle,
@@ -120,7 +126,7 @@ enum DirectCurlTransport {
                 return curl_easy_perform(handle)
             }
         } else {
-            try setLong(handle, CURLOPT_HTTPGET, 1)
+            try Self.setLong(handle, CURLOPT_HTTPGET, 1)
             result = curl_easy_perform(handle)
         }
 
@@ -141,6 +147,35 @@ enum DirectCurlTransport {
             headers: context.headers,
             body: context.body
         )
+    }
+
+    func close() {
+        let idleHandles: [UnsafeMutableRawPointer] = lock.withLock {
+            guard !closed else { return [] }
+            closed = true
+            let idleHandles = handles
+            self.handles.removeAll()
+            return idleHandles
+        }
+        for handle in idleHandles { curl_easy_cleanup(handle) }
+    }
+
+    deinit { close() }
+
+    private func acquireHandle() -> UnsafeMutableRawPointer? {
+        lock.withLock {
+            guard !closed else { return nil }
+            return handles.popLast() ?? curl_easy_init()
+        }
+    }
+
+    private func releaseHandle(_ handle: UnsafeMutableRawPointer) {
+        let shouldClean = lock.withLock {
+            guard !closed, handles.count < Self.maximumIdleHandles else { return true }
+            handles.append(handle)
+            return false
+        }
+        if shouldClean { curl_easy_cleanup(handle) }
     }
 
     private static func setLong(

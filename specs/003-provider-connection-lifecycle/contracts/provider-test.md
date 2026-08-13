@@ -27,6 +27,7 @@ interface TranslationProvider {
 3. OpenAI-compatible 未缓存 capability 时，按既有固定顺序发现兼容格式；认证、模型、配额、网络等非 capability 不兼容错误必须立即结束，不得被 fallback 掩盖。
 4. Ollama 必须继续真实验证当前服务、目标模型和结构化翻译响应。
 5. 测试内容只能使用固定非字幕探针，不得发送当前字幕、缓存译文或播放状态。
+6. 同一 OpenAI-compatible Provider 实例的 Test 与翻译请求必须复用同一个 `X-Session-Id`；测试不得为每次操作创建新的网关会话身份。
 
 ## 错误契约
 

@@ -69,6 +69,7 @@ describe.skipIf(!live)("authorized live provider smoke tests", () => {
         endpoint: endpoint!,
         model: model!,
         ...(apiKey ? { apiKey } : {}),
+        sessionId: "live-provider-test",
       },
       new FetchTransport(),
     );

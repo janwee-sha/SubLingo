@@ -28,6 +28,7 @@ export class OpenAICompatibleProvider implements ConfiguredProvider {
       apiKey?: string;
       capability?: Capability;
       proxyMode?: "system" | "direct";
+      sessionId: string;
     },
     private readonly transport: ProviderTransport,
   ) {
@@ -205,6 +206,7 @@ export class OpenAICompatibleProvider implements ConfiguredProvider {
         headers: {
           "Content-Type": "application/json",
           ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
+          "X-Session-Id": this.config.sessionId,
         },
         proxyMode: this.config.proxyMode ?? "system",
         body: {

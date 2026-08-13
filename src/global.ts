@@ -129,6 +129,7 @@ async function buildProvider(profile: ProviderProfileSnapshot): Promise<Configur
           ...(secret?.apiKey ? { apiKey: secret.apiKey } : {}),
           ...(profile.capability ? { capability: profile.capability } : {}),
           proxyMode: profile.proxyMode ?? "system",
+          sessionId: localUuid(),
         },
         providerTransport,
       );
