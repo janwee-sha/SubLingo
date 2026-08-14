@@ -22,6 +22,7 @@ credentials.json
 docs/validation/artifacts/
 docs/providers/
 docs/manual-test-recording/
+docs/open_issues/
 
 # macOS / editors
 .DS_Store
