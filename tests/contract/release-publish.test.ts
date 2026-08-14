@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest";
 import {
   assertPublishedRelease,
   decideReleaseAction,
+  hasExpectedAssetNames,
+  isPublishedStateReady,
   planAssetOperations,
+  pollRemoteState,
 } from "../../scripts/publish-release.mjs";
 
 const commit = "a".repeat(40);
@@ -134,6 +137,76 @@ describe("release publication state", () => {
         [{ name: "unexpected.txt", sha256: "a".repeat(64) }],
       ),
     ).toThrow(/unexpected asset/i);
+  });
+
+  it("waits for a newly created draft to become visible", async () => {
+    const states = [undefined, { id: 1, draft: true }];
+    const pauses: number[] = [];
+    const result = await pollRemoteState(() => states.shift(), Boolean, {
+      retryDelays: [0, 10],
+      pause: async (milliseconds: number) => {
+        pauses.push(milliseconds);
+      },
+    });
+
+    expect(result).toEqual({ matched: true, state: { id: 1, draft: true } });
+    expect(pauses).toEqual([10]);
+  });
+
+  it("waits for uploaded assets to become visible", async () => {
+    const expectedAssets = [{ name: "archive" }, { name: "checksum" }];
+    const states = [{ assets: [] }, { assets: [{ name: "archive" }, { name: "checksum" }] }];
+    const result = await pollRemoteState(
+      () => states.shift(),
+      (release) => hasExpectedAssetNames(release, expectedAssets),
+      { retryDelays: [0, 0] },
+    );
+
+    expect(result.matched).toBe(true);
+  });
+
+  it("waits for the public release, tag and Latest state to converge", async () => {
+    const states = [
+      {
+        release: { id: 1, draft: true },
+        tagCommit: undefined,
+        latestReleaseId: undefined,
+      },
+      {
+        release: { id: 1, draft: false },
+        tagCommit: commit,
+        latestReleaseId: 1,
+      },
+    ];
+    const result = await pollRemoteState(
+      () => states.shift(),
+      (state) => isPublishedStateReady(state, commit),
+      { retryDelays: [0, 0] },
+    );
+
+    expect(result.matched).toBe(true);
+  });
+
+  it("stops after the configured remote-state retries", async () => {
+    const pauses: number[] = [];
+    let attempts = 0;
+    const result = await pollRemoteState(
+      () => {
+        attempts += 1;
+        return undefined;
+      },
+      Boolean,
+      {
+        retryDelays: [0, 10, 20],
+        pause: async (milliseconds: number) => {
+          pauses.push(milliseconds);
+        },
+      },
+    );
+
+    expect(result).toEqual({ matched: false, state: undefined });
+    expect(attempts).toBe(3);
+    expect(pauses).toEqual([10, 20]);
   });
 
   it("requires the published release and tag to match the triggering commit", () => {

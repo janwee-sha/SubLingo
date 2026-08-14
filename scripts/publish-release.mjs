@@ -3,7 +3,10 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { setTimeout as wait } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
+
+const remoteStateRetryDelays = [0, 500, 1_000, 2_000, 4_000, 8_000, 16_000];
 
 function normalizeBody(body) {
   return (body ?? "").replaceAll("\r\n", "\n").trimEnd();
@@ -80,6 +83,39 @@ export function assertPublishedRelease(release, tagCommit, expectedCommit, lates
   }
 }
 
+export async function pollRemoteState(loadState, acceptState, options = {}) {
+  const retryDelays = options.retryDelays ?? remoteStateRetryDelays;
+  const pause = options.pause ?? wait;
+  let state;
+  for (const delayMilliseconds of retryDelays) {
+    if (delayMilliseconds > 0) {
+      await pause(delayMilliseconds);
+    }
+    state = loadState();
+    if (acceptState(state)) {
+      return { matched: true, state };
+    }
+  }
+  return { matched: false, state };
+}
+
+export function hasExpectedAssetNames(release, expectedAssets) {
+  if (!release) {
+    return false;
+  }
+  const remoteNames = new Set(release.assets.map((asset) => asset.name));
+  return expectedAssets.every((asset) => remoteNames.has(asset.name));
+}
+
+export function isPublishedStateReady(state, expectedCommit) {
+  return Boolean(
+    state?.release &&
+    !state.release.draft &&
+    state.tagCommit === expectedCommit &&
+    state.latestReleaseId === state.release.id,
+  );
+}
+
 function runGh(argumentsList, options = {}) {
   const result = spawnSync(process.env.GH_BIN || "gh", argumentsList, {
     encoding: options.binary ? undefined : "utf8",
@@ -124,9 +160,17 @@ function findRelease(repository, tag) {
   return releases[0] ? normalizeRelease(releases[0]) : undefined;
 }
 
-function findLatestReleaseId(repository) {
-  const result = runGh(["api", `repos/${repository}/releases/latest`]);
-  return JSON.parse(result.stdout).id;
+function findLatestReleaseId(repository, allowMissing = false) {
+  const result = runGh(["api", `repos/${repository}/releases/latest`], {
+    allowFailure: allowMissing,
+  });
+  if (result.status === 0) {
+    return JSON.parse(result.stdout).id;
+  }
+  if (allowMissing && /404|not found/i.test(result.stderr || "")) {
+    return undefined;
+  }
+  throw new Error(`Unable to read Latest release: ${(result.stderr || "").trim()}`);
 }
 
 function readTagObject(repository, endpoint) {
@@ -226,7 +270,7 @@ function validateOptions(options) {
   }
 }
 
-export function publishRelease(options) {
+export async function publishRelease(options) {
   validateOptions(options);
   const notesFile = resolve(options.notesFile);
   const assetsDirectory = resolve(options.assetsDirectory);
@@ -251,16 +295,23 @@ export function publishRelease(options) {
   }
 
   if (action.kind === "create") {
+    let creationError;
     try {
       createDraft({ ...options, notesFile }, action.useExistingTag);
     } catch (error) {
-      release = findRelease(options.repository, options.tag);
-      tagCommit = resolveTagCommit(options.repository, options.tag);
-      if (!release) {
-        throw error;
-      }
+      creationError = error;
     }
-    release = findRelease(options.repository, options.tag);
+    const createdRelease = await pollRemoteState(
+      () => findRelease(options.repository, options.tag),
+      Boolean,
+    );
+    release = createdRelease.state;
+    if (!createdRelease.matched) {
+      if (creationError) {
+        throw creationError;
+      }
+      throw new Error(`Draft ${options.tag} was not visible after creation`);
+    }
     tagCommit = resolveTagCommit(options.repository, options.tag);
     action = decideReleaseAction({
       release,
@@ -290,7 +341,14 @@ export function publishRelease(options) {
       }
     }
 
-    release = findRelease(options.repository, options.tag);
+    const releaseWithAssets = await pollRemoteState(
+      () => findRelease(options.repository, options.tag),
+      (candidate) => hasExpectedAssetNames(candidate, expectedAssets),
+    );
+    release = releaseWithAssets.state;
+    if (!releaseWithAssets.matched) {
+      throw new Error(`Draft ${options.tag} assets were not visible after upload`);
+    }
     tagCommit = resolveTagCommit(options.repository, options.tag);
     decideReleaseAction({
       release,
@@ -314,10 +372,24 @@ export function publishRelease(options) {
       "--prerelease=false",
       "--latest",
     ]);
-    release = findRelease(options.repository, options.tag);
-    tagCommit = resolveTagCommit(options.repository, options.tag);
-    const latestReleaseId = findLatestReleaseId(options.repository);
+    const publishedState = await pollRemoteState(
+      () => ({
+        release: findRelease(options.repository, options.tag),
+        tagCommit: resolveTagCommit(options.repository, options.tag),
+        latestReleaseId: findLatestReleaseId(options.repository, true),
+      }),
+      (candidate) => isPublishedStateReady(candidate, options.commit),
+    );
+    release = publishedState.state?.release;
+    tagCommit = publishedState.state?.tagCommit;
+    const latestReleaseId = publishedState.state?.latestReleaseId;
+    if (!release) {
+      throw new Error(`Release ${options.tag} was not visible after publication`);
+    }
     assertPublishedRelease(release, tagCommit, options.commit, latestReleaseId);
+    if (!publishedState.matched) {
+      throw new Error(`Release ${options.tag} did not become Latest after publication`);
+    }
     process.stdout.write(`Published ${options.tag} at ${options.commit}\n`);
     return { status: "published" };
   } finally {
@@ -351,15 +423,13 @@ function parseArguments(argumentsList) {
   return options;
 }
 
-function main() {
-  publishRelease(parseArguments(process.argv.slice(2)));
+async function main() {
+  await publishRelease(parseArguments(process.argv.slice(2)));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  try {
-    main();
-  } catch (error) {
+  main().catch((error) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
-  }
+  });
 }
