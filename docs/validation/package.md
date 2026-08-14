@@ -1,9 +1,9 @@
-# 正式包验证（2026-08-13）
+# 正式包验证（2026-08-14）
 
 - 产物：`build/package/SubLingo-0.1.0.iinaplgz`
 - 版本：`0.1.0`
-- 大小：336,849 字节
-- SHA-256：`30058744fdce4dbceea61211cb250457bfdb55eb413ab0704f822186221232ac`
+- 大小：336,768 字节
+- SHA-256：`a5be908b81f06e1e669cb38d26d517a6bfd86fb312118d26f09aa093864a527c`
 
 ## 包内容
 
@@ -34,5 +34,5 @@ Info.json
 
 ## 构建文件哈希
 
-- `dist/main.js`：`1675f0500314e6fb8508f6f677368c6d3e8bc3007380d3878cd7c10863aafe26`
+- `dist/main.js`：`531aa8d3d042ed461b7160c2d407d5adbb32f298159d9597bafff89d71de4d68`
 - `dist/global.js`：`a11dc8fcda76a62acf4e969777b68c5d99c4c8061722f908475f5aae3df92c36`

@@ -21,7 +21,6 @@ export class GeneratedSubtitleTrackManager {
     private readonly port: SubtitleTrackPort,
     private readonly playerId: string,
     private readonly sessionId: string,
-    private readonly loadSettleMs = 1_000,
     private readonly selectionSettleMs = 250,
   ) {
     this.originalSecondId = port.getSecondId();
@@ -54,8 +53,6 @@ export class GeneratedSubtitleTrackManager {
         this.port.removeFile(path);
         throw new Error("GENERATED_TRACK_NOT_FOUND");
       }
-      if (this.loadSettleMs > 0)
-        await new Promise<void>((resolve) => setTimeout(resolve, this.loadSettleMs));
       this.ownedTrackId = newTrackId;
       this.ownedPath = path;
       try {
@@ -70,7 +67,7 @@ export class GeneratedSubtitleTrackManager {
       if (previousTrackId !== null && previousTrackId !== newTrackId)
         this.port.removeSubtitle(previousTrackId);
       if (previousPath !== null && previousPath !== path) this.port.removeFile(previousPath);
-      await this.selectAsSecond(primaryId, newTrackId);
+      this.reconcileSelection(primaryId, newTrackId);
       return newTrackId;
     } finally {
       this.publishing = false;
@@ -78,15 +75,15 @@ export class GeneratedSubtitleTrackManager {
   }
 
   private async selectAsSecond(primaryId: number | null, generatedId: number): Promise<void> {
-    // IINA selects a newly loaded external subtitle as the primary track on a
-    // later main-thread turn. Keep publishing guarded until that transition
-    // settles, then reassert the intended primary/secondary pair.
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      this.port.setPrimaryId(primaryId);
-      this.port.setSecondId(generatedId);
-      if (this.selectionSettleMs > 0)
-        await new Promise<void>((resolve) => setTimeout(resolve, this.selectionSettleMs));
-    }
+    this.reconcileSelection(primaryId, generatedId);
+    if (this.selectionSettleMs > 0)
+      await new Promise<void>((resolve) => setTimeout(resolve, this.selectionSettleMs));
+    this.reconcileSelection(primaryId, generatedId);
+  }
+
+  private reconcileSelection(primaryId: number | null, generatedId: number): void {
+    if (this.port.getPrimaryId() !== primaryId) this.port.setPrimaryId(primaryId);
+    if (this.port.getSecondId() !== generatedId) this.port.setSecondId(generatedId);
   }
 
   private async waitForNewTrack(before: ReadonlySet<number>): Promise<number | undefined> {
@@ -147,7 +144,7 @@ export class IinaSubtitleTrackPort implements SubtitleTrackPort {
     }
   }
   addSubtitle(path: string): void {
-    this.subtitle.loadTrack(this.utils.resolvePath(path));
+    this.mpv.command("sub-add", [this.utils.resolvePath(path), "auto", "SubLingo"]);
   }
   removeSubtitle(id: number): void {
     this.mpv.command("sub-remove", [String(id)]);

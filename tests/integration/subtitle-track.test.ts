@@ -14,12 +14,20 @@ class FakeTrackPort implements SubtitleTrackPort {
   autoSelectDelayMs: number | null = null;
   readonly files = new Map<string, string>();
   readonly removedTracks: number[] = [];
+  readonly primarySelections: Array<number | null> = [];
+  readonly secondSelections: Array<number | null> = [];
 
   getTrackIds = () => [...this.tracks];
   getPrimaryId = () => this.primaryId;
   getSecondId = () => this.secondId;
-  setPrimaryId = (id: number | null) => void (this.primaryId = id);
-  setSecondId = (id: number | null) => void (this.secondId = id);
+  setPrimaryId = (id: number | null) => {
+    this.primarySelections.push(id);
+    this.primaryId = id;
+  };
+  setSecondId = (id: number | null) => {
+    this.secondSelections.push(id);
+    this.secondId = id;
+  };
   writeFile = (path: string, content: string) => void this.files.set(path, content);
   removeFile = (path: string) => void this.files.delete(path);
   addSubtitle = () => {
@@ -46,20 +54,22 @@ class FakeTrackPort implements SubtitleTrackPort {
 }
 
 describe("plugin-owned second subtitle", () => {
-  it("resolves IINA special paths before loading an external subtitle", () => {
-    let loadedPath: string | null = null;
+  it("adds a non-selected generated subtitle with a short track title", () => {
+    const commands: Array<[string, string[]]> = [];
     const port = new IinaSubtitleTrackPort(
-      {
-        loadTrack: (path: string) => void (loadedPath = path),
-      } as unknown as IINA.API.SubtitleAPI,
+      {} as IINA.API.SubtitleAPI,
       {} as IINA.API.File,
-      {} as IINA.API.MPV,
+      {
+        command: (name: string, args: string[]) => void commands.push([name, args]),
+      } as IINA.API.MPV,
       { resolvePath: (path: string) => `/private/tmp/plugin/${path.slice("@tmp/".length)}` },
     );
 
     port.addSubtitle("@tmp/generated.srt");
 
-    expect(loadedPath).toBe("/private/tmp/plugin/generated.srt");
+    expect(commands).toEqual([
+      ["sub-add", ["/private/tmp/plugin/generated.srt", "auto", "SubLingo"]],
+    ]);
   });
 
   it("sets primary and secondary tracks through stable mpv properties", () => {
@@ -86,14 +96,18 @@ describe("plugin-owned second subtitle", () => {
 
   it("replaces the generated track while preserving the primary subtitle", async () => {
     const port = new FakeTrackPort();
-    const manager = new GeneratedSubtitleTrackManager(port, "player-A", "session-A", 0, 0);
+    const manager = new GeneratedSubtitleTrackManager(port, "player-A", "session-A", 0);
     await manager.swap("first");
     expect(manager.hasOwnedTrack).toBe(true);
     expect(port.primaryId).toBe(1);
     expect(port.secondId).toBe(100);
+    expect(port.primarySelections).toEqual([]);
+    expect(port.secondSelections).toEqual([100]);
     await manager.swap("second");
     expect(port.primaryId).toBe(1);
     expect(port.secondId).toBe(101);
+    expect(port.primarySelections).toEqual([]);
+    expect(port.secondSelections).toEqual([100, 101]);
     expect(port.removedTracks).toEqual([100]);
     expect(port.tracks).toEqual([1, 2, 101]);
     expect([...port.files.values()]).toEqual(["second"]);
@@ -103,7 +117,7 @@ describe("plugin-owned second subtitle", () => {
   it("waits for IINA to expose a newly loaded external subtitle track", async () => {
     const port = new FakeTrackPort();
     port.addDelayMs = 40;
-    const manager = new GeneratedSubtitleTrackManager(port, "player-A", "session-A", 0, 0);
+    const manager = new GeneratedSubtitleTrackManager(port, "player-A", "session-A", 0);
     await expect(manager.swap("generated")).resolves.toBe(100);
     expect(port.secondId).toBe(100);
     expect(manager.isPublishing).toBe(false);
@@ -112,18 +126,20 @@ describe("plugin-owned second subtitle", () => {
   it("reasserts the second track after IINA asynchronously selects it as primary", async () => {
     const port = new FakeTrackPort();
     port.autoSelectDelayMs = 50;
-    const manager = new GeneratedSubtitleTrackManager(port, "player-A", "session-A", 100, 0);
+    const manager = new GeneratedSubtitleTrackManager(port, "player-A", "session-A", 100);
 
     await expect(manager.swap("generated")).resolves.toBe(100);
 
     expect(port.primaryId).toBe(1);
     expect(port.secondId).toBe(100);
+    expect(port.primarySelections).toEqual([1]);
+    expect(port.secondSelections).toEqual([100, 100]);
     expect(manager.isPublishing).toBe(false);
   });
 
   it("does not overwrite a later user second-track choice during cleanup", async () => {
     const port = new FakeTrackPort();
-    const manager = new GeneratedSubtitleTrackManager(port, "player-A", "session-A", 0, 0);
+    const manager = new GeneratedSubtitleTrackManager(port, "player-A", "session-A", 0);
     await manager.swap("generated");
     port.secondId = 9;
     manager.cleanup();
@@ -135,7 +151,7 @@ describe("plugin-owned second subtitle", () => {
 
   it.each(["disable", "end-file", "window-close"])("cleans ownership on %s", async () => {
     const port = new FakeTrackPort();
-    const manager = new GeneratedSubtitleTrackManager(port, "player-A", "session-A", 0, 0);
+    const manager = new GeneratedSubtitleTrackManager(port, "player-A", "session-A", 0);
     await manager.swap("generated");
     manager.cleanup();
     expect(port.secondId).toBe(2);
