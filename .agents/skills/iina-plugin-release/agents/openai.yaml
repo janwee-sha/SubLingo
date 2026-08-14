@@ -1,0 +1,4 @@
+interface:
+  display_name: "IINA 插件发布"
+  short_description: "统一执行 SubLingo 版本变更、构建、验包与正式打包"
+  default_prompt: "使用 $iina-plugin-release 完成 SubLingo 的版本变更、构建验证和正式打包。"
