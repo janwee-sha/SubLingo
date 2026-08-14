@@ -179,5 +179,13 @@ describe("release archive audit", () => {
     expect(notes).toContain("真实安装：CI 未覆盖");
     expect(notes).toContain("真实卸载：CI 未覆盖");
     expect(notes).toContain("实际播放：CI 未覆盖");
+    expect(notes).toContain("## 自愿支持");
+    expect(notes).toContain("https://ko-fi.com/ianhsia");
+    expect(notes).toContain(
+      "https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link",
+    );
+    expect(notes).toContain("免费完整使用");
+    expect(notes).toContain("不会解锁额外功能、优先翻译或专属版本");
+    expect(notes).toContain("不包含翻译服务 API 额度");
   });
 });

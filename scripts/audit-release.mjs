@@ -225,6 +225,12 @@ export function buildReleaseNotes(input) {
     "",
     "以上宿主行为不属于本自动发布门禁，未标记为已验证，也不阻塞本次正式发布。",
     "",
+    "## 自愿支持",
+    "",
+    "如果 SubLingo 对你有帮助，可以前往[爱发电](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link)或 [Ko-fi](https://ko-fi.com/ianhsia) 自愿请创作者喝杯咖啡。",
+    "",
+    "SubLingo 对所有人保持免费完整使用。打赏不会解锁额外功能、优先翻译或专属版本，也不包含翻译服务 API 额度；用户选择的 Provider 可能独立收费。",
+    "",
   ].join("\n");
 }
 
