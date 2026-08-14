@@ -41,7 +41,7 @@ SubLingo ne télécharge ni ne démarre les modèles de traduction.
 
 Ouvrez IINA et accédez à **Préférences → Modules externes**. Le gestionnaire de modules permet les deux méthodes d'installation suivantes.
 
-![Gestionnaire de modules IINA avec les boutons Installer depuis GitHub et Installer le paquet](assets/plugin-manager.png)
+![Gestionnaire de modules IINA avec les boutons Installer depuis GitHub et Installer le paquet](assets/plugin-manager.webp)
 
 ### Installer depuis GitHub (recommandé)
 

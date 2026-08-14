@@ -41,7 +41,7 @@
 
 افتح IINA وانتقل إلى **Settings → Plugins**. تدعم واجهة إدارة الإضافات طريقتي التثبيت التاليتين.
 
-![واجهة إدارة إضافات IINA وبها زرا التثبيت من GitHub وتثبيت الحزمة](assets/plugin-manager.png)
+![واجهة إدارة إضافات IINA وبها زرا التثبيت من GitHub وتثبيت الحزمة](assets/plugin-manager.webp)
 
 ### التثبيت من GitHub (موصى به)
 

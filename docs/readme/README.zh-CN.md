@@ -41,7 +41,7 @@ SubLingo 不会下载或启动翻译模型。
 
 打开 IINA，进入“**设置 → 插件**”。插件管理界面支持以下两种安装方式。
 
-![IINA 插件管理界面中的“从 GitHub 安装”和“安装插件”按钮](assets/plugin-manager.png)
+![IINA 插件管理界面中的“从 GitHub 安装”和“安装插件”按钮](assets/plugin-manager.webp)
 
 ### 从 GitHub 安装（推荐）
 

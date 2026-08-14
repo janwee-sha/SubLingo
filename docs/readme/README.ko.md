@@ -41,7 +41,7 @@ SubLingo는 번역 모델을 다운로드하거나 실행하지 않습니다.
 
 IINA를 열고 **환경설정 → 플러그인**으로 이동합니다. 플러그인 관리 화면에서는 다음 두 가지 설치 방법을 사용할 수 있습니다.
 
-![GitHub에서 설치 및 패키지 설치 버튼이 표시된 IINA 플러그인 관리 화면](assets/plugin-manager.png)
+![GitHub에서 설치 및 패키지 설치 버튼이 표시된 IINA 플러그인 관리 화면](assets/plugin-manager.webp)
 
 ### GitHub에서 설치(권장)
 
