@@ -14,10 +14,11 @@
     "build:native": "./scripts/build-native.sh",
     "pack": "./scripts/pack.sh",
     "test": "vitest run",
+    "test:release": "vitest run tests/contract/release-metadata.test.ts tests/contract/release-audit.test.ts tests/contract/release-publish.test.ts tests/contract/release-workflow.test.ts",
     "test:watch": "vitest",
     "test:native": "./scripts/test-native.sh",
     "typecheck": "tsc -p tsconfig.plugin.json --noEmit && tsc -p tsconfig.webview.json --noEmit",
-    "lint": "eslint src ui tests vitest.config.ts",
+    "lint": "eslint src ui tests scripts vitest.config.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:package": "./scripts/verify-package.sh"

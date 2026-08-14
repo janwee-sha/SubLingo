@@ -1,38 +1,40 @@
-# 正式包验证（2026-08-14）
+# 正式包验证
 
-- 产物：`build/package/SubLingo-0.1.0.iinaplgz`
-- 版本：`0.1.0`
-- 大小：336,768 字节
-- SHA-256：`a5be908b81f06e1e669cb38d26d517a6bfd86fb312118d26f09aa093864a527c`
+## 权威证据
 
-## 包内容
+每个自动发布版本的权威证据由以下内容共同构成：
+
+- GitHub Release 中文正文：触发 commit、包内版本、精确大小、SHA-256、八项门禁、完整归档清单及两份 native helper 验收结果。
+- `SubLingo-X.Y.Z.iinaplgz.sha256`：正式安装包的可下载校验文件。
+- 对应 GitHub Actions 日志：固定环境、IINA 下载校验、八项门禁、最终归档审计和发布任务结果。
+
+workflow 不为逐版本证据修改、提交或推送仓库文件，避免产生递归 `main` 触发。Git 历史、Release 和 Actions 记录承担版本历史；本文只描述当前验证契约。
+
+## 自动发布门禁
+
+发布流程必须严格依次通过：
 
 ```text
-dist/
-dist/ui/
-dist/ui/sidebar.162e7c73.js
-dist/ui/sidebar.a9aa70e1.js
-dist/ui/sidebar.html
-dist/ui/sidebar.96d056b2.css
-dist/native/
-dist/native/sublingo-transport
-dist/global.js
-dist/main.js
-README.md
-Info.json
+npm run test
+npm run typecheck
+npm run lint
+npm run build:native
+npm run test:native
+npm run build
+npm run verify:package
+npm run pack
 ```
 
-`scripts/pack.sh` 与 `scripts/verify-package.sh` 均通过。归档只包含运行材料，不包含源码、测试、规格、依赖树、构建缓存、运行时目录、凭据、环境文件或密钥材料。
+随后直接审计最终 `.iinaplgz`，确认版本与产物名一致、根目录只有 `Info.json`、`README.md` 和 `dist/` 运行材料，不包含敏感、运行时或开发文件，也不存在路径穿越、重复路径或符号链接。
 
-## Native helper
+`dist/native/sublingo-transport` 构建文件与包内文件必须分别包含 `arm64` 和 `x86_64`、保留可执行权限并通过严格签名验证。
 
-- 大小：899,392 字节
-- 权限：`-rwxr-xr-x`
-- 架构：`x86_64`、`arm64`
-- 签名：嵌入式 ad-hoc 签名，`codesign --verify --strict` 通过
-- SHA-256：`24a39a24847c8bc865972201e8b63bd3db31c657f3ee11bf120b556ffb151f57`
+## IINA 宿主边界
 
-## 构建文件哈希
+GitHub Actions 不打开 IINA 图形界面，因此 Release 正文必须明确以下状态：
 
-- `dist/main.js`：`531aa8d3d042ed461b7160c2d407d5adbb32f298159d9597bafff89d71de4d68`
-- `dist/global.js`：`a11dc8fcda76a62acf4e969777b68c5d99c4c8061722f908475f5aae3df92c36`
+- 真实安装：CI 未覆盖。
+- 真实卸载：CI 未覆盖。
+- 实际播放：CI 未覆盖。
+
+这些宿主行为不得标记为已验证，但不阻塞自动正式 Release。用户执行正式包人工验收时，应使用 Release 中的 `.iinaplgz`，并以版本或 SHA-256 关联结果；开发链接不能替代正式包证据。
