@@ -21,3 +21,4 @@ swiftc -parse-as-library \
   "$TEST_DIR/SubLingoTransportContractTests/TestMain.swift" \
   -o "$BUILD_DIR/sublingo-transport-contract-tests"
 "$BUILD_DIR/sublingo-transport-contract-tests"
+LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 "$BUILD_DIR/sublingo-transport-contract-tests"

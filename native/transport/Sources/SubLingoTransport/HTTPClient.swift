@@ -360,11 +360,11 @@ final class HTTPClient: @unchecked Sendable {
         let context = CurlRequestContext(maximumResponseBytes: request.maxResponseBytes)
         let requestLimiter = upstreamRequestLimiter
         let transport = directTransport
-        let task = Task.detached {
+        let task = Task {
             let permit = try await requestLimiter.acquire(host: host)
             defer { permit.release() }
             try Task.checkCancellation()
-            return try transport.perform(request, context: context)
+            return try await transport.perform(request, context: context)
         }
         job.install {
             context.cancel()

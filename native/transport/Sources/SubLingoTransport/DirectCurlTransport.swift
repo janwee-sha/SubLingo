@@ -74,11 +74,38 @@ private let curlProgressCallback: @convention(c) (
 final class DirectCurlTransport: @unchecked Sendable {
     private static let initialized: Bool = curl_global_init(Int(CURL_GLOBAL_DEFAULT)) == CURLE_OK
     private static let maximumIdleHandles = 4
+    private let executionQueue = DispatchQueue(
+        label: "io.sublingo.transport.direct",
+        attributes: .concurrent
+    )
     private let lock = NSLock()
     private var handles: [UnsafeMutableRawPointer] = []
     private var closed = false
 
-    func perform(_ request: TransportRequest, context: CurlRequestContext) throws -> TransportResponse {
+    func perform(
+        _ request: TransportRequest,
+        context: CurlRequestContext
+    ) async throws -> TransportResponse {
+        try Task.checkCancellation()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                executionQueue.async {
+                    let result: Result<TransportResponse, Error> = Result {
+                        guard !context.isCancelled() else { throw CancellationError() }
+                        return try self.performBlocking(request, context: context)
+                    }
+                    continuation.resume(with: result)
+                }
+            }
+        } onCancel: {
+            context.cancel()
+        }
+    }
+
+    private func performBlocking(
+        _ request: TransportRequest,
+        context: CurlRequestContext
+    ) throws -> TransportResponse {
         guard Self.initialized, let handle = acquireHandle() else {
             throw TransportProtocolError.upstreamNetwork
         }
