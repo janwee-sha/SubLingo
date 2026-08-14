@@ -249,10 +249,148 @@ function downloadAsset(repository, asset, destination) {
 
 function loadRemoteAssets(repository, release, temporaryDirectory) {
   return release.assets.map((asset) => {
-    const destination = join(temporaryDirectory, `${asset.id}-${basename(asset.name)}`);
+    if (basename(asset.name) !== asset.name) {
+      throw new Error(`Unsafe remote asset name: ${asset.name}`);
+    }
+    const destination = join(temporaryDirectory, asset.name);
     downloadAsset(repository, asset, destination);
-    return { name: asset.name, sha256: hashFile(destination) };
+    return { name: asset.name, filePath: destination, sha256: hashFile(destination) };
   });
+}
+
+export function validateReplacementState(input) {
+  if (input.tag !== "v0.1.0") {
+    throw new Error("Published release replacement is restricted to v0.1.0");
+  }
+  if (!input.release || input.release.draft || input.release.prerelease) {
+    throw new Error("Replacement requires one public stable release");
+  }
+  if (input.tagCommit !== input.expectedOldCommit) {
+    throw new Error(
+      `Replacement tag target mismatch: ${input.tagCommit} != ${input.expectedOldCommit}`,
+    );
+  }
+  const remoteNames = new Set(input.remoteAssets.map((asset) => asset.name));
+  if (
+    remoteNames.size !== input.remoteAssets.length ||
+    remoteNames.size !== 2 ||
+    !remoteNames.has(input.artifactName) ||
+    !remoteNames.has(`${input.artifactName}.sha256`)
+  ) {
+    throw new Error("Replacement release assets are incomplete or unexpected");
+  }
+  const artifact = input.remoteAssets.find((asset) => asset.name === input.artifactName);
+  if (!artifact || artifact.sha256 !== input.expectedOldArtifactSha256) {
+    throw new Error("Replacement artifact identity mismatch");
+  }
+  return { releaseId: input.release.id };
+}
+
+function deleteRelease(repository, releaseId) {
+  runGh(["api", "--method", "DELETE", `repos/${repository}/releases/${releaseId}`]);
+}
+
+function deleteTag(repository, tag) {
+  runGh([
+    "api",
+    "--method",
+    "DELETE",
+    `repos/${repository}/git/refs/tags/${encodeURIComponent(tag)}`,
+  ]);
+}
+
+function uploadFiles(repository, tag, files) {
+  for (const filePath of files) {
+    runGh(["release", "upload", tag, filePath, "--repo", repository]);
+  }
+}
+
+function restoreRelease(options, backup) {
+  const current = findRelease(options.repository, options.tag);
+  if (current) {
+    deleteRelease(options.repository, current.id);
+  }
+  if (resolveTagCommit(options.repository, options.tag)) {
+    deleteTag(options.repository, options.tag);
+  }
+  const notesFile = join(backup.directory, "release-notes.md");
+  writeFileSync(notesFile, backup.body);
+  createDraft({ ...options, commit: backup.commit, notesFile }, false);
+  uploadFiles(
+    options.repository,
+    options.tag,
+    backup.assets.map((asset) => asset.filePath),
+  );
+  runGh([
+    "release",
+    "edit",
+    options.tag,
+    "--repo",
+    options.repository,
+    "--draft=false",
+    "--prerelease=false",
+    "--latest",
+  ]);
+  const restoredRelease = findRelease(options.repository, options.tag);
+  assertPublishedRelease(
+    restoredRelease,
+    resolveTagCommit(options.repository, options.tag),
+    backup.commit,
+    findLatestReleaseId(options.repository),
+  );
+  const restoredAssets = loadRemoteAssets(options.repository, restoredRelease, backup.directory);
+  planAssetOperations(
+    backup.assets.map((asset) => ({ name: asset.name, sha256: asset.sha256 })),
+    restoredAssets,
+  );
+}
+
+async function replacePublishedRelease(options, release, tagCommit, artifactName) {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "sublingo-replacement-"));
+  let removed = false;
+  try {
+    const remoteAssets = loadRemoteAssets(options.repository, release, temporaryDirectory);
+    validateReplacementState({
+      tag: options.tag,
+      release,
+      tagCommit,
+      remoteAssets,
+      artifactName,
+      expectedOldCommit: options.replaceOldCommit,
+      expectedOldArtifactSha256: options.replaceOldArtifactSha256,
+    });
+    const backup = {
+      directory: temporaryDirectory,
+      body: release.body,
+      commit: tagCommit,
+      assets: release.assets.map((asset) => {
+        const filePath = join(temporaryDirectory, asset.name);
+        return { name: asset.name, filePath, sha256: hashFile(filePath) };
+      }),
+    };
+    deleteRelease(options.repository, release.id);
+    deleteTag(options.repository, options.tag);
+    removed = true;
+    try {
+      createDraft(options, false);
+      const createdRelease = await pollRemoteState(
+        () => findRelease(options.repository, options.tag),
+        Boolean,
+      );
+      if (!createdRelease.matched) {
+        throw new Error(`Replacement draft ${options.tag} was not visible after creation`);
+      }
+      return { release: createdRelease.state, backup };
+    } catch (error) {
+      restoreRelease(options, backup);
+      throw error;
+    }
+  } catch (error) {
+    if (!removed) {
+      rmSync(temporaryDirectory, { recursive: true, force: true });
+    }
+    throw error;
+  }
 }
 
 function validateOptions(options) {
@@ -283,117 +421,140 @@ export async function publishRelease(options) {
 
   let release = findRelease(options.repository, options.tag);
   let tagCommit = resolveTagCommit(options.repository, options.tag);
-  let action = decideReleaseAction({
-    release,
-    tagCommit,
-    expectedCommit: options.commit,
-    expectedBody,
-  });
-  if (action.kind === "skip") {
-    process.stdout.write(`Release ${options.tag} already exists; publication skipped\n`);
-    return { status: "skipped" };
-  }
-
-  if (action.kind === "create") {
-    let creationError;
-    try {
-      createDraft({ ...options, notesFile }, action.useExistingTag);
-    } catch (error) {
-      creationError = error;
+  let replacementBackup;
+  try {
+    if (options.replacePublished && release && !release.draft && tagCommit !== options.commit) {
+      const replacement = await replacePublishedRelease(
+        { ...options, notesFile },
+        release,
+        tagCommit,
+        artifactName,
+      );
+      release = replacement.release;
+      replacementBackup = replacement.backup;
+      tagCommit = resolveTagCommit(options.repository, options.tag);
     }
-    const createdRelease = await pollRemoteState(
-      () => findRelease(options.repository, options.tag),
-      Boolean,
-    );
-    release = createdRelease.state;
-    if (!createdRelease.matched) {
-      if (creationError) {
-        throw creationError;
-      }
-      throw new Error(`Draft ${options.tag} was not visible after creation`);
-    }
-    tagCommit = resolveTagCommit(options.repository, options.tag);
-    action = decideReleaseAction({
+    let action = decideReleaseAction({
       release,
       tagCommit,
       expectedCommit: options.commit,
       expectedBody,
     });
     if (action.kind === "skip") {
-      process.stdout.write(
-        `Release ${options.tag} was published concurrently; publication skipped\n`,
-      );
+      process.stdout.write(`Release ${options.tag} already exists; publication skipped\n`);
       return { status: "skipped" };
     }
-    if (action.kind !== "resume") {
-      throw new Error("New draft could not be resumed after creation");
-    }
-  }
 
-  const temporaryDirectory = mkdtempSync(join(tmpdir(), "sublingo-assets-"));
-  try {
-    const remoteAssets = loadRemoteAssets(options.repository, release, temporaryDirectory);
-    const operations = planAssetOperations(expectedAssets, remoteAssets);
-    for (const operation of operations) {
-      if (operation.kind === "upload") {
-        const asset = expectedAssets.find((item) => item.name === operation.name);
-        runGh(["release", "upload", options.tag, asset.filePath, "--repo", options.repository]);
+    if (action.kind === "create") {
+      let creationError;
+      try {
+        createDraft({ ...options, notesFile }, action.useExistingTag);
+      } catch (error) {
+        creationError = error;
+      }
+      const createdRelease = await pollRemoteState(
+        () => findRelease(options.repository, options.tag),
+        Boolean,
+      );
+      release = createdRelease.state;
+      if (!createdRelease.matched) {
+        if (creationError) {
+          throw creationError;
+        }
+        throw new Error(`Draft ${options.tag} was not visible after creation`);
+      }
+      tagCommit = resolveTagCommit(options.repository, options.tag);
+      action = decideReleaseAction({
+        release,
+        tagCommit,
+        expectedCommit: options.commit,
+        expectedBody,
+      });
+      if (action.kind === "skip") {
+        process.stdout.write(
+          `Release ${options.tag} was published concurrently; publication skipped\n`,
+        );
+        return { status: "skipped" };
+      }
+      if (action.kind !== "resume") {
+        throw new Error("New draft could not be resumed after creation");
       }
     }
 
-    const releaseWithAssets = await pollRemoteState(
-      () => findRelease(options.repository, options.tag),
-      (candidate) => hasExpectedAssetNames(candidate, expectedAssets),
-    );
-    release = releaseWithAssets.state;
-    if (!releaseWithAssets.matched) {
-      throw new Error(`Draft ${options.tag} assets were not visible after upload`);
-    }
-    tagCommit = resolveTagCommit(options.repository, options.tag);
-    decideReleaseAction({
-      release,
-      tagCommit,
-      expectedCommit: options.commit,
-      expectedBody,
-    });
-    const verifiedAssets = loadRemoteAssets(options.repository, release, temporaryDirectory);
-    const finalOperations = planAssetOperations(expectedAssets, verifiedAssets);
-    if (finalOperations.some((operation) => operation.kind !== "reuse")) {
-      throw new Error("Draft release assets are incomplete after upload");
-    }
+    const temporaryDirectory = mkdtempSync(join(tmpdir(), "sublingo-assets-"));
+    try {
+      const remoteAssets = loadRemoteAssets(options.repository, release, temporaryDirectory);
+      const operations = planAssetOperations(expectedAssets, remoteAssets);
+      for (const operation of operations) {
+        if (operation.kind === "upload") {
+          const asset = expectedAssets.find((item) => item.name === operation.name);
+          runGh(["release", "upload", options.tag, asset.filePath, "--repo", options.repository]);
+        }
+      }
 
-    runGh([
-      "release",
-      "edit",
-      options.tag,
-      "--repo",
-      options.repository,
-      "--draft=false",
-      "--prerelease=false",
-      "--latest",
-    ]);
-    const publishedState = await pollRemoteState(
-      () => ({
-        release: findRelease(options.repository, options.tag),
-        tagCommit: resolveTagCommit(options.repository, options.tag),
-        latestReleaseId: findLatestReleaseId(options.repository, true),
-      }),
-      (candidate) => isPublishedStateReady(candidate, options.commit),
-    );
-    release = publishedState.state?.release;
-    tagCommit = publishedState.state?.tagCommit;
-    const latestReleaseId = publishedState.state?.latestReleaseId;
-    if (!release) {
-      throw new Error(`Release ${options.tag} was not visible after publication`);
+      const releaseWithAssets = await pollRemoteState(
+        () => findRelease(options.repository, options.tag),
+        (candidate) => hasExpectedAssetNames(candidate, expectedAssets),
+      );
+      release = releaseWithAssets.state;
+      if (!releaseWithAssets.matched) {
+        throw new Error(`Draft ${options.tag} assets were not visible after upload`);
+      }
+      tagCommit = resolveTagCommit(options.repository, options.tag);
+      decideReleaseAction({
+        release,
+        tagCommit,
+        expectedCommit: options.commit,
+        expectedBody,
+      });
+      const verifiedAssets = loadRemoteAssets(options.repository, release, temporaryDirectory);
+      const finalOperations = planAssetOperations(expectedAssets, verifiedAssets);
+      if (finalOperations.some((operation) => operation.kind !== "reuse")) {
+        throw new Error("Draft release assets are incomplete after upload");
+      }
+
+      runGh([
+        "release",
+        "edit",
+        options.tag,
+        "--repo",
+        options.repository,
+        "--draft=false",
+        "--prerelease=false",
+        "--latest",
+      ]);
+      const publishedState = await pollRemoteState(
+        () => ({
+          release: findRelease(options.repository, options.tag),
+          tagCommit: resolveTagCommit(options.repository, options.tag),
+          latestReleaseId: findLatestReleaseId(options.repository, true),
+        }),
+        (candidate) => isPublishedStateReady(candidate, options.commit),
+      );
+      release = publishedState.state?.release;
+      tagCommit = publishedState.state?.tagCommit;
+      const latestReleaseId = publishedState.state?.latestReleaseId;
+      if (!release) {
+        throw new Error(`Release ${options.tag} was not visible after publication`);
+      }
+      assertPublishedRelease(release, tagCommit, options.commit, latestReleaseId);
+      if (!publishedState.matched) {
+        throw new Error(`Release ${options.tag} did not become Latest after publication`);
+      }
+      process.stdout.write(`Published ${options.tag} at ${options.commit}\n`);
+      return { status: "published" };
+    } finally {
+      rmSync(temporaryDirectory, { recursive: true, force: true });
     }
-    assertPublishedRelease(release, tagCommit, options.commit, latestReleaseId);
-    if (!publishedState.matched) {
-      throw new Error(`Release ${options.tag} did not become Latest after publication`);
+  } catch (error) {
+    if (replacementBackup) {
+      restoreRelease(options, replacementBackup);
     }
-    process.stdout.write(`Published ${options.tag} at ${options.commit}\n`);
-    return { status: "published" };
+    throw error;
   } finally {
-    rmSync(temporaryDirectory, { recursive: true, force: true });
+    if (replacementBackup) {
+      rmSync(replacementBackup.directory, { recursive: true, force: true });
+    }
   }
 }
 
@@ -406,6 +567,8 @@ function parseArguments(argumentsList) {
     ["--commit", "commit"],
     ["--assets-dir", "assetsDirectory"],
     ["--notes-file", "notesFile"],
+    ["--replace-old-commit", "replaceOldCommit"],
+    ["--replace-old-artifact-sha256", "replaceOldArtifactSha256"],
   ]);
   for (let index = 0; index < argumentsList.length; index += 2) {
     const name = names.get(argumentsList[index]);
@@ -416,10 +579,15 @@ function parseArguments(argumentsList) {
     options[name] = value;
   }
   for (const name of names.values()) {
-    if (!options[name]) {
+    if (!options[name] && !name.startsWith("replaceOld")) {
       throw new Error(`Missing required option: ${name}`);
     }
   }
+  const replaceFields = [options.replaceOldCommit, options.replaceOldArtifactSha256];
+  if (replaceFields.some(Boolean) && !replaceFields.every(Boolean)) {
+    throw new Error("Published replacement requires both old identity values");
+  }
+  options.replacePublished = replaceFields.every(Boolean);
   return options;
 }
 

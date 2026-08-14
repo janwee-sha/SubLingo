@@ -5,9 +5,16 @@ PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 PACKAGE_DIR=${1:-$PROJECT_DIR}
 HELPER="$PACKAGE_DIR/dist/native/sublingo-transport"
 
-for required in "$PACKAGE_DIR/Info.json" "$PACKAGE_DIR/dist/main.js" "$PACKAGE_DIR/dist/global.js" "$PACKAGE_DIR/dist/ui/sidebar.html" "$HELPER"; do
+for required in "$PACKAGE_DIR/Info.json" "$PACKAGE_DIR/README.md" "$PACKAGE_DIR/LICENSE" "$PACKAGE_DIR/THIRD_PARTY_NOTICES.txt" "$PACKAGE_DIR/dist/main.js" "$PACKAGE_DIR/dist/global.js" "$PACKAGE_DIR/dist/ui/sidebar.html" "$HELPER"; do
   if [ ! -f "$required" ]; then
     echo "Missing packaged file: $required" >&2
+    exit 1
+  fi
+done
+
+for compliance_file in LICENSE THIRD_PARTY_NOTICES.txt; do
+  if ! cmp -s "$PROJECT_DIR/$compliance_file" "$PACKAGE_DIR/$compliance_file"; then
+    echo "Packaged compliance file differs from repository source: $compliance_file" >&2
     exit 1
   fi
 done

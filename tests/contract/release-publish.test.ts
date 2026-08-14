@@ -9,6 +9,7 @@ import {
   isPublishedStateReady,
   planAssetOperations,
   pollRemoteState,
+  validateReplacementState,
 } from "../../scripts/publish-release.mjs";
 
 const commit = "a".repeat(40);
@@ -219,5 +220,53 @@ describe("release publication state", () => {
     expect(() =>
       assertPublishedRelease({ id: 1, draft: false, prerelease: false }, commit, commit, 2),
     ).toThrow(/not Latest/);
+  });
+
+  it("permits replacement only for the exact published v0.1.0 identity", () => {
+    const oldCommit = "b".repeat(40);
+    const oldSha256 = "c".repeat(64);
+    expect(
+      validateReplacementState({
+        tag: "v0.1.0",
+        release: { id: 1, draft: false, prerelease: false },
+        tagCommit: oldCommit,
+        expectedOldCommit: oldCommit,
+        artifactName: "SubLingo-0.1.0.iinaplgz",
+        expectedOldArtifactSha256: oldSha256,
+        remoteAssets: [
+          { name: "SubLingo-0.1.0.iinaplgz", sha256: oldSha256 },
+          { name: "SubLingo-0.1.0.iinaplgz.sha256", sha256: "d".repeat(64) },
+        ],
+      }),
+    ).toEqual({ releaseId: 1 });
+  });
+
+  it.each([
+    { tag: "v0.1.1" },
+    { release: { id: 1, draft: true, prerelease: false } },
+    { tagCommit: "e".repeat(40) },
+    { expectedOldArtifactSha256: "f".repeat(64) },
+    {
+      remoteAssets: [
+        { name: "SubLingo-0.1.0.iinaplgz", sha256: "c".repeat(64) },
+        { name: "unexpected.txt", sha256: "d".repeat(64) },
+      ],
+    },
+  ])("rejects unsafe published replacement state", (override) => {
+    expect(() =>
+      validateReplacementState({
+        tag: "v0.1.0",
+        release: { id: 1, draft: false, prerelease: false },
+        tagCommit: "b".repeat(40),
+        expectedOldCommit: "b".repeat(40),
+        artifactName: "SubLingo-0.1.0.iinaplgz",
+        expectedOldArtifactSha256: "c".repeat(64),
+        remoteAssets: [
+          { name: "SubLingo-0.1.0.iinaplgz", sha256: "c".repeat(64) },
+          { name: "SubLingo-0.1.0.iinaplgz.sha256", sha256: "d".repeat(64) },
+        ],
+        ...override,
+      }),
+    ).toThrow(/replacement/i);
   });
 });

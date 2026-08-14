@@ -23,7 +23,7 @@ esac
 
 mkdir -p "$STAGE_DIR"
 find "$STAGE_DIR" -mindepth 1 -delete
-cp -p "$ROOT_DIR/Info.json" "$ROOT_DIR/README.md" "$STAGE_DIR/"
+cp -p "$ROOT_DIR/Info.json" "$ROOT_DIR/README.md" "$ROOT_DIR/LICENSE" "$ROOT_DIR/THIRD_PARTY_NOTICES.txt" "$STAGE_DIR/"
 cp -R "$ROOT_DIR/dist" "$STAGE_DIR/dist"
 
 "$ROOT_DIR/scripts/verify-package.sh" "$STAGE_DIR"
@@ -34,7 +34,7 @@ rm -f "$ARTIFACT"
   "$PLUGIN_CLI" pack SubLingo
 )
 
-for required in Info.json dist/main.js dist/global.js dist/ui/sidebar.html dist/native/sublingo-transport; do
+for required in Info.json README.md LICENSE THIRD_PARTY_NOTICES.txt dist/main.js dist/global.js dist/ui/sidebar.html dist/native/sublingo-transport; do
   if ! unzip -Z1 "$ARTIFACT" | grep -Fqx "$required"; then
     echo "Packed artifact is missing $required" >&2
     exit 1

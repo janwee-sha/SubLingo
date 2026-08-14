@@ -65,4 +65,11 @@ describe("automatic release workflow", () => {
     expect(workflow).toMatch(/group:.*github\.ref/);
     expect(workflow).toContain("cancel-in-progress: false");
   });
+
+  it("pins the one-time v0.1.0 replacement identity", () => {
+    expect(workflow).toContain("--replace-old-commit ef15570911d180c139e77f5d38dc0a5169ba4235");
+    expect(workflow).toContain(
+      "--replace-old-artifact-sha256 4b023319072a48a47fff13c77e9c838c087bc32f1aaea68bd48dd1daf2d15b13",
+    );
+  });
 });

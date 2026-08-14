@@ -150,3 +150,5 @@ jobs:
           --commit "$GITHUB_SHA"
           --assets-dir build/release
           --notes-file build/release/release-notes.md
+          --replace-old-commit ef15570911d180c139e77f5d38dc0a5169ba4235
+          --replace-old-artifact-sha256 4b023319072a48a47fff13c77e9c838c087bc32f1aaea68bd48dd1daf2d15b13

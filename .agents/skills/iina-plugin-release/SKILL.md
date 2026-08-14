@@ -53,7 +53,8 @@ npm run pack
 
 ## 4. 审计正式归档
 
-在 `npm run pack` 后直接检查生成的 `.iinaplgz`，不要只检查 staging 目录。归档根目录只允许 `Info.json`、`README.md` 和 `dist/` 运行材料；逐项检查 `dist/`，拒绝与运行无关的内容。
+在 `npm run pack` 后直接检查生成的 `.iinaplgz`，不要只检查 staging 目录。归档根目录只允许 `Info.json`、`README.md`、`LICENSE`、
+`THIRD_PARTY_NOTICES.txt` 和 `dist/` 运行及合规分发材料；两份许可文件必须与仓库根文件一致，逐项检查 `dist/`，拒绝与运行无关的内容。
 
 确认归档不包含以下类别：
 

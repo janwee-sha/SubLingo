@@ -83,7 +83,7 @@ function isForbiddenEntry(name) {
   );
 }
 
-export function validateArchiveEntries(entries) {
+export function validateArchiveEntries(entries, expectedCompliance = {}) {
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error("The release archive is empty");
   }
@@ -104,10 +104,18 @@ export function validateArchiveEntries(entries) {
     if ((entry.unixMode & 0o170000) === 0o120000) {
       throw new Error(`Archive symbolic link is forbidden: ${entry.name}`);
     }
+    if (
+      Object.hasOwn(expectedCompliance, entry.name) &&
+      entry.content !== expectedCompliance[entry.name]
+    ) {
+      throw new Error(`Packaged compliance file differs from repository source: ${entry.name}`);
+    }
 
     const allowedRoot =
       entry.name === "Info.json" ||
       entry.name === "README.md" ||
+      entry.name === "LICENSE" ||
+      entry.name === "THIRD_PARTY_NOTICES.txt" ||
       entry.name === "dist/" ||
       (entry.name.startsWith("dist/") && entry.name.length > "dist/".length);
     if (!allowedRoot) {
@@ -121,6 +129,8 @@ export function validateArchiveEntries(entries) {
   const required = [
     "Info.json",
     "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.txt",
     "dist/main.js",
     "dist/global.js",
     "dist/ui/sidebar.html",
@@ -378,6 +388,15 @@ export function auditRelease(options) {
   try {
     runCommand(process.env.UNZIP_BIN || "unzip", ["-q", artifactPath, "-d", temporaryDirectory]);
     const packageInfo = JSON.parse(readFileSync(join(temporaryDirectory, "Info.json"), "utf8"));
+    for (const complianceFile of ["LICENSE", "THIRD_PARTY_NOTICES.txt"]) {
+      const packagedContent = readFileSync(join(temporaryDirectory, complianceFile));
+      const repositoryContent = readFileSync(resolve(complianceFile));
+      if (!packagedContent.equals(repositoryContent)) {
+        throw new Error(
+          `Packaged compliance file differs from repository source: ${complianceFile}`,
+        );
+      }
+    }
     validateArtifactIdentity({
       artifactName: basename(artifactPath),
       packageVersion: packageInfo.version,

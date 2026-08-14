@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const stableSemverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const projectLicense = "GPL-3.0-only";
+const licenseBadge =
+  "[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue?style=for-the-badge)](https://github.com/janwee-sha/SubLingo/blob/main/LICENSE)";
 
 export function validateReleaseMetadata(input) {
   const version = input.infoVersion;
@@ -21,6 +24,25 @@ export function validateReleaseMetadata(input) {
     }
   }
 
+  const licenses = [
+    ["package.json", input.packageLicense],
+    ['package-lock.json packages[""].license', input.lockRootLicense],
+  ];
+  for (const [source, license] of licenses) {
+    if (license !== projectLicense) {
+      throw new Error(`Project license mismatch: ${source}=${license}, expected=${projectLicense}`);
+    }
+  }
+  if (
+    !input.licenseText.includes("GNU GENERAL PUBLIC LICENSE") ||
+    !input.licenseText.includes("Version 3, 29 June 2007")
+  ) {
+    throw new Error("LICENSE must contain the standard GPL v3 text");
+  }
+  if (!input.readme.includes(licenseBadge)) {
+    throw new Error("README license badge is missing or incorrect");
+  }
+
   const packVersions = Array.from(
     input.packScript.matchAll(/SubLingo-([0-9A-Za-z.+-]+)\.iinaplgz/g),
     (match) => match[1],
@@ -37,6 +59,7 @@ export function validateReleaseMetadata(input) {
     tag: `v${version}`,
     artifactName,
     artifactPath: `build/package/${artifactName}`,
+    license: projectLicense,
   };
 }
 
@@ -45,12 +68,18 @@ export function readReleaseMetadata(rootDirectory) {
   const packageManifest = JSON.parse(readFileSync(resolve(rootDirectory, "package.json"), "utf8"));
   const packageLock = JSON.parse(readFileSync(resolve(rootDirectory, "package-lock.json"), "utf8"));
   const packScript = readFileSync(resolve(rootDirectory, "scripts/pack.sh"), "utf8");
+  const licenseText = readFileSync(resolve(rootDirectory, "LICENSE"), "utf8");
+  const readme = readFileSync(resolve(rootDirectory, "README.md"), "utf8");
 
   return validateReleaseMetadata({
     infoVersion: info.version,
     packageVersion: packageManifest.version,
     lockVersion: packageLock.version,
     lockRootVersion: packageLock.packages?.[""]?.version,
+    packageLicense: packageManifest.license,
+    lockRootLicense: packageLock.packages?.[""]?.license,
+    licenseText,
+    readme,
     packScript,
   });
 }

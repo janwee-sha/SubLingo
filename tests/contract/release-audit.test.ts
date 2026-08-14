@@ -15,6 +15,8 @@ const executableMode = 0o100755;
 const validEntries = [
   { name: "Info.json", unixMode: regularMode, encrypted: false },
   { name: "README.md", unixMode: regularMode, encrypted: false },
+  { name: "LICENSE", unixMode: regularMode, encrypted: false },
+  { name: "THIRD_PARTY_NOTICES.txt", unixMode: regularMode, encrypted: false },
   { name: "dist/", unixMode: 0o040755, encrypted: false },
   { name: "dist/main.js", unixMode: regularMode, encrypted: false },
   { name: "dist/global.js", unixMode: regularMode, encrypted: false },
@@ -46,6 +48,21 @@ describe("release archive audit", () => {
   it("accepts the minimal runtime archive", () => {
     expect(validateArchiveEntries(validEntries).map((entry) => entry.name)).toEqual(
       validEntries.map((entry) => entry.name),
+    );
+  });
+
+  it.each(["LICENSE", "THIRD_PARTY_NOTICES.txt"])("requires compliance file %s", (name) => {
+    expect(() =>
+      validateArchiveEntries(validEntries.filter((entry) => entry.name !== name)),
+    ).toThrow(/required archive entry/i);
+  });
+
+  it("rejects a compliance file that differs from its repository source", () => {
+    const entries = validEntries.map((entry) =>
+      entry.name === "LICENSE" ? { ...entry, content: "modified" } : entry,
+    );
+    expect(() => validateArchiveEntries(entries, { LICENSE: "expected" })).toThrow(
+      /compliance file/i,
     );
   });
 
