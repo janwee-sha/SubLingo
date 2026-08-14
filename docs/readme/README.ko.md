@@ -1,3 +1,5 @@
+<div align="center">
+
 # SubLingo
 
 **IINA를 위한 실시간 이중 언어 자막 번역**
@@ -7,6 +9,8 @@
 [![macOS](https://img.shields.io/badge/macOS-12%2B-000000)](https://www.apple.com/macos/)
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · **한국어** · [日本語](README.ja.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [Français](README.fr.md)
+
+</div>
 
 ---
 
@@ -35,10 +39,25 @@ SubLingo는 번역 모델을 다운로드하거나 실행하지 않습니다.
 
 ## 🚀 설치
 
+IINA를 열고 **환경설정 → 플러그인**으로 이동합니다. 플러그인 관리 화면에서는 다음 두 가지 설치 방법을 사용할 수 있습니다.
+
+![GitHub에서 설치 및 패키지 설치 버튼이 표시된 IINA 플러그인 관리 화면](assets/plugin-manager.png)
+
+### GitHub에서 설치(권장)
+
+1. **깃허브에서 설치…**를 클릭합니다.
+2. `user/repo` 입력란에 `janwee-sha/SubLingo`를 입력하고 설치를 확인합니다.
+3. 설치된 플러그인 목록에 SubLingo가 나타날 때까지 기다립니다.
+
+GitHub에서 설치한 플러그인은 IINA에서 자동으로 업데이트할 수 있습니다.
+
+### 다운로드한 패키지 설치
+
 1. [Releases](https://github.com/janwee-sha/SubLingo/releases) 페이지에서 최신 `SubLingo-X.Y.Z.iinaplgz` 패키지를 다운로드합니다.
-2. 다운로드한 패키지를 IINA로 열고 요청되는 플러그인 권한을 승인합니다.
-3. IINA를 다시 시작하고 **Settings → Plugins**에서 SubLingo가 활성화되어 있는지 확인합니다.
-4. 영상을 재생하고 IINA 사이드바를 연 다음 **SubLingo** 탭을 선택합니다.
+2. **환경설정 → 플러그인**으로 돌아가 **패키지 설치…**를 클릭합니다.
+3. 다운로드한 `.iinaplgz` 파일을 선택하고 설치를 확인합니다.
+
+어느 방법을 사용하든 권한 요청이 표시되면 승인하고 SubLingo 옆의 체크상자가 활성화되어 있는지 확인한 다음 IINA를 다시 시작합니다. 이후 영상을 재생하고 IINA 사이드바를 연 뒤 **SubLingo** 탭을 선택합니다.
 
 ## 🌍 빠른 시작
 

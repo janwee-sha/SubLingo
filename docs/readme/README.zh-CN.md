@@ -1,3 +1,5 @@
+<div align="center">
+
 # SubLingo
 
 **为 IINA 提供实时双语字幕翻译**
@@ -7,6 +9,8 @@
 [![macOS](https://img.shields.io/badge/macOS-12%2B-000000)](https://www.apple.com/macos/)
 
 [English](../../README.md) · **简体中文** · [한국어](README.ko.md) · [日本語](README.ja.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [Français](README.fr.md)
+
+</div>
 
 ---
 
@@ -35,10 +39,25 @@ SubLingo 不会下载或启动翻译模型。
 
 ## 🚀 安装
 
+打开 IINA，进入“**设置 → 插件**”。插件管理界面支持以下两种安装方式。
+
+![IINA 插件管理界面中的“从 GitHub 安装”和“安装插件”按钮](assets/plugin-manager.png)
+
+### 从 GitHub 安装（推荐）
+
+1. 点击“**从 GitHub 安装…**”。
+2. 在 `user/repo` 输入框中填写 `janwee-sha/SubLingo`，然后确认安装。
+3. 等待 SubLingo 出现在“已安装插件”列表中。
+
+通过 GitHub 安装的插件可由 IINA 自动更新。
+
+### 安装下载的插件包
+
 1. 打开 [Releases](https://github.com/janwee-sha/SubLingo/releases) 页面，下载最新的 `SubLingo-X.Y.Z.iinaplgz`。
-2. 使用 IINA 打开下载的安装包，并批准所请求的插件权限。
-3. 重启 IINA，打开“**设置 → 插件**”，确认 SubLingo 已启用。
-4. 播放视频、打开 IINA 侧边栏，然后选择 **SubLingo** 标签页。
+2. 返回“**设置 → 插件**”，点击“**安装插件…**”。
+3. 选择刚下载的 `.iinaplgz` 文件并确认安装。
+
+无论使用哪种方式，如 IINA 提示授权，请批准所请求的插件权限；确认 SubLingo 左侧的复选框已勾选，然后重启 IINA。之后播放视频、打开 IINA 侧边栏并选择 **SubLingo** 标签页。
 
 ## 🌍 快速开始
 

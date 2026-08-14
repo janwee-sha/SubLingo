@@ -1,3 +1,5 @@
+<div align="center">
+
 # SubLingo
 
 **Real-time bilingual subtitle translation for IINA**
@@ -7,6 +9,8 @@
 [![macOS](https://img.shields.io/badge/macOS-12%2B-000000)](https://www.apple.com/macos/)
 
 **English** · [简体中文](docs/readme/README.zh-CN.md) · [한국어](docs/readme/README.ko.md) · [日本語](docs/readme/README.ja.md) · [Русский](docs/readme/README.ru.md) · [العربية](docs/readme/README.ar.md) · [Français](docs/readme/README.fr.md)
+
+</div>
 
 ---
 
@@ -35,10 +39,25 @@ SubLingo does not download or start translation models.
 
 ## 🚀 Installation
 
+Open IINA and go to **Settings → Plugins**. The plugin manager supports both installation methods below.
+
+![IINA plugin manager showing Install from GitHub and Install Package](docs/readme/assets/plugin-manager.png)
+
+### Install from GitHub (recommended)
+
+1. Click **Install from GitHub…**.
+2. Enter `janwee-sha/SubLingo` in the `user/repo` field, then confirm the installation.
+3. Wait for SubLingo to appear in the installed plugins list.
+
+Plugins installed from GitHub can be updated automatically by IINA.
+
+### Install a downloaded package
+
 1. Open the [Releases](https://github.com/janwee-sha/SubLingo/releases) page and download the latest `SubLingo-X.Y.Z.iinaplgz` package.
-2. Open the downloaded package with IINA and approve the requested plugin permissions.
-3. Restart IINA, open **Settings → Plugins**, and make sure SubLingo is enabled.
-4. Play a video, open IINA's sidebar, and select the **SubLingo** tab.
+2. Return to **Settings → Plugins** and click **Install Package…**.
+3. Select the downloaded `.iinaplgz` file and confirm the installation.
+
+After either method, approve the requested plugin permissions if prompted, make sure the checkbox next to SubLingo is enabled, and restart IINA. Then play a video, open IINA's sidebar, and select the **SubLingo** tab.
 
 ## 🌍 Quick Start
 

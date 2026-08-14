@@ -1,3 +1,5 @@
+<div align="center">
+
 # SubLingo
 
 **ترجمة فورية ثنائية اللغة للترجمات النصية في IINA**
@@ -7,6 +9,8 @@
 [![macOS](https://img.shields.io/badge/macOS-12%2B-000000)](https://www.apple.com/macos/)
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [한국어](README.ko.md) · [日本語](README.ja.md) · [Русский](README.ru.md) · **العربية** · [Français](README.fr.md)
+
+</div>
 
 ---
 
@@ -35,10 +39,25 @@
 
 ## 🚀 التثبيت
 
+افتح IINA وانتقل إلى **Settings → Plugins**. تدعم واجهة إدارة الإضافات طريقتي التثبيت التاليتين.
+
+![واجهة إدارة إضافات IINA وبها زرا التثبيت من GitHub وتثبيت الحزمة](assets/plugin-manager.png)
+
+### التثبيت من GitHub (موصى به)
+
+1. انقر **Install from GitHub…**.
+2. أدخل `janwee-sha/SubLingo` في حقل `user/repo`، ثم أكد التثبيت.
+3. انتظر حتى يظهر SubLingo في قائمة الإضافات المثبتة.
+
+يستطيع IINA تحديث الإضافات المثبتة من GitHub تلقائيًا.
+
+### تثبيت حزمة تم تنزيلها
+
 1. افتح صفحة [Releases](https://github.com/janwee-sha/SubLingo/releases) ونزّل أحدث حزمة `SubLingo-X.Y.Z.iinaplgz`.
-2. افتح الحزمة التي نزّلتها باستخدام IINA ووافق على أذونات الإضافة المطلوبة.
-3. أعد تشغيل IINA، وافتح **Settings → Plugins**، وتأكد من تفعيل SubLingo.
-4. شغّل فيديو، وافتح الشريط الجانبي في IINA، ثم اختر تبويب **SubLingo**.
+2. ارجع إلى **Settings → Plugins** وانقر **Install Package…**.
+3. اختر ملف `.iinaplgz` الذي نزّلته وأكد التثبيت.
+
+في كلتا الطريقتين، وافق على أذونات الإضافة المطلوبة إذا ظهرت، وتأكد من تفعيل مربع الاختيار بجوار SubLingo، ثم أعد تشغيل IINA. بعد ذلك شغّل فيديو، وافتح الشريط الجانبي في IINA، واختر تبويب **SubLingo**.
 
 ## 🌍 البدء السريع
 

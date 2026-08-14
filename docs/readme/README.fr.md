@@ -1,3 +1,5 @@
+<div align="center">
+
 # SubLingo
 
 **Traduction bilingue des sous-titres en temps réel pour IINA**
@@ -7,6 +9,8 @@
 [![macOS](https://img.shields.io/badge/macOS-12%2B-000000)](https://www.apple.com/macos/)
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [한국어](README.ko.md) · [日本語](README.ja.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · **Français**
+
+</div>
 
 ---
 
@@ -35,10 +39,25 @@ SubLingo ne télécharge ni ne démarre les modèles de traduction.
 
 ## 🚀 Installation
 
+Ouvrez IINA et accédez à **Préférences → Modules externes**. Le gestionnaire de modules permet les deux méthodes d'installation suivantes.
+
+![Gestionnaire de modules IINA avec les boutons Installer depuis GitHub et Installer le paquet](assets/plugin-manager.png)
+
+### Installer depuis GitHub (recommandé)
+
+1. Cliquez sur **Installer depuis GitHub…**.
+2. Saisissez `janwee-sha/SubLingo` dans le champ `user/repo`, puis confirmez l'installation.
+3. Attendez que SubLingo apparaisse dans la liste des modules installés.
+
+Les modules installés depuis GitHub peuvent être mis à jour automatiquement par IINA.
+
+### Installer un paquet téléchargé
+
 1. Ouvrez la page [Releases](https://github.com/janwee-sha/SubLingo/releases) et téléchargez le dernier paquet `SubLingo-X.Y.Z.iinaplgz`.
-2. Ouvrez le paquet téléchargé avec IINA et approuvez les autorisations demandées par le plugin.
-3. Redémarrez IINA, ouvrez **Settings → Plugins** et vérifiez que SubLingo est activé.
-4. Lancez une vidéo, ouvrez la barre latérale d'IINA et sélectionnez l'onglet **SubLingo**.
+2. Revenez dans **Préférences → Modules externes** et cliquez sur **Installer le paquet…**.
+3. Sélectionnez le fichier `.iinaplgz` téléchargé et confirmez l'installation.
+
+Avec l'une ou l'autre méthode, approuvez les autorisations demandées si IINA les affiche, vérifiez que la case à côté de SubLingo est cochée, puis redémarrez IINA. Lancez ensuite une vidéo, ouvrez la barre latérale d'IINA et sélectionnez l'onglet **SubLingo**.
 
 ## 🌍 Démarrage rapide
 
