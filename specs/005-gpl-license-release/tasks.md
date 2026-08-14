@@ -53,9 +53,9 @@
 
 - [X] T014 更新 `docs/plans/production_plan.md`，记录 GPL-3.0-only 已选定并移除许可证缺口
 - [X] T015 运行 `specs/005-gpl-license-release/quickstart.md` 中的八项门禁、归档审计和 helper 验收
-- [ ] T016 提交并推送许可发布提交，等待并核验远程 v0.1.0 Release、tag、资产与 Latest 状态
-- [ ] T017 删除 `scripts/publish-release.mjs`、`.github/workflows/release.yml` 和相关测试中的一次性替换能力，恢复稳定版本只读跳过
-- [ ] T018 提交并推送清理提交，确认后续工作流不会再次替换 v0.1.0
+- [X] T016 提交并推送许可发布提交，等待并核验远程 v0.1.0 Release、tag、资产与 Latest 状态
+- [X] T017 删除 `scripts/publish-release.mjs`、`.github/workflows/release.yml` 和相关测试中的一次性替换能力，恢复稳定版本只读跳过
+- [X] T018 提交并推送清理提交，确认后续工作流不会再次替换 v0.1.0
 
 ## 依赖与顺序
 
