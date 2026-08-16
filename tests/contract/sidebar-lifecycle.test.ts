@@ -6,6 +6,7 @@ import { parseRetrySubtitlePreparation } from "../../src/domain/messages.js";
 describe("IINA sidebar lifecycle contract", () => {
   const mainSource = readFileSync(new URL("../../src/main.ts", import.meta.url), "utf8");
   const sidebarSource = readFileSync(new URL("../../ui/sidebar.ts", import.meta.url), "utf8");
+  const sidebarHtml = readFileSync(new URL("../../ui/sidebar.html", import.meta.url), "utf8");
 
   it("lets the live webview request state instead of posting from the player timer", () => {
     expect(mainSource).toContain('runtime.sidebar.onMessage("ui:poll"');
@@ -100,6 +101,11 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(sidebarSource).toContain('postMessage("subtitle:retry-preparation"');
     expect(sidebarSource).toContain("canRetry");
     expect(mainSource).toContain('runtime.sidebar.onMessage("subtitle:retry-preparation"');
+  });
+
+  it("announces subtitle preparation state once in the Session card", () => {
+    expect(sidebarHtml).not.toContain('id="source-preparation"');
+    expect(sidebarSource).not.toContain("sourcePreparation.textContent");
   });
 
   it("accepts only a strict revisioned empty Retry envelope", () => {

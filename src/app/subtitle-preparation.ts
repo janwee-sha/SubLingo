@@ -123,7 +123,7 @@ export class SubtitlePreparationCoordinator {
         mediaPath: media.localPath,
         stream: {
           ffIndex: track.ffIndex,
-          sourceId: track.sourceId ?? null,
+          sourceId: track.codec === "mov_text" ? (track.sourceId ?? null) : null,
           codec: track.codec,
         },
         deadlineMs: 15_000,

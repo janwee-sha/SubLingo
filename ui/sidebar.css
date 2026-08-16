@@ -257,10 +257,6 @@ button.secondary {
   margin-top: 0.15rem;
   color: var(--muted);
 }
-.source-preparation {
-  margin-top: 0.25rem;
-  color: var(--muted);
-}
 .source-preparation-controls button {
   margin-top: 0.5rem;
 }

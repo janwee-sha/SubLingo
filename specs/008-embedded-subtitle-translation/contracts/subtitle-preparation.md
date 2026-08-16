@@ -47,7 +47,7 @@ Main 以绝对路径启动随包 `sublingo-subtitle-extractor`，命令行只允
   "mediaPath": "/absolute/local/media",
   "stream": {
     "ffIndex": 3,
-    "sourceId": 7,
+    "sourceId": null,
     "codec": "ass"
   },
   "deadlineMs": 15000,
@@ -57,7 +57,7 @@ Main 以绝对路径启动随包 `sublingo-subtitle-extractor`，命令行只允
 ```
 
 - `mediaPath` 只允许绝对本地普通文件，不允许 URL、设备、stdin 或网络协议。
-- `sourceId` 可为 null；存在时必须与容器 stream 相等。
+- `sourceId` 可为 null；MOV/MP4 中存在且可比较时必须与容器 stream 相等。Matroska 内建 demuxer 的 TrackNumber 只用于 Main 会话身份，提取请求必须传 null，避免与不同语义的 libavformat `AVStream.id` 比较。
 - 实际 stream 必须为 subtitle，index 与 codec 必须匹配。
 - 同一 job ID 重复提交返回固定冲突错误，不复用结果。
 

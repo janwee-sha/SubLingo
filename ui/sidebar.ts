@@ -98,7 +98,6 @@ const statusDot = document.querySelector<HTMLSpanElement>("#status-dot")!;
 const sourcePreparationControls = document.querySelector<HTMLElement>(
   "#source-preparation-controls",
 )!;
-const sourcePreparation = document.querySelector<HTMLParagraphElement>("#source-preparation")!;
 const retrySubtitleButton = document.querySelector<HTMLButtonElement>("#retry-subtitle")!;
 const operationStatus = document.querySelector<HTMLParagraphElement>("#operation-status")!;
 const enabled = document.querySelector<HTMLInputElement>("#enabled")!;
@@ -563,14 +562,12 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
   )
     statusMessage.textContent = sourceIssueLabels[view.sourceIssue]!;
   if (view.sourcePreparation && view.sourcePreparation.state !== "ready") {
-    sourcePreparationControls.hidden = false;
-    sourcePreparation.textContent = sourcePreparationLabels[view.sourcePreparation.state];
+    sourcePreparationControls.hidden = !view.sourcePreparation.canRetry;
     retrySubtitleButton.hidden = !view.sourcePreparation.canRetry;
     statusMessage.textContent = sourcePreparationLabels[view.sourcePreparation.state];
     statusDot.dataset.state = view.sourcePreparation.state;
   } else {
     sourcePreparationControls.hidden = true;
-    sourcePreparation.textContent = "";
     retrySubtitleButton.hidden = true;
   }
   if (view.source) {

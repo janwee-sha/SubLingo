@@ -72,6 +72,63 @@ const track = (trackId = 7) => ({
 afterEach(() => vi.useRealTimers());
 
 describe("subtitle preparation lifecycle", () => {
+  it.each(["subrip", "ass", "ssa"] as const)(
+    "keeps the mpv Matroska source ID in session identity without comparing it to libavformat for %s",
+    async (codec) => {
+      const extractor = new DeferredExtractor();
+      let sequence = 0;
+      const coordinator = new SubtitlePreparationCoordinator({
+        playerId: "player-A",
+        extractor,
+        readResult: () => bytes,
+        createId: () => ids[sequence++]!,
+      });
+      const selectedTrack = {
+        trackId: 7,
+        origin: "embedded" as const,
+        codec,
+        ffIndex: 3,
+        sourceId: 12,
+        language: "en",
+      };
+
+      const pending = coordinator.prepare(media(), selectedTrack);
+      expect(extractor.requests[0]?.stream).toEqual({ ffIndex: 3, sourceId: null, codec });
+      extractor.resolve(ids[1]);
+      await expect(pending).resolves.toMatchObject({ trackId: 7, codec });
+    },
+  );
+
+  it("forwards a comparable MOV/MP4 track ID to libavformat", async () => {
+    const extractor = new DeferredExtractor();
+    let sequence = 0;
+    const coordinator = new SubtitlePreparationCoordinator({
+      playerId: "player-A",
+      extractor,
+      readResult: () => bytes,
+      createId: () => ids[sequence++]!,
+    });
+    const pending = coordinator.prepare(
+      { ...media(), localPath: "/private/media/movie.mp4" },
+      {
+        trackId: 7,
+        origin: "embedded",
+        codec: "mov_text",
+        ffIndex: 3,
+        sourceId: 12,
+        language: "en",
+      },
+    );
+
+    expect(extractor.requests[0]?.stream).toEqual({
+      ffIndex: 3,
+      sourceId: 12,
+      codec: "mov_text",
+    });
+    extractor.resolve(ids[1]);
+    await expect(pending).resolves.toMatchObject({ trackId: 7, codec: "mov_text" });
+  });
+
   it.each(["track", "media", "stop", "disable", "close"])(
     "invalidates before cancellation on %s and releases the late result",
     async () => {

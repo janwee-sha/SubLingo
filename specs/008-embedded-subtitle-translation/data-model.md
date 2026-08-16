@@ -6,7 +6,7 @@
 - `origin`：`external | embedded`。
 - `codec`：规范化 codec；内嵌首版只允许 `subrip | ass | ssa | mov_text`，mpv 的 `srt` 别名先规范化为 `subrip`。
 - `ffIndex`：mpv 报告的 FFmpeg stream index；内嵌准备必填。
-- `sourceId`：容器原生 stream ID，可用时参与一致性验证。
+- `sourceId`：IINA demuxer 的容器原生 stream ID，始终参与 Main 会话身份；仅在其语义与 libavformat `AVStream.id` 可比较时进入 extractor 一致性验证。Matroska 内建 demuxer 的 TrackNumber 不跨边界比较。
 - `language`、`title`：可选元数据，不参与轨道匹配。
 
 **规则**：身份来自当前 `sid` 对应的同一条 `track-list` 项。不得根据元数据替换为另一条轨。
@@ -48,7 +48,7 @@ any state --track/file/disable/close--> invalidated
 
 - `jobId`：与 attempt 一一对应的 UUID。
 - `mediaPath`：绝对本地文件路径，只存在于认证请求和 native 内存。
-- `streamIdentity`：`ffIndex`、可选 `sourceId`、codec。
+- `streamIdentity`：`ffIndex`、可选且可比较的 `sourceId`、codec；Matroska 使用 `ffIndex` 与 codec，MOV/MP4 在 IINA 提供时同时校验 `sourceId`。
 - `resultId`：成功时等于 job ID，用于定位固定临时目录。
 - `cueCount`、`byteCount`、`sha256`：Main 读取前的完整性元数据。
 - `state`：`created | running | ready | cancelled | failed | released`。

@@ -12,7 +12,7 @@
 
 **决策**：IINA adapter 使用 `core.status.isNetworkResource` 与按 file URL 语义规范化的 `core.status.url` 判定本地文件；以 `core.subtitle.id` 锁定当前主字幕，并从 `mpv.getNative("track-list")` 要求唯一匹配 `type=sub`、同 ID、`selected=true`、`main-selection=0` 的节点，取得其 `external`、`codec`、`src-id` 与 `ff-index`。title/lang 只用于展示或语言识别，不参与选轨。
 
-提取器必须验证：`ff-index` 指向 subtitle stream、codec 与请求一致，且双方都有 `src-id` 时必须相等。字段缺失、冲突或容器无法证明映射时失败关闭，不按相似元数据替代。
+提取器必须验证：`ff-index` 指向 subtitle stream 且 codec 与请求一致。IINA 的 Matroska 内建 demuxer 将 TrackNumber 作为 `src-id`，而 libavformat 8.1.2 不把它暴露为可比较的 `AVStream.id`；因此 Main 保留该值用于提交前后会话身份核对，但向 Matroska 提取请求传 `null`。MOV/MP4 的 `src-id` 可比较时必须相等。字段缺失、冲突或容器无法证明映射时失败关闭，不按相似元数据替代。
 
 **理由**：IINA 的 Track ID 只在同类型轨道内唯一，不等同容器 stream index。mpv 将 `ff-index` 定义为 FFmpeg stream index，同时明确其他 demuxer 下可能不可靠，因此必须结合 source ID、codec 和受支持 IINA 版本样本验证。
 
