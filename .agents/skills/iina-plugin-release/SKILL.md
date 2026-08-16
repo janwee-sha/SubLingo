@@ -1,6 +1,6 @@
 ---
 name: iina-plugin-release
-description: 统一 SubLingo IINA 插件的版本变更、质量检查、native helper 构建验收、`.iinaplgz` 正式打包、归档审计、产物摘要和发布验证文档更新。用于请求提升插件版本、准备发布候选包、生成正式安装包、重跑发布流水线或核验发布产物时。
+description: 统一 SubLingo IINA 插件的版本变更、质量检查、native helper 构建验收、`.iinaplgz` 正式打包、归档审计、产物摘要和面向最终用户的中文更新日志。用于请求提升插件版本、准备发布候选包、生成正式安装包、撰写 GitHub Release 更新说明、重跑发布流水线或核验发布产物时。
 ---
 
 # IINA 插件发布
@@ -79,13 +79,15 @@ npm run pack
 
 任一版本不一致时不要把归档报告为可发布。
 
-## 6. 保存发布证据
+## 6. 撰写更新日志并保存发布证据
 
-自动发布时，以 GitHub Release 中文正文、同名 `.sha256` 文件和对应 Actions 日志作为该版本的权威发布证据。正文必须记录触发 commit、包内版本、精确大小、SHA-256、归档清单、两份 native helper 验收结果、八项门禁及 IINA 图形界面未覆盖状态。
+自动发布前，检查上一个公开正式版本 tag 到本次触发 commit 之间的实际差异、已合并 PR、关联 issue 和当前产品文档，据此撰写 GitHub Release 中文正文。正文必须面向最终用户，只保留有内容的“新功能”、“问题修复”和“升级与兼容提醒”章节。每条用简明的用户场景、可感知变化和必要的生效条件描述，PR、issue 或 commit 链接只作为补充追溯信息。
 
-workflow 不得为保存证据修改 `docs/validation/package.md` 或其他仓库文件，不得 commit、push 或产生递归 `main` 触发。`docs/validation/package.md` 只描述稳定的验证契约和证据位置，不保存逐版本流水账。
+不要把 commit 标题直接当作更新日志，也不要把重构、测试、文档、构建、门禁或依赖变更写成面向用户的变化，除非它们确实改变了用户体验、兼容性或安全边界。不得猜测无法从代码、产品文档或追溯记录证实的功能与修复；没有用户可感知变化时，明确说明“本版本没有面向用户的行为变化”。
 
-本地人工重跑时，向用户输出同等字段并保留在未版本化的 `build/` 或用户指定位置；只有 GitHub Release 正文、校验资产和 Actions 日志构成公开版本证据。
+GitHub Release 正文是用户更新日志，不是发布验证证据页。不得向正文粘贴触发 commit、精确大小、SHA-256、归档清单、native helper 验收明细或八项门禁结果。将这些明细保留在同名 `.sha256` 文件、`release-audit.json`、Actions 摘要与日志中，并使它们可追溯到同一 tag 和触发 commit。
+
+workflow 不得为生成更新日志或保存证据修改 `docs/validation/package.md` 或其他仓库文件，不得 commit、push 或产生递归 `main` 触发。`docs/validation/package.md` 只描述稳定的验证契约和证据位置，不保存逐版本流水账。本地人工重跑时，在未版本化的 `build/` 或用户指定位置生成同等的更新日志草案与发布证据。
 
 ## 7. 区分开发链接与正式安装
 
