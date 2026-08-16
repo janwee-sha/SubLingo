@@ -2,7 +2,7 @@
 
 ## 复用统一 cue 与现有翻译链
 
-**决策**：外挂字幕继续使用现有 `@sub/<id>` 读取；IINA 1.4.0–1.4.4 的实现只为外挂轨返回该伪路径，内嵌轨不得尝试读取。内嵌字幕准备后统一为 UTF-8 SRT，再经现有 `parseSrt` 生成 `SubtitleCue[]`。`PlaybackController`、有限前瞻、批量、Provider、会话缓存和第二字幕发布不区分来源。
+**决策**：外挂字幕继续使用现有 `@sub/<id>` 读取；IINA 1.4.0–1.4.4 的实现只为外挂轨返回该伪路径，内嵌轨不得尝试读取。内嵌字幕准备后统一为 UTF-8 SRT，再经现有 `parseSrt` 生成 `SubtitleCue[]`。`PlaybackController`、有限前瞻、批量、Provider、会话缓存、当前 Profile revision 门控和第二字幕发布不区分来源；revision 变化使旧请求与结果失效。
 
 **理由**：现有下游只依赖 cue、内容 hash 和语言，已经覆盖会话失效、渐进发布与播放安全。ASS/SSA 样式、定位和字体不是规格要求，规范化不会改变对白顺序与有效时间。
 
@@ -80,7 +80,7 @@
 
 ## 发布、许可证与来源
 
-**决策**：包内新增一个 arm64/x86_64、macOS 12、可执行且已签名的 extractor；`dist/native/` 使用精确双文件白名单。FFmpeg 源码不进入 `.iinaplgz`，而由 Release 发布与 lock 一致的对应源码资产和校验文件；`THIRD_PARTY_NOTICES.txt` 记录版本、许可证、构建配置和源码位置。沿用现有 ad-hoc 签名策略，不在本功能引入 notarization 变更。
+**决策**：包内新增一个 arm64/x86_64、macOS 12、可执行且已签名的 extractor；`dist/native/` 使用精确双文件白名单。正式 `.iinaplgz` 必须包含仓库 `LICENSE` 与 `THIRD_PARTY_NOTICES.txt`。FFmpeg 源码不进入 `.iinaplgz`，而由 Release 发布与 lock 一致的对应源码资产和校验文件；第三方声明记录版本、许可证、构建配置和源码位置并与 lock、源码资产一致。沿用现有 ad-hoc 签名策略，不在本功能引入 notarization 变更。
 
 **理由**：这同时满足可重建、最小包和对应源码义务；独立源码资产不会把构建材料混进运行包。
 
@@ -96,7 +96,7 @@
 
 ## 验证策略
 
-**决策**：自动化覆盖 source 分类、真实 stream 映射、native 提取、超时/取消/迟到、双窗口、Provider 零调用、临时清理、包结构与外挂回归；正式包在 Apple Silicon 与 Intel、IINA 1.4.0 基线和当前固定发布版本上执行人工验收。换轨、换片、跳转、禁用、关窗和双窗口并发各重复 20 次。30 个样本按 codec、容器、多轨和失败类型组成矩阵，4 小时/20 GB/20,000 cue 使用本地合成或合法样本，不提交大媒体；可用性由开发者本人单人验收。
+**决策**：自动化覆盖 source 分类、真实 stream 映射、native 提取、超时/取消/迟到、双窗口、当前 Profile revision、Provider 零调用、临时清理、包结构与外挂回归；正式包在 Apple Silicon 与 Intel、IINA 1.4.0 基线和 IINA 1.4.4 固定发布版组成的四个架构/宿主组合上执行人工验收并记录实际 macOS 版本与包 SHA-256。换轨、换片、跳转、禁用、关窗和双窗口并发各重复 20 次；另以同一正式包验证权限允许/拒绝、卸载和重新安装。30 个样本按 codec、容器、多轨和失败类型组成矩阵，4 小时/20 GB/20,000 cue 使用本地合成或合法样本，不提交大媒体；可用性由开发者本人单人验收。
 
 **理由**：JS 测试不能证明 IINA 宿主、universal slice 或安装包行为；只做实机测试又不能稳定覆盖所有竞态和泄露门禁。
 

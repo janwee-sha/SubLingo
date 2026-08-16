@@ -114,3 +114,9 @@ health 无副作用；shutdown 取消活动 job、清理所属目录并停止 li
 - 结果文件大小、hash、cue 数、时间码和文本解析均通过。
 
 否则立即 release；不得调用 Provider、`controller.setSource` 或创建第二字幕轨。
+
+## Provider 分发边界
+
+- Prepared source 不保存 Profile 或凭据；每次 Provider 请求使用当前窗口明确选择的 Profile revision。
+- Global 在请求入队与结果回传时均校验当前 Profile revision；Profile 选择或 revision 变化后，旧请求及其迟到结果不得进入当前会话。
+- 媒体路径、完整字幕轨和准备状态不得为 revision 校验而发送给 Global。

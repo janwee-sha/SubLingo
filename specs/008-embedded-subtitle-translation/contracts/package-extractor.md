@@ -39,6 +39,6 @@ dist/native/sublingo-subtitle-extractor
 
 ## 构建与审计
 
-现有顶层门禁名称保持不变，但 `build:native`、`test:native`、`verify:package`、`pack` 与最终审计必须覆盖 extractor。`dist/native` 在构建前精确清理并在打包时使用白名单，避免陈旧文件进入归档。
+现有顶层门禁名称保持不变，但 `build:native`、`test:native`、`verify:package`、`pack` 与最终审计必须覆盖 extractor，并正向验证包内 `LICENSE`、`THIRD_PARTY_NOTICES.txt` 及其与 FFmpeg lock、对应源码资产的映射。`dist/native` 在构建前精确清理并在打包时使用白名单，避免陈旧文件进入归档。
 
 Release 证据分别记录两个 native 组件的架构、最低系统、执行位、签名、动态依赖和 hash；不得记录媒体路径、字幕正文、译文、凭据或临时目录内容。

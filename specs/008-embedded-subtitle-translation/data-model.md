@@ -69,7 +69,7 @@ any state --track/file/disable/close--> invalidated
 - `languageResult`：产品统一字幕语言决策产生的会话级结果，不绑定能力来源。
 - `cues`：现有 `SubtitleCue[]`，最多 20,000 条。
 
-Prepared source 只属于一个 MediaSessionIdentity。它进入 `PlaybackController` 后继续使用现有有限前瞻、缓存和第二字幕契约，不持有媒体路径或临时文件。
+Prepared source 只属于一个 MediaSessionIdentity，不持有 Profile、凭据、媒体路径或临时文件。它进入 `PlaybackController` 后继续使用现有有限前瞻、缓存和第二字幕契约；每次 Provider 请求独立捕获当前 Profile revision，请求或结果的 revision 不再有效时必须丢弃。
 
 ## SourcePreparationView
 

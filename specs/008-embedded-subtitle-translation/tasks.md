@@ -8,7 +8,7 @@
 
 **目的**：建立可重建的 native 工程事实源，不等待其他功能完整交付。
 
-- [ ] T001 [P] 创建 `native/ffmpeg.lock.json`，固定 FFmpeg 8.1.2 官方源码 URL、SHA-256、许可证、完整裁剪参数以及 Matroska/MOV、SubRip/ASS/SSA/`mov_text` 白名单
+- [ ] T001 [P] 创建 `native/ffmpeg.lock.json`，固定 FFmpeg 8.1.2 官方源码 URL、SHA-256、许可证、完整裁剪参数以及 Matroska、MOV/MP4、SubRip/ASS/SSA/`mov_text` 白名单
 - [ ] T002 [P] 创建 `native/subtitle-extractor/Package.swift` 及 `native/subtitle-extractor/Sources/SubLingoSubtitleExtractor/`、`native/subtitle-extractor/Tests/SubLingoSubtitleExtractorTests/`，声明 Swift 6、macOS 12 与可执行目标
 - [ ] T003 根据 `native/ffmpeg.lock.json` 更新 `THIRD_PARTY_NOTICES.txt`，写明 FFmpeg 8.1.2 许可、裁剪配置和对应源码资产位置
 
@@ -41,8 +41,8 @@
 - [ ] T007 [P] [US1] 在 `tests/unit/subtitle-source.test.ts` 增加外挂路径保持不变、受支持内嵌 codec 归一化、唯一 `track-list` 选轨快照与禁止读取内嵌 `@sub/<id>` 的单元测试
 - [ ] T008 [P] [US1] 创建 `tests/contract/subtitle-extractor-client.test.ts`，覆盖 ready frame、Bearer 认证、严格 `/v1/prepare` JSON、结果元数据校验及响应不含路径或正文
 - [ ] T009 [P] [US1] 在 `native/subtitle-extractor/Tests/SubLingoSubtitleExtractorTests/ExtractionTests.swift` 增加 SubRip、ASS、SSA、`mov_text` 的精确 stream 提取、UTF-8 SRT 规范化、顺序和时间码测试
-- [ ] T010 [P] [US1] 创建 `tests/integration/embedded-subtitle.test.ts`，覆盖受支持内嵌轨从准备到有限前瞻 Provider 请求及第二字幕发布的完整流程，并证明 seek 后从最新位置工作
-- [ ] T011 [P] [US1] 在 `tests/contract/package-manifest.test.ts` 增加正式包必须携带且只携带两个 universal、macOS 12、已签名、无非系统动态依赖 native 可执行文件的合同测试
+- [ ] T010 [P] [US1] 创建 `tests/integration/embedded-subtitle.test.ts`，覆盖受支持内嵌轨从准备到有限前瞻 Provider 请求及第二字幕发布的完整流程，证明请求只使用当前 Profile revision，revision 在准备中或翻译中变化时旧请求与结果被丢弃，并证明 seek 后从最新位置工作
+- [ ] T011 [P] [US1] 在 `tests/contract/package-manifest.test.ts` 增加正式包必须包含仓库 `LICENSE` 与 `THIRD_PARTY_NOTICES.txt`，并必须携带且只携带两个 universal、macOS 12、已签名、无非系统动态依赖 native 可执行文件的合同测试
 
 ### 用户故事 1 实现
 
@@ -129,16 +129,17 @@
 
 **目的**：完成对应源码分发、全量回归、样本矩阵、归档审计和真实 IINA 宿主验收。
 
-- [ ] T050 [P] 在 `tests/contract/release-audit.test.ts`、`tests/contract/release-metadata.test.ts`、`tests/contract/release-publish.test.ts` 与 `tests/contract/release-workflow.test.ts` 先增加双 native 审计、FFmpeg 对应源码 tarball/校验资产及发布上传白名单的失败合同测试
+- [ ] T050 [P] 在 `tests/contract/release-audit.test.ts`、`tests/contract/release-metadata.test.ts`、`tests/contract/release-publish.test.ts` 与 `tests/contract/release-workflow.test.ts` 先增加仓库 `LICENSE`、包内第三方声明、FFmpeg lock、对应源码 tarball 与校验文件之间的一致性检查，并覆盖双 native 审计及发布上传白名单的失败合同测试
 - [ ] T051 更新 `scripts/audit-release.mjs`、`scripts/release-metadata.mjs` 与 `scripts/publish-release.mjs`，记录两个 native 组件的架构/最低系统/执行位/签名/依赖/hash，并生成、审计和发布 lock 对应 FFmpeg 源码资产与校验文件
 - [ ] T052 更新 `.github/workflows/release.yml`，在固定环境构建锁定 FFmpeg 与 extractor，运行新增门禁，并仅把审计后的 `.iinaplgz`、校验文件和对应源码资产交给发布作业
 - [ ] T053 [P] 更新 `README.md` 与 `docs/readme/README.ar.md`、`README.fr.md`、`README.ja.md`、`README.ko.md`、`README.ru.md`、`README.zh-CN.md`，说明支持格式、当前选轨操作、不支持边界、播放优先、临时数据和无需外部工具
 - [ ] T054 [P] 更新 `docs/engineering/development.md`、`docs/validation/automated.md`、`docs/validation/package.md` 与 `docs/validation/iina-matrix.md`，记录锁定 FFmpeg 构建、两个 native 门禁、隐私证据边界及正式包双架构验收步骤
 - [ ] T055 在 `tests/fixtures/media/README.md` 建立不少于 30 个合法本地样本的不透明清单与可重建小样本说明，并扩展 `tests/integration/acceptance-metrics.test.ts`、`tests/integration/performance.test.ts` 验证选轨 100%、cue 完整率、95% 五秒准备、4 小时/20 GB/20,000 cue 上界、播放中断为 0，以及换轨、换片、跳转、禁用、关窗和双窗口并发各不少于 20 次且错误会话接受结果为 0；不得提交大型或受版权限制媒体
 - [ ] T056 按 `specs/008-embedded-subtitle-translation/quickstart.md` 依次运行 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build:native`、`npm run test:native`、`npm run build`、`npm run verify:package` 与 `npm run pack`
-- [ ] T057 使用 `scripts/audit-release.mjs` 审计最终 `.iinaplgz`、两个 native 组件及 FFmpeg 对应源码资产，确认包内没有源码、测试、缓存、临时字幕、路径、正文、译文、凭据或非白名单文件
-- [ ] T058 按 `specs/008-embedded-subtitle-translation/quickstart.md` 在 Apple Silicon 与 Intel、IINA 1.4.0 与当前固定发布版上人工安装正式包，确认统一字幕语言决策同时处理外挂与内嵌字幕，并完成 30 样本、换轨、双窗口、失败、超时、外挂与重启清理验收，只将允许字段记录到 `docs/validation/iina-matrix.md` 与 `docs/validation/package.md`
+- [ ] T057 使用 `scripts/audit-release.mjs` 审计最终 `.iinaplgz`、两个 native 组件及 FFmpeg 对应源码资产，确认包内包含仓库 `LICENSE` 和正确的 `THIRD_PARTY_NOTICES.txt`，声明与 FFmpeg lock、裁剪配置及源码资产一致；同时确认包内没有源码、测试、缓存、临时字幕、路径、正文、译文、凭据或非白名单文件
+- [ ] T058 按 `specs/008-embedded-subtitle-translation/quickstart.md` 在 Apple Silicon 与 Intel、IINA 1.4.0 与 IINA 1.4.4 组成的四个架构/宿主组合中人工安装正式包，记录实际 macOS 版本与包 SHA-256，确认统一字幕语言决策同时处理外挂与内嵌字幕，并完成 30 样本、换轨、双窗口、失败、超时、外挂与重启清理验收，只将允许字段记录到 `docs/validation/iina-matrix.md` 与 `docs/validation/package.md`
 - [ ] T059 由开发者本人按 `specs/008-embedded-subtitle-translation/quickstart.md` 使用正式包完成单人可用性验收，不查阅额外操作说明，在 30 秒内开始内嵌字幕翻译并仅依据状态说明处理不支持字幕，将两项耗时和通过/失败记录到 `docs/validation/usability.md`
+- [ ] T060 按 `specs/008-embedded-subtitle-translation/quickstart.md` 使用与 T058 相同的正式包完成权限与卸载实机验收：分别验证本地媒体访问允许和拒绝路径、拒绝后播放不受阻塞、卸载后插件及会话临时数据不残留、重新安装后无旧会话数据，并在 `docs/validation/iina-matrix.md` 与 `docs/validation/package.md` 记录包 SHA-256、macOS、架构、IINA 版本和结论
 
 ---
 
@@ -150,7 +151,7 @@
 - 阶段 2 依赖阶段 1；T004 必须先于 T005–T006，T006 依赖 T002 与 T005。
 - US1 依赖阶段 2，是 US2、US3 共用的核心准备与翻译链。
 - US2 与 US3 均依赖 US1；逻辑上可分别验收。它们会修改 `src/main.ts`、`src/app/subtitle-preparation.ts` 和 native 热点文件，单工作区按 US2→US3 串行；若使用隔离 worktree，可并行开发并按 US2→US3 顺序合并。
-- 阶段 6 依赖所选用户故事完成；统一字幕语言决策只阻塞 T058–T059 的最终集成与可用性验收，不阻塞此前实现；正式发布必须完成全部三个用户故事和 T050–T059。
+- 阶段 6 依赖所选用户故事完成；统一字幕语言决策只阻塞 T058–T059 的最终集成与可用性验收，不阻塞此前实现；正式发布必须完成全部三个用户故事和 T050–T060。
 
 ### 用户故事依赖图
 

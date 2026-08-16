@@ -18,12 +18,12 @@
 - **主要依赖**：IINA 1.4+ Plugin API、`iina-plugin-definition` 0.99.4、现有字幕 parser/controller；新增静态裁剪的 `libavformat`、`libavcodec`、`libavutil`。
 - **存储**：会话内存与 `@tmp/sublingo-extraction/<job-id>/output.srt`；目录 `0700`、文件 `0600`，不新增持久化或跨会话缓存。
 - **测试**：Vitest 单元、契约、集成和安全测试；Swift/native extractor 测试；构建与归档审计；正式 `.iinaplgz` 的 IINA 人工验收；开发者单人可用性验收。
-- **目标平台**：macOS 12+，IINA 1.4+，arm64/x86_64 universal native 组件。
+- **目标平台**：运行时声明支持 macOS 12+、IINA 1.4+ 和 arm64/x86_64 universal native 组件；正式宿主验收固定使用 IINA 1.4.0 基线与 IINA 1.4.4 发布版，并分别覆盖 Apple Silicon 与 Intel。
 - **项目类型**：IINA 桌面插件，包含逐窗口 Main、单例 Global、Sidebar、Provider transport helper 与独立 subtitle extractor。
 - **性能目标**：规格范围样本 95% 在 5 秒内可翻译；15 秒硬超时；单窗口最多一个准备任务；播放中断为 0。
 - **约束**：首版容器矩阵为 Matroska 中的 SubRip/ASS/SSA 与 MOV/MP4 中的 `mov_text`；最多 20,000 cue、16 MiB 提取输出；只处理本地文件；不 OCR、不转写、不整片预翻译；生产代码无注释且自然语言为英语。
 - **规模与范围**：至少 30 个本地媒体验收样本；换轨、换片、跳转、禁用、关窗和双窗口并发各 20 次；时长 4 小时/媒体 20 GB/字幕 20,000 条的上界验证；外挂 SRT/ASS 全量回归；开发者单人可用性验收。
-- **集成边界**：选轨、字幕准备、会话隔离、失败处理和打包可独立实施。最终验收前产品必须具备同时适用于外挂与内嵌字幕的统一字幕语言决策；本功能不保留或新增手动源语言路径。
+- **集成边界**：选轨、字幕准备、会话隔离、失败处理和打包可独立实施。最终验收前产品必须具备同时适用于外挂与内嵌字幕的统一字幕语言决策；内嵌字幕进入既有翻译链后继续使用当前 Profile revision 门控，本功能不保留或新增手动源语言路径。
 
 ## 宪法检查
 
@@ -33,7 +33,7 @@
 | --- | --- | --- | --- |
 | 验证与产品安全 | 通过 | 通过 | 自动化覆盖选轨、超时、失效、清理和外挂回归；正式包保留 macOS/IINA/架构人工验收。 |
 | 生产代码无注释且默认仅使用英语 | 通过 | 通过 | 新标识符、错误码和界面文案使用英语，不新增生产代码注释。 |
-| 敏感数据与外部副作用最小化 | 通过 | 通过 | 路径只进入逐窗口本机提取协议正文；Provider 仍只接收当前位置附近 cue；正文、路径和译文不写日志或持久缓存。 |
+| 敏感数据与外部副作用最小化 | 通过 | 通过 | 路径只进入逐窗口本机提取协议正文；Provider 只接收当前位置附近 cue，且请求与结果继续校验当前 Profile revision；正文、路径和译文不写日志或持久缓存。 |
 | 可重建且最小的发布产物 | 通过 | 通过 | FFmpeg 版本、源码摘要和裁剪配置进入 lock；包内仅增加一个 universal extractor，对应源码作为独立 Release 资产。 |
 | 生产代码只实现当前功能需求 | 通过 | 通过 | extractor 只启用两类容器与三类文本字幕，不加入 OCR、远程协议、通用转码或未来格式兼容层。 |
 | 完整 SDD 与精简中文产物 | 通过 | 通过 | 本变更跨 JS/native/打包/权限边界，使用完整 SDD；设计细节分别引用本目录契约。 |
@@ -54,10 +54,10 @@ IINA selected primary subtitle
 
 - Main 拥有当前媒体 epoch、所选轨身份、准备 attempt、15 秒 timer、临时结果和 UI 状态。
 - subtitle extractor 每个播放器窗口独立启动，只绑定 `127.0.0.1`，不接触 Profile、凭据或外网。
-- Global 继续只拥有 Profile、凭据和 Provider；媒体路径、完整字幕轨和准备状态不得经过 Global。
+- Global 继续只拥有 Profile、凭据和 Provider；在请求入队和结果回传时校验当前 Profile revision，revision 失效时拒绝旧请求与结果。媒体路径、完整字幕轨和准备状态不得经过 Global。
 - 准备完成的 cue 只依赖产品统一字幕语言决策，不依赖提供该能力的具体功能；该能力只阻塞最终集成验收。
 - seek 只更新翻译窗口，不取消字幕准备；换轨、换片、停止、禁用、关窗和插件退出使准备与翻译同时失效。
-- 任何迟到结果必须同时通过 media epoch、轨道身份和 attempt ID 校验；失败时删除结果，不创建 source 或第二字幕轨。
+- 任何迟到准备结果必须同时通过 media epoch、轨道身份和 attempt ID 校验，任何翻译请求与结果还必须通过当前 Profile revision 校验；失败时删除结果，不创建 source 或第二字幕轨。
 
 ## 项目结构
 
@@ -128,6 +128,7 @@ tests/
 └── fixtures/media/
 
 Info.json
+LICENSE
 THIRD_PARTY_NOTICES.txt
 README.md
 docs/readme/
