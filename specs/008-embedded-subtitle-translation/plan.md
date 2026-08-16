@@ -17,13 +17,13 @@
 - **语言与版本**：TypeScript 5.9 strict、ES2020；Swift 6；FFmpeg 8.1.2 C API；Node.js 24/npm 11 构建。
 - **主要依赖**：IINA 1.4+ Plugin API、`iina-plugin-definition` 0.99.4、现有字幕 parser/controller；新增静态裁剪的 `libavformat`、`libavcodec`、`libavutil`。
 - **存储**：会话内存与 `@tmp/sublingo-extraction/<job-id>/output.srt`；目录 `0700`、文件 `0600`，不新增持久化或跨会话缓存。
-- **测试**：Vitest 单元、契约、集成和安全测试；Swift/native extractor 测试；构建与归档审计；正式 `.iinaplgz` 的 IINA 人工验收。
+- **测试**：Vitest 单元、契约、集成和安全测试；Swift/native extractor 测试；构建与归档审计；正式 `.iinaplgz` 的 IINA 人工验收；开发者单人可用性验收。
 - **目标平台**：macOS 12+，IINA 1.4+，arm64/x86_64 universal native 组件。
 - **项目类型**：IINA 桌面插件，包含逐窗口 Main、单例 Global、Sidebar、Provider transport helper 与独立 subtitle extractor。
 - **性能目标**：规格范围样本 95% 在 5 秒内可翻译；15 秒硬超时；单窗口最多一个准备任务；播放中断为 0。
 - **约束**：首版容器矩阵为 Matroska 中的 SubRip/ASS/SSA 与 MOV/MP4 中的 `mov_text`；最多 20,000 cue、16 MiB 提取输出；只处理本地文件；不 OCR、不转写、不整片预翻译；生产代码无注释且自然语言为英语。
-- **规模与范围**：至少 30 个本地媒体验收样本、双窗口并发、时长 4 小时/媒体 20 GB/字幕 20,000 条的上界验证；外挂 SRT/ASS 全量回归。
-- **实现前置**：`007-auto-language-support` 必须先验收或作为任务依赖先完成；008 只复用其正文语言识别结果，不保留或新增手动源语言路径。
+- **规模与范围**：至少 30 个本地媒体验收样本；换轨、换片、跳转、禁用、关窗和双窗口并发各 20 次；时长 4 小时/媒体 20 GB/字幕 20,000 条的上界验证；外挂 SRT/ASS 全量回归；开发者单人可用性验收。
+- **集成边界**：选轨、字幕准备、会话隔离、失败处理和打包可独立实施。最终验收前产品必须具备同时适用于外挂与内嵌字幕的统一字幕语言决策；本功能不保留或新增手动源语言路径。
 
 ## 宪法检查
 
@@ -37,6 +37,7 @@
 | 可重建且最小的发布产物 | 通过 | 通过 | FFmpeg 版本、源码摘要和裁剪配置进入 lock；包内仅增加一个 universal extractor，对应源码作为独立 Release 资产。 |
 | 生产代码只实现当前功能需求 | 通过 | 通过 | extractor 只启用两类容器与三类文本字幕，不加入 OCR、远程协议、通用转码或未来格式兼容层。 |
 | 完整 SDD 与精简中文产物 | 通过 | 通过 | 本变更跨 JS/native/打包/权限边界，使用完整 SDD；设计细节分别引用本目录契约。 |
+| 控制人工验收成本 | 通过 | 通过 | 可用性由开发者本人使用正式包单人完成，不招募多名目标用户。 |
 
 ## 架构与所有权
 
@@ -54,6 +55,7 @@ IINA selected primary subtitle
 - Main 拥有当前媒体 epoch、所选轨身份、准备 attempt、15 秒 timer、临时结果和 UI 状态。
 - subtitle extractor 每个播放器窗口独立启动，只绑定 `127.0.0.1`，不接触 Profile、凭据或外网。
 - Global 继续只拥有 Profile、凭据和 Provider；媒体路径、完整字幕轨和准备状态不得经过 Global。
+- 准备完成的 cue 只依赖产品统一字幕语言决策，不依赖提供该能力的具体功能；该能力只阻塞最终集成验收。
 - seek 只更新翻译窗口，不取消字幕准备；换轨、换片、停止、禁用、关窗和插件退出使准备与翻译同时失效。
 - 任何迟到结果必须同时通过 media epoch、轨道身份和 attempt ID 校验；失败时删除结果，不创建 source 或第二字幕轨。
 
@@ -81,7 +83,8 @@ specs/008-embedded-subtitle-translation/
 src/
 ├── adapters/iina/
 │   ├── subtitle-extractor.ts
-│   └── subtitle-source.ts
+│   ├── subtitle-source.ts
+│   └── subtitle-track.ts
 ├── app/
 │   └── subtitle-preparation.ts
 ├── domain/
@@ -90,6 +93,8 @@ src/
 ├── subtitles/
 │   ├── source.ts
 │   └── types.ts
+├── types/
+│   └── iina-runtime.d.ts
 └── main.ts
 
 ui/
@@ -135,7 +140,7 @@ docs/validation/
 
 ## 设计产物
 
-- [research.md](./research.md)：轨道映射、提取器、生命周期、FFmpeg、打包与 007 依赖决策。
+- [research.md](./research.md)：轨道映射、提取器、生命周期、FFmpeg、打包与统一字幕语言决策集成边界。
 - [data-model.md](./data-model.md)：字幕源身份、准备 attempt、提取 job、临时结果和 UI 状态转换。
 - [contracts/subtitle-preparation.md](./contracts/subtitle-preparation.md)：Main、IINA adapter 与本机 extractor 的输入、输出、取消和安全契约。
 - [contracts/source-state.md](./contracts/source-state.md)：Sidebar 状态优先级、用户动作与重试语义。

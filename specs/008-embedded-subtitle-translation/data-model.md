@@ -66,7 +66,7 @@ any state --track/file/disable/close--> invalidated
 
 - `trackId`、`origin`、`codec`。
 - `contentHash`：规范化字幕字节的 SHA-256。
-- `languageResult`：来自 007 的会话级正文语言识别结果。
+- `languageResult`：产品统一字幕语言决策产生的会话级结果，不绑定能力来源。
 - `cues`：现有 `SubtitleCue[]`，最多 20,000 条。
 
 Prepared source 只属于一个 MediaSessionIdentity。它进入 `PlaybackController` 后继续使用现有有限前瞻、缓存和第二字幕契约，不持有媒体路径或临时文件。
