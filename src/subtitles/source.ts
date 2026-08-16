@@ -2,12 +2,7 @@ import { sha256Hex } from "../domain/identity.js";
 import { parseAss } from "./ass.js";
 import { decodeSubtitleBytes } from "./encoding.js";
 import { parseSrt } from "./srt.js";
-import type {
-  ExtractedSubtitleResult,
-  PreparedSubtitleSource,
-  SubtitleSource,
-  SubtitleTrackIdentity,
-} from "./types.js";
+import type { SubtitleSource } from "./types.js";
 
 export interface SubtitleTrackDescriptor {
   id: number;
@@ -61,31 +56,5 @@ export function loadSubtitleSource(
       },
       cues: parsed.cues,
     },
-  };
-}
-
-export function loadPreparedSubtitleSource(
-  track: SubtitleTrackIdentity,
-  bytes: Uint8Array,
-  result: ExtractedSubtitleResult,
-): PreparedSubtitleSource | null {
-  if (
-    track.origin !== "embedded" ||
-    track.codec === "external" ||
-    bytes.length !== result.byteCount ||
-    sha256Hex(bytes) !== result.sha256
-  )
-    return null;
-  const decoded = decodeSubtitleBytes(bytes);
-  if (!decoded || decoded.encoding !== "utf-8") return null;
-  const parsed = parseSrt(decoded.text);
-  if (parsed.cues.length === 0 || parsed.cues.length !== result.cueCount) return null;
-  return {
-    trackId: track.trackId,
-    origin: "embedded",
-    codec: track.codec,
-    contentHash: result.sha256,
-    language: track.language?.trim() || null,
-    cues: parsed.cues,
   };
 }

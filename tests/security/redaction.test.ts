@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { diagnostic, safeRequestId } from "../../src/domain/logging.js";
-import { SubtitleExtractorError } from "../../src/adapters/iina/subtitle-extractor.js";
 
 describe("allowlist-only diagnostics", () => {
   it("copies safe metadata and drops bodies, headers, credentials and subtitle text", () => {
@@ -26,12 +25,5 @@ describe("allowlist-only diagnostics", () => {
   it("sanitizes provider request IDs", () => {
     expect(safeRequestId("safe_Request-42.abc")).toBe("safe_Request-42.abc");
     expect(safeRequestId("bad\nAuthorization: secret")).toBeUndefined();
-  });
-
-  it("exposes only fixed extractor error codes", () => {
-    const error = new SubtitleExtractorError("TRACK_IDENTITY_MISMATCH");
-    expect(JSON.stringify({ name: error.name, code: error.code, message: error.message })).toBe(
-      '{"name":"SubtitleExtractorError","code":"TRACK_IDENTITY_MISMATCH","message":"TRACK_IDENTITY_MISMATCH"}',
-    );
   });
 });

@@ -9,28 +9,12 @@ import {
   isPublishedStateReady,
   planAssetOperations,
   pollRemoteState,
-  releaseAssetNames,
 } from "../../scripts/publish-release.mjs";
 
 const commit = "a".repeat(40);
 const body = "release evidence";
 
 describe("release publication state", () => {
-  it("allows only the package, package checksum, locked FFmpeg source, and source checksum", () => {
-    expect(
-      releaseAssetNames("0.1.0", {
-        sourceDistribution: {
-          assetName: "ffmpeg-8.1.2.tar.xz",
-          checksumAssetName: "ffmpeg-8.1.2.tar.xz.sha256",
-        },
-      }),
-    ).toEqual([
-      "SubLingo-0.1.0.iinaplgz",
-      "SubLingo-0.1.0.iinaplgz.sha256",
-      "ffmpeg-8.1.2.tar.xz",
-      "ffmpeg-8.1.2.tar.xz.sha256",
-    ]);
-  });
   it("loads in the supported Node.js runtime", () => {
     const result = spawnSync(
       process.execPath,

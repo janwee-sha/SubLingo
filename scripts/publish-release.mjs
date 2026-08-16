@@ -68,24 +68,6 @@ export function planAssetOperations(expectedAssets, remoteAssets) {
   });
 }
 
-export function releaseAssetNames(version, ffmpegLock) {
-  const distribution = ffmpegLock?.sourceDistribution;
-  if (
-    !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version) ||
-    !/^ffmpeg-[0-9]+\.[0-9]+\.[0-9]+\.tar\.xz$/.test(distribution?.assetName ?? "") ||
-    distribution?.checksumAssetName !== `${distribution.assetName}.sha256`
-  ) {
-    throw new Error("Release asset contract is invalid");
-  }
-  const artifactName = `SubLingo-${version}.iinaplgz`;
-  return [
-    artifactName,
-    `${artifactName}.sha256`,
-    distribution.assetName,
-    distribution.checksumAssetName,
-  ];
-}
-
 export function assertPublishedRelease(release, tagCommit, expectedCommit, latestReleaseId) {
   if (release.draft) {
     throw new Error("Release is not public after publication");
@@ -293,23 +275,8 @@ export async function publishRelease(options) {
   const notesFile = resolve(options.notesFile);
   const assetsDirectory = resolve(options.assetsDirectory);
   const expectedBody = readFileSync(notesFile, "utf8");
-  const audit = JSON.parse(readFileSync(join(assetsDirectory, "release-audit.json"), "utf8"));
   const artifactName = `SubLingo-${options.version}.iinaplgz`;
-  if (
-    audit.version !== options.version ||
-    audit.commit !== options.commit ||
-    audit.artifactName !== artifactName ||
-    audit.ffmpeg?.assetName === undefined ||
-    audit.ffmpeg?.checksumAssetName === undefined
-  ) {
-    throw new Error("Audited release payload identity does not match publication options");
-  }
-  const expectedAssets = releaseAssetNames(options.version, {
-    sourceDistribution: {
-      assetName: audit.ffmpeg.assetName,
-      checksumAssetName: audit.ffmpeg.checksumAssetName,
-    },
-  }).map((name) => {
+  const expectedAssets = [artifactName, `${artifactName}.sha256`].map((name) => {
     const filePath = join(assetsDirectory, name);
     return { name, filePath, sha256: hashFile(filePath) };
   });

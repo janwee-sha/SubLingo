@@ -1,14 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
   buildReleaseNotes,
-  parseOtoolDependencies,
   validateArchiveEntries,
   validateArtifactIdentity,
-  validateFFmpegSource,
   validateHelperFacts,
 } from "../../scripts/audit-release.mjs";
 
@@ -30,11 +27,6 @@ const validEntries = [
   },
   {
     name: "dist/native/sublingo-transport",
-    unixMode: executableMode,
-    encrypted: false,
-  },
-  {
-    name: "dist/native/sublingo-subtitle-extractor",
     unixMode: executableMode,
     encrypted: false,
   },
@@ -62,14 +54,6 @@ describe("release archive audit", () => {
   it.each(["LICENSE", "THIRD_PARTY_NOTICES.txt"])("requires compliance file %s", (name) => {
     expect(() =>
       validateArchiveEntries(validEntries.filter((entry) => entry.name !== name)),
-    ).toThrow(/required archive entry/i);
-  });
-
-  it("requires both exact native executables", () => {
-    expect(() =>
-      validateArchiveEntries(
-        validEntries.filter((entry) => entry.name !== "dist/native/sublingo-subtitle-extractor"),
-      ),
     ).toThrow(/required archive entry/i);
   });
 
@@ -151,87 +135,11 @@ describe("release archive audit", () => {
   });
 
   it.each([
-    {
-      architectures: ["arm64"],
-      minimumMacos: ["12.0"],
-      executable: true,
-      signed: true,
-      dependencies: [],
-      sha256: "a".repeat(64),
-    },
-    {
-      architectures: ["arm64", "x86_64"],
-      minimumMacos: ["12.0"],
-      executable: false,
-      signed: true,
-      dependencies: [],
-      sha256: "a".repeat(64),
-    },
-    {
-      architectures: ["arm64", "x86_64"],
-      minimumMacos: ["12.0"],
-      executable: true,
-      signed: false,
-      dependencies: [],
-      sha256: "a".repeat(64),
-    },
-    {
-      architectures: ["arm64", "x86_64"],
-      minimumMacos: ["13.0"],
-      executable: true,
-      signed: true,
-      dependencies: [],
-      sha256: "a".repeat(64),
-    },
-    {
-      architectures: ["arm64", "x86_64"],
-      minimumMacos: ["12.0"],
-      executable: true,
-      signed: true,
-      dependencies: ["/private/libffmpeg.dylib"],
-      sha256: "a".repeat(64),
-    },
+    { architectures: ["arm64"], executable: true, signed: true },
+    { architectures: ["arm64", "x86_64"], executable: false, signed: true },
+    { architectures: ["arm64", "x86_64"], executable: true, signed: false },
   ])("rejects missing native helper properties", (facts) => {
     expect(() => validateHelperFacts("package helper", facts)).toThrow();
-  });
-
-  it("ignores absolute universal-binary headers when parsing dynamic dependencies", () => {
-    expect(
-      parseOtoolDependencies(
-        [
-          "/tmp/sublingo-transport (architecture x86_64):",
-          "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)",
-          "/tmp/sublingo-transport (architecture arm64):",
-          "\t/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (compatibility version 300.0.0)",
-        ].join("\n"),
-      ),
-    ).toEqual([
-      "/usr/lib/libSystem.B.dylib",
-      "/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation",
-    ]);
-  });
-
-  it("validates the lock-named FFmpeg source and digest", () => {
-    const source = Buffer.from("locked source");
-    const lock = {
-      version: "8.1.2",
-      sourceAssetName: "ffmpeg-8.1.2.tar.xz",
-      sha256: createHash("sha256").update(source).digest("hex"),
-      license: "LGPL-2.1-or-later",
-      sourceDistribution: {
-        assetName: "ffmpeg-8.1.2.tar.xz",
-        checksumAssetName: "ffmpeg-8.1.2.tar.xz.sha256",
-      },
-    };
-    expect(validateFFmpegSource(lock, "ffmpeg-8.1.2.tar.xz", source)).toMatchObject({
-      version: "8.1.2",
-      assetName: "ffmpeg-8.1.2.tar.xz",
-      checksumAssetName: "ffmpeg-8.1.2.tar.xz.sha256",
-      sha256: lock.sha256,
-    });
-    expect(() => validateFFmpegSource(lock, "ffmpeg-8.1.2.tar.xz", Buffer.from("drift"))).toThrow(
-      /FFmpeg source/i,
-    );
   });
 
   it("builds Chinese evidence with all gates and explicit host limitations", () => {
@@ -253,20 +161,17 @@ describe("release archive audit", () => {
         verifyPackage: true,
         pack: true,
       },
-      buildHelpers: {
-        "sublingo-transport": helperFacts("c"),
-        "sublingo-subtitle-extractor": helperFacts("d"),
+      buildHelper: {
+        architectures: ["arm64", "x86_64"],
+        executable: true,
+        signed: true,
+        signature: "adhoc",
       },
-      packageHelpers: {
-        "sublingo-transport": helperFacts("c"),
-        "sublingo-subtitle-extractor": helperFacts("d"),
-      },
-      ffmpeg: {
-        version: "8.1.2",
-        license: "LGPL-2.1-or-later",
-        assetName: "ffmpeg-8.1.2.tar.xz",
-        checksumAssetName: "ffmpeg-8.1.2.tar.xz.sha256",
-        sha256: "e".repeat(64),
+      packageHelper: {
+        architectures: ["arm64", "x86_64"],
+        executable: true,
+        signed: true,
+        signature: "adhoc",
       },
     });
 
@@ -282,20 +187,5 @@ describe("release archive audit", () => {
     expect(notes).toContain("免费完整使用");
     expect(notes).toContain("不会解锁额外功能、优先翻译或专属版本");
     expect(notes).toContain("不包含翻译服务 API 额度");
-    expect(notes).toContain("sublingo-transport");
-    expect(notes).toContain("sublingo-subtitle-extractor");
-    expect(notes).toContain("ffmpeg-8.1.2.tar.xz");
   });
 });
-
-function helperFacts(seed: string) {
-  return {
-    architectures: ["arm64", "x86_64"],
-    minimumMacos: ["12.0"],
-    executable: true,
-    signed: true,
-    signature: "adhoc",
-    dependencies: ["/usr/lib/libSystem.B.dylib"],
-    sha256: seed.repeat(64),
-  };
-}
