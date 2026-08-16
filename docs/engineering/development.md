@@ -8,6 +8,7 @@ SubLingo 是面向 IINA 1.4+ 的实时双语字幕插件。本文档供开发者
 - IINA 1.4.0 或更高版本
 - Node.js 24、npm 11
 - Swift 6 工具链
+- `curl`、`shasum`、`lipo`、`codesign` 与 Xcode Command Line Tools
 
 安装锁定依赖：
 
@@ -33,8 +34,8 @@ npm run pack
 - `npm run test`：运行 TypeScript 自动化测试。
 - `npm run typecheck`：检查插件运行时和 Sidebar 的 TypeScript 类型。
 - `npm run lint`：运行 ESLint。
-- `npm run build:native`：构建 universal Swift transport helper。
-- `npm run test:native`：运行 native helper 测试。
+- `npm run build:native`：校验 `native/ffmpeg.lock.json`，由锁定源码构建 macOS 12 arm64/x86_64 静态 FFmpeg，并生成两个 universal Swift 可执行文件。
+- `npm run test:native`：运行 transport 与 subtitle extractor 的 Swift 合同、安全和真实小样本测试。
 - `npm run build`：构建插件运行时代码和 Sidebar。
 - `npm run verify:package`：检查待打包内容。
 - `npm run pack`：生成 `build/package/SubLingo-0.1.0.iinaplgz`。
@@ -72,7 +73,8 @@ open build/package/SubLingo-0.1.0.iinaplgz
 
 ## 架构与安全边界
 
-- 插件读取当前选中的外部 SRT/ASS 文本字幕，并将译文显示为由插件管理的 IINA 第二字幕轨。
+- 插件读取当前选中的外部 SRT/ASS，或当前本地媒体中的内嵌 SubRip/ASS/SSA/`mov_text` 轨；正式包无需系统 `ffmpeg`/`ffprobe`。
+- `sublingo-subtitle-extractor` 逐窗口运行，只绑定 `127.0.0.1`，临时目录使用 `0700`、结果文件使用 `0600`，解析、取消、超时或退出后清理。远程媒体和图形字幕不会提取。
 - OpenAI-compatible 和 Ollama 请求由受限 Swift helper 发出；插件运行时只连接 helper 的 `127.0.0.1` 临时端口。
 - OpenAI-compatible 凭据由 helper 写入插件私有数据目录的 `credentials.json`；目录权限为 `0700`，文件权限为 `0600`。凭据不得进入 preferences、日志、诊断、进程参数或安装包。
 - 翻译结果仅缓存在当前视频会话中。换片、播放结束或关窗时清理，不写入持久缓存。
@@ -85,5 +87,6 @@ open build/package/SubLingo-0.1.0.iinaplgz
 - [渐进翻译输出](../../specs/002-progressive-translation-output/spec.md)
 - [Provider 连接生命周期](../../specs/003-provider-connection-lifecycle/spec.md)
 - [自动 GitHub Release](../../specs/004-automatic-github-release/spec.md)
+- [内嵌字幕翻译](../../specs/008-embedded-subtitle-translation/spec.md)
 
 所有变更必须遵守[项目宪法](constitution.md)和仓库根目录的 `AGENTS.md`。

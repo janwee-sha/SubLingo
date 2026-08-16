@@ -134,6 +134,7 @@ export function validateArchiveEntries(entries, expectedCompliance = {}) {
     "dist/main.js",
     "dist/global.js",
     "dist/ui/sidebar.html",
+    "dist/native/sublingo-subtitle-extractor",
     "dist/native/sublingo-transport",
   ];
   for (const name of required) {
@@ -142,9 +143,22 @@ export function validateArchiveEntries(entries, expectedCompliance = {}) {
     }
   }
 
-  const helper = entries.find((entry) => entry.name === "dist/native/sublingo-transport");
-  if (!helper || (helper.unixMode & 0o111) === 0) {
-    throw new Error("The archived native helper is not executable");
+  const nativeFiles = entries
+    .filter((entry) => entry.name.startsWith("dist/native/") && !entry.name.endsWith("/"))
+    .map((entry) => entry.name)
+    .sort();
+  const expectedNativeFiles = [
+    "dist/native/sublingo-subtitle-extractor",
+    "dist/native/sublingo-transport",
+  ];
+  if (JSON.stringify(nativeFiles) !== JSON.stringify(expectedNativeFiles)) {
+    throw new Error("The archive native executable allowlist does not match");
+  }
+  for (const name of expectedNativeFiles) {
+    const helper = entries.find((entry) => entry.name === name);
+    if (!helper || (helper.unixMode & 0o111) === 0) {
+      throw new Error(`The archived native helper is not executable: ${name}`);
+    }
   }
   return entries;
 }
@@ -175,7 +189,59 @@ export function validateHelperFacts(label, facts) {
   if (!facts.signed) {
     throw new Error(`${label} does not have a valid signature`);
   }
+  if (
+    !Array.isArray(facts.minimumMacos) ||
+    facts.minimumMacos.length !== 2 ||
+    facts.minimumMacos.some((version) => version !== "12.0")
+  ) {
+    throw new Error(`${label} does not declare macOS 12.0 for both architectures`);
+  }
+  if (
+    !Array.isArray(facts.dependencies) ||
+    facts.dependencies.some(
+      (dependency) =>
+        !dependency.startsWith("/usr/lib/") && !dependency.startsWith("/System/Library/"),
+    )
+  ) {
+    throw new Error(`${label} has a non-system dynamic dependency`);
+  }
+  if (!/^[0-9a-f]{64}$/.test(facts.sha256)) {
+    throw new Error(`${label} does not have a valid SHA-256`);
+  }
   return facts;
+}
+
+export function parseOtoolDependencies(output) {
+  return output
+    .split("\n")
+    .filter((line) => /^\s+\//.test(line))
+    .map((line) => line.trim().split(/\s+/)[0])
+    .filter(Boolean);
+}
+
+export function validateFFmpegSource(lock, sourceName, sourceBuffer) {
+  const distribution = lock?.sourceDistribution;
+  if (
+    lock?.version !== "8.1.2" ||
+    lock?.license !== "LGPL-2.1-or-later" ||
+    lock?.sourceAssetName !== sourceName ||
+    distribution?.assetName !== sourceName ||
+    distribution?.checksumAssetName !== `${sourceName}.sha256` ||
+    !/^[0-9a-f]{64}$/.test(lock?.sha256 ?? "")
+  ) {
+    throw new Error("FFmpeg source metadata does not match the lock");
+  }
+  const sha256 = createHash("sha256").update(sourceBuffer).digest("hex");
+  if (sha256 !== lock.sha256) {
+    throw new Error("FFmpeg source SHA-256 does not match the lock");
+  }
+  return {
+    version: lock.version,
+    license: lock.license,
+    assetName: distribution.assetName,
+    checksumAssetName: distribution.checksumAssetName,
+    sha256,
+  };
 }
 
 function formatHelper(label, helper) {
@@ -186,6 +252,9 @@ function formatHelper(label, helper) {
     `- 可执行权限：${helper.executable ? "是" : "否"}`,
     `- 签名验证：${helper.signed ? "有效" : "无效"}`,
     `- 签名摘要：${helper.signature}`,
+    `- 最低系统：${helper.minimumMacos.join("、")}`,
+    `- 动态依赖：${helper.dependencies.length > 0 ? helper.dependencies.join("、") : "无"}`,
+    `- SHA-256：${helper.sha256}`,
   ].join("\n");
 }
 
@@ -213,9 +282,21 @@ export function buildReleaseNotes(input) {
     ...archiveLines,
     "```",
     "",
-    formatHelper("构建文件 native helper", input.buildHelper),
+    ...Object.entries(input.buildHelpers).flatMap(([name, helper]) => [
+      formatHelper(`构建文件 ${name}`, helper),
+      "",
+    ]),
+    ...Object.entries(input.packageHelpers).flatMap(([name, helper]) => [
+      formatHelper(`包内 ${name}`, helper),
+      "",
+    ]),
+    "## FFmpeg 对应源码",
     "",
-    formatHelper("包内 native helper", input.packageHelper),
+    `- 版本：${input.ffmpeg.version}`,
+    `- 许可证：${input.ffmpeg.license}`,
+    `- 源码资产：${input.ffmpeg.assetName}`,
+    `- 校验资产：${input.ffmpeg.checksumAssetName}`,
+    `- SHA-256：${input.ffmpeg.sha256}`,
     "",
     "## IINA 图形界面验收边界",
     "",
@@ -343,6 +424,7 @@ function runCommand(command, argumentsList) {
 function verifyHelper(filePath, label) {
   const lipo = process.env.LIPO_BIN || "lipo";
   const codesign = process.env.CODESIGN_BIN || "codesign";
+  const otool = process.env.OTOOL_BIN || "otool";
   const architectureOutput = runCommand(lipo, ["-archs", filePath]).stdout;
   const architectures = architectureOutput.split(/\s+/).filter(Boolean);
   let executable = true;
@@ -364,7 +446,21 @@ function verifyHelper(filePath, label) {
       .filter((line) => /^(Identifier|Format|CodeDirectory|Signature|TeamIdentifier)=/.test(line));
     signature = selected.length > 0 ? selected.join("; ") : "valid";
   }
-  return validateHelperFacts(label, { architectures, executable, signed, signature });
+  const minimumMacos = runCommand(otool, ["-l", filePath])
+    .stdout.split("\n")
+    .map((line) => line.trim().match(/^minos\s+([^\s]+)$/)?.[1])
+    .filter(Boolean);
+  const dependencies = parseOtoolDependencies(runCommand(otool, ["-L", filePath]).stdout);
+  const sha256 = createHash("sha256").update(readFileSync(filePath)).digest("hex");
+  return validateHelperFacts(label, {
+    architectures,
+    minimumMacos,
+    executable,
+    signed,
+    signature,
+    dependencies,
+    sha256,
+  });
 }
 
 function readGates(filePath) {
@@ -389,6 +485,10 @@ export function auditRelease(options) {
   const archiveBuffer = readFileSync(artifactPath);
   const entries = validateArchiveEntries(readZipEntries(archiveBuffer));
   const gates = readGates(resolve(options.gates));
+  const ffmpegLock = JSON.parse(readFileSync(resolve(options.ffmpegLock), "utf8"));
+  const ffmpegSourcePath = resolve(options.ffmpegSource);
+  const ffmpegSourceBuffer = readFileSync(ffmpegSourcePath);
+  const ffmpeg = validateFFmpegSource(ffmpegLock, basename(ffmpegSourcePath), ffmpegSourceBuffer);
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "sublingo-release-"));
 
   try {
@@ -409,11 +509,22 @@ export function auditRelease(options) {
       expectedVersion: options.expectedVersion,
     });
 
-    const buildHelper = verifyHelper(resolve(options.buildHelper), "Build native helper");
-    const packageHelper = verifyHelper(
-      join(temporaryDirectory, "dist/native/sublingo-transport"),
-      "Packaged native helper",
-    );
+    const helperPaths = {
+      "sublingo-transport": resolve(options.buildHelper),
+      "sublingo-subtitle-extractor": resolve(options.buildExtractor),
+    };
+    const buildHelpers = {};
+    const packageHelpers = {};
+    for (const [name, buildPath] of Object.entries(helperPaths)) {
+      buildHelpers[name] = verifyHelper(buildPath, `Build ${name}`);
+      packageHelpers[name] = verifyHelper(
+        join(temporaryDirectory, `dist/native/${name}`),
+        `Packaged ${name}`,
+      );
+      if (buildHelpers[name].sha256 !== packageHelpers[name].sha256) {
+        throw new Error(`Packaged ${name} differs from the audited build`);
+      }
+    }
     const byteSize = statSync(artifactPath).size;
     const sha256 = createHash("sha256").update(archiveBuffer).digest("hex");
     const artifactName = basename(artifactPath);
@@ -426,8 +537,9 @@ export function auditRelease(options) {
       sha256,
       entries: entries.map((entry) => entry.name),
       gates,
-      buildHelper,
-      packageHelper,
+      buildHelpers,
+      packageHelpers,
+      ffmpeg,
     });
     const audit = {
       version: options.expectedVersion,
@@ -440,8 +552,9 @@ export function auditRelease(options) {
       sha256,
       gates,
       entries,
-      buildHelper,
-      packageHelper,
+      buildHelpers,
+      packageHelpers,
+      ffmpeg,
     };
 
     const outputDirectory = resolve(options.outputDirectory);
@@ -451,6 +564,14 @@ export function auditRelease(options) {
       copyFileSync(artifactPath, outputArtifact);
     }
     writeFileSync(join(outputDirectory, `${artifactName}.sha256`), `${sha256}  ${artifactName}\n`);
+    const outputSource = join(outputDirectory, ffmpeg.assetName);
+    if (outputSource !== ffmpegSourcePath) {
+      copyFileSync(ffmpegSourcePath, outputSource);
+    }
+    writeFileSync(
+      join(outputDirectory, ffmpeg.checksumAssetName),
+      `${ffmpeg.sha256}  ${ffmpeg.assetName}\n`,
+    );
     writeFileSync(join(outputDirectory, "release-notes.md"), notes);
     writeFileSync(
       join(outputDirectory, "release-audit.json"),
@@ -469,6 +590,9 @@ function parseArguments(argumentsList) {
     ["--expected-version", "expectedVersion"],
     ["--expected-commit", "expectedCommit"],
     ["--build-helper", "buildHelper"],
+    ["--build-extractor", "buildExtractor"],
+    ["--ffmpeg-source", "ffmpegSource"],
+    ["--ffmpeg-lock", "ffmpegLock"],
     ["--gates", "gates"],
     ["--output-dir", "outputDirectory"],
   ]);

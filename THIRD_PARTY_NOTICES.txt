@@ -1,5 +1,17 @@
 SubLingo includes the following third-party software in its release package.
 
+FFmpeg 8.1.2
+https://ffmpeg.org/
+SPDX-License-Identifier: LGPL-2.1-or-later
+
+FFmpeg is licensed under the GNU Lesser General Public License version 2.1 or
+later. SubLingo builds it from the source and configuration fixed in
+native/ffmpeg.lock.json with network, GPL, nonfree, programs, unrelated
+demuxers, codecs, protocols, and other unused components disabled. The exact
+corresponding source asset is ffmpeg-8.1.2.tar.xz and is distributed with its
+SHA-256 checksum alongside each SubLingo release. Its locked SHA-256 is
+464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c.
+
 @noble/hashes 2.3.0
 https://github.com/paulmillr/noble-hashes
 

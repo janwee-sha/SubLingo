@@ -4,8 +4,9 @@
 
 每个自动发布版本的权威证据由以下内容共同构成：
 
-- GitHub Release 中文正文：触发 commit、包内版本、精确大小、SHA-256、八项门禁、完整归档清单及两份 native helper 验收结果。
+- GitHub Release 中文正文：触发 commit、包内版本、精确大小、SHA-256、八项门禁、完整归档清单、两个 native 可执行文件验收结果及 FFmpeg 对应源码信息。
 - `SubLingo-X.Y.Z.iinaplgz.sha256`：正式安装包的可下载校验文件。
+- `ffmpeg-8.1.2.tar.xz` 与同名 `.sha256`：必须与 `native/ffmpeg.lock.json` 的 URL、版本、许可证和摘要一致。
 - 对应 GitHub Actions 日志：固定环境、IINA 下载校验、八项门禁、最终归档审计和发布任务结果。
 
 workflow 不为逐版本证据修改、提交或推送仓库文件，避免产生递归 `main` 触发。Git 历史、Release 和 Actions 记录承担版本历史；本文只描述当前验证契约。
@@ -25,9 +26,11 @@ npm run verify:package
 npm run pack
 ```
 
-随后直接审计最终 `.iinaplgz`，确认版本与产物名一致、根目录只有 `Info.json`、`README.md` 和 `dist/` 运行材料，不包含敏感、运行时或开发文件，也不存在路径穿越、重复路径或符号链接。
+随后直接审计最终 `.iinaplgz`，确认版本与产物名一致、根目录只有 `Info.json`、`README.md`、`LICENSE`、`THIRD_PARTY_NOTICES.txt` 和 `dist/` 运行材料，不包含敏感、运行时、源码或开发文件，也不存在路径穿越、重复路径或符号链接。
 
-`dist/native/sublingo-transport` 构建文件与包内文件必须分别包含 `arm64` 和 `x86_64`、保留可执行权限并通过严格签名验证。
+`dist/native/` 必须只含 `sublingo-transport` 与 `sublingo-subtitle-extractor`。构建文件与包内文件必须分别包含 `arm64` 和 `x86_64`、最低 macOS 12、可执行权限、有效签名、相同 SHA-256，且只依赖系统动态库。
+
+FFmpeg 静态构建材料不得进入 `.iinaplgz`。审计任务只把正式包、正式包校验、锁定源码和源码校验纳入可发布白名单；`release-audit.json` 与 `release-notes.md` 是发布过程证据，不作为 Release 附件上传。
 
 ## IINA 宿主边界
 

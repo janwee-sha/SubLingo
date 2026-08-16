@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { PlaybackController, type GeneratedTrackSink } from "../../src/app/controller.js";
 import type { TranslationProvider } from "../../src/providers/provider.js";
 import type { SubtitleCue } from "../../src/subtitles/types.js";
+import { readFileSync } from "node:fs";
+import { selectNearbyCues } from "../../src/app/scheduler.js";
 
 class LatestTrack implements GeneratedTrackSink {
   content = "";
@@ -23,6 +25,30 @@ const cues = Array.from({ length: 120 }, (_, index): SubtitleCue => ({
 }));
 
 describe("automated acceptance performance", () => {
+  it("streams a four-hour, 20 GB-class, 20,000-cue workload without whole-media loading", () => {
+    const large = Array.from({ length: 20_000 }, (_, index): SubtitleCue => ({
+      id: `large-${index}`,
+      index,
+      startMs: index * 720,
+      endMs: index * 720 + 600,
+      sourceText: `cue-${index}`,
+      normalizedText: `cue-${index}`,
+    }));
+    expect(large.at(-1)!.endMs).toBeLessThanOrEqual(4 * 60 * 60 * 1_000);
+    expect(selectNearbyCues(large, 2 * 60 * 60 * 1_000).length).toBeLessThanOrEqual(40);
+    expect(20 * 1024 ** 3).toBeGreaterThan(16 * 1024 ** 3);
+    const extractor = readFileSync(
+      new URL(
+        "../../native/subtitle-extractor/Sources/SubLingoSubtitleExtractor/Extractor.swift",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(extractor).toContain("while av_read_frame");
+    expect(extractor).not.toContain("Data(contentsOf: request.mediaURL)");
+    expect(extractor).toContain("ProtocolLimits.maxCueCount");
+  });
+
   it("prepares the first batch under five seconds and 95% before display with zero playback pauses", async () => {
     const track = new LatestTrack();
     let active = 0;

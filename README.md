@@ -15,12 +15,12 @@
 
 ---
 
-SubLingo translates the external SRT or ASS subtitle currently selected in [IINA](https://iina.io/) and displays the result as a second subtitle track. It looks only a short distance ahead of playback, translates in bounded batches, and keeps the original subtitle and video playing when a translation is delayed or fails.
+SubLingo translates the local embedded text subtitle or external SRT/ASS subtitle currently selected in [IINA](https://iina.io/) and displays the result as a second subtitle track. It looks only a short distance ahead of playback, translates in bounded batches, and keeps the original subtitle and video playing when a translation is delayed or fails.
 
 ## ✨ Features
 
 - **Live bilingual subtitles:** Keep the original subtitle as the primary track and show translations as IINA's second subtitle.
-- **External SRT and ASS support:** Works with readable external SRT and ASS/SSA text tracks selected in IINA.
+- **Embedded and external text subtitles:** Works with local Matroska SubRip/ASS/SSA, local MOV/MP4 `mov_text`, and readable external SRT/ASS tracks selected in IINA. The release includes the required extractor; no external `ffmpeg` or `ffprobe` is needed.
 - **Your choice of translation service:** Use an OpenAI-compatible Chat Completions endpoint or a local/remote Ollama server.
 - **Playback-first behavior:** Translation work never pauses the video or hides the original subtitle.
 - **Bounded requests:** SubLingo translates only nearby cues, limits concurrent work per player window, and caches successful results only for the current video session.
@@ -31,7 +31,7 @@ SubLingo translates the external SRT or ASS subtitle currently selected in [IINA
 
 - macOS 12 or later
 - IINA 1.4.0 or later
-- A readable external SRT or ASS/SSA subtitle track
+- A supported local embedded text subtitle or readable external SRT/ASS/SSA track
 - One of the following translation services:
   - An OpenAI-compatible endpoint, model ID, and an API key when required by the service
   - An Ollama server with a compatible model already installed
@@ -62,7 +62,7 @@ After either method, approve the requested plugin permissions if prompted, make 
 
 ## 🌍 Quick Start
 
-1. Load a video and select an external SRT or ASS subtitle as the primary subtitle.
+1. Load a local video and select a supported embedded text subtitle or external SRT/ASS subtitle as the primary subtitle in IINA.
 2. Under **Languages**, select your mother language. Confirm the subtitle language if IINA cannot identify it, then save the language settings.
 3. Under **Translation service**, create an OpenAI-compatible or Ollama profile and enter the exact model ID.
 4. Save and test the profile, then click **Select**. Selecting a profile explicitly authorizes SubLingo to send nearby subtitle text to the displayed endpoint.
@@ -95,16 +95,17 @@ For either service, start with **Use macOS proxy settings**. Choose **Connect di
 - OpenAI-compatible keys are stored as local plaintext in the plugin's private `credentials.json` file. Its directory uses mode `0700` and the file uses mode `0600`. The key is not written to IINA preferences, logs, diagnostics, the sidebar state, or the plugin package, and is not shown again after saving.
 - File permissions protect the key from other macOS accounts and ordinary accidental access. They cannot protect it from a process that can already read files as your current macOS user.
 - The bundled transport helper listens only on a temporary `127.0.0.1` port and sends remote requests only to the selected endpoint. Cross-origin redirects and credentials embedded in URLs are rejected.
+- For embedded text subtitles, the bundled extractor reads only the selected stream from the current local media into a session-only temporary SRT. It does not support remote media or image-based subtitles, and removes temporary extraction data after parsing, cancellation, timeout, or shutdown.
 - Translations are cached only for the current video session and are cleared when the video changes, playback ends, or the window closes.
 - Your translation provider may charge for requests and apply its own data and content policies. Batching and caching reduce calls but do not guarantee a maximum cost.
 
 ## 📌 Current Scope
 
-SubLingo does not perform audio transcription, OCR or extraction of image-based/embedded subtitles, whole-video pretranslation, translation export, cloud sync, or persistent translation caching.
+SubLingo does not perform audio transcription, OCR or extraction of image-based subtitles, embedded subtitle extraction from remote media, whole-video pretranslation, translation export, cloud sync, or persistent translation caching.
 
 ## 🛠️ Troubleshooting
 
-- **Select a readable external SRT or ASS subtitle:** Select an external text subtitle as IINA's primary subtitle. Image-based and embedded tracks are not supported.
+- **Select a supported text subtitle:** Select a local embedded SubRip/ASS/SSA/`mov_text` track or an external SRT/ASS track as IINA's primary subtitle. Remote embedded and image-based tracks are not supported; use the displayed state to reselect a text track or retry a failed preparation.
 - **Confirm the subtitle language:** Enter a BCP 47 language tag such as `en-US`, then save the language settings.
 - **Translation service unavailable:** Test the profile and check its endpoint, model, key, network route, or Ollama process. Playback and the original subtitle continue normally.
 - **Credential could not be saved:** Install the release package rather than using an incomplete development copy, make sure the plugin data directory is writable, and fully restart IINA.

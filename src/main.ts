@@ -1,17 +1,35 @@
 import { PlaybackController } from "./app/controller.js";
 import { GlobalProviderClient } from "./adapters/iina/global-provider-client.js";
 import { finitePosition } from "./adapters/iina/runtime.js";
-import { IinaSubtitleSourcePort, readSelectedSubtitle } from "./adapters/iina/subtitle-source.js";
+import {
+  SubtitleExtractorClient,
+  SubtitleExtractorProcess,
+  discoverSubtitleExtractorExecutable,
+} from "./adapters/iina/subtitle-extractor.js";
+import {
+  classifySubtitleSelection,
+  IinaSubtitleSourcePort,
+  readSelectedSubtitle,
+} from "./adapters/iina/subtitle-source.js";
+import { IinaLocalHttpBridge, IinaProcessLauncher } from "./adapters/iina/provider-transport.js";
 import {
   GeneratedSubtitleTrackManager,
   IinaSubtitleTrackPort,
 } from "./adapters/iina/subtitle-track.js";
+import { SubtitlePreparationCoordinator } from "./app/subtitle-preparation.js";
+import { parseRetrySubtitlePreparation } from "./domain/messages.js";
+import type {
+  PreparedSubtitleSource,
+  SourcePreparationView,
+  SubtitleTrackIdentity,
+} from "./subtitles/types.js";
 
 interface MainRuntime {
   core: IINA.API.Core;
   event: IINA.API.Event;
   file: IINA.API.File;
   global: IINA.API.Global;
+  http: IINA.API.HTTP;
   mpv: IINA.API.MPV;
   preferences: IINA.API.Preferences;
   sidebar: IINA.API.SidebarView;
@@ -20,7 +38,15 @@ interface MainRuntime {
 
 function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController {
   const provider = new GlobalProviderClient(runtime.global);
-  const sourcePort = new IinaSubtitleSourcePort(runtime.core.subtitle, runtime.file);
+  let mediaEpoch = 0;
+  const sourcePort = new IinaSubtitleSourcePort(
+    runtime.core.subtitle,
+    runtime.file,
+    runtime.core,
+    runtime.mpv,
+    playerId,
+    () => mediaEpoch,
+  );
   const generatedTrack = new GeneratedSubtitleTrackManager(
     new IinaSubtitleTrackPort(runtime.core.subtitle, runtime.file, runtime.mpv, runtime.utils),
     playerId,
@@ -38,6 +64,10 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   let selectedSourceLanguage: string | null = null;
   let sourceSelectionTimer: ReturnType<typeof setTimeout> | null = null;
   let sourceReloadAttempt = 0;
+  let preparation: SubtitlePreparationCoordinator | null = null;
+  let preparationPromise: Promise<SubtitlePreparationCoordinator> | null = null;
+  let preparationView: SourcePreparationView | null = null;
+  let embeddedPreparationKey: string | null = null;
   const controller = new PlaybackController({
     playerId,
     provider,
@@ -59,6 +89,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     boundedWork,
     source: null,
     sourceIssue: "unreadable",
+    sourcePreparation: null,
   };
   const sidebarMessages: Array<{ name: string; data: unknown }> = [];
 
@@ -69,6 +100,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       cacheSize: controller.cacheSize,
       providerError: controller.providerError,
       boundedWork,
+      sourcePreparation: preparation?.view ?? preparationView,
       ...patch,
     };
   };
@@ -88,15 +120,153 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     }
   };
 
-  const clearSource = (reason: string): void => {
+  const invalidatePreparation = (): void => {
+    preparation?.invalidate("invalidated");
+    preparationView = null;
+    embeddedPreparationKey = null;
+  };
+
+  const clearSource = (reason: string, invalidateEmbedded = true): void => {
+    if (invalidateEmbedded) invalidatePreparation();
     selectedSourceTrackId = runtime.core.subtitle.id;
     selectedSourceContentHash = null;
     selectedSourceLanguage = null;
     controller.setSource(null);
-    updateSidebarState({ source: null, sourceIssue: reason });
+    updateSidebarState({ source: null, sourceIssue: reason, sourcePreparation: preparationView });
+  };
+
+  const preparationKey = (track: SubtitleTrackIdentity, epoch: number): string =>
+    [epoch, track.trackId, track.codec, track.ffIndex ?? "", track.sourceId ?? ""].join(":");
+
+  const coordinator = (): Promise<SubtitlePreparationCoordinator> => {
+    if (preparation) return Promise.resolve(preparation);
+    if (preparationPromise) return preparationPromise;
+    preparationPromise = (async () => {
+      const executable = discoverSubtitleExtractorExecutable({
+        exists: (path) => runtime.file.exists(path),
+        resolvePath: (path) => runtime.utils.resolvePath(path),
+        list: (path) => runtime.file.list(path, { includeSubDir: false }),
+        read: (path) => runtime.file.read(path) ?? null,
+      });
+      const session = await SubtitleExtractorProcess.bootstrap(
+        new IinaProcessLauncher(runtime.utils),
+        { tempDirectory: runtime.utils.resolvePath("@tmp/sublingo-extraction") },
+        executable,
+      );
+      preparation = new SubtitlePreparationCoordinator({
+        playerId,
+        extractor: new SubtitleExtractorClient(session, new IinaLocalHttpBridge(runtime.http)),
+        readResult: (resultId) =>
+          sourcePort.readBinary(`@tmp/sublingo-extraction/${resultId}/output.srt`),
+      });
+      return preparation;
+    })();
+    void preparationPromise.catch(() => {
+      preparationPromise = null;
+    });
+    return preparationPromise;
+  };
+
+  const acceptPrepared = (key: string, prepared: PreparedSubtitleSource | null): void => {
+    preparationView = preparation?.view ?? null;
+    if (!prepared || embeddedPreparationKey !== key) {
+      updateSidebarState({ sourcePreparation: preparationView });
+      return;
+    }
+    const currentSnapshot = sourcePort.selectionSnapshot();
+    const current = currentSnapshot ? classifySubtitleSelection(currentSnapshot) : null;
+    if (
+      current?.kind !== "embedded" ||
+      preparationKey(current.track, current.media.mediaEpoch) !== key
+    ) {
+      preparation?.invalidate("invalidated");
+      return;
+    }
+    const effectiveLanguage = manualSourceLanguage ?? prepared.language;
+    selectedSourceContentHash = prepared.contentHash;
+    selectedSourceLanguage = effectiveLanguage;
+    controller.setSource({
+      cues: prepared.cues,
+      contentHash: prepared.contentHash,
+      language: effectiveLanguage,
+      format: "srt",
+    });
+    updateSidebarState({
+      source: {
+        format: prepared.codec,
+        cueCount: prepared.cues.length,
+        language: effectiveLanguage,
+        detectedLanguage: prepared.language,
+        warnings: [],
+      },
+      sourceIssue: null,
+      sourcePreparation: preparation?.view ?? preparationView,
+    });
+  };
+
+  const loadEmbedded = (
+    media: Parameters<SubtitlePreparationCoordinator["prepare"]>[0],
+    track: Parameters<SubtitlePreparationCoordinator["prepare"]>[1],
+  ): void => {
+    const key = preparationKey(track, media.mediaEpoch);
+    if (
+      embeddedPreparationKey === key &&
+      (preparation?.view?.state === "preparing" || preparation?.view?.state === "ready")
+    )
+      return;
+    invalidatePreparation();
+    embeddedPreparationKey = key;
+    selectedSourceTrackId = track.trackId;
+    selectedSourceContentHash = null;
+    selectedSourceLanguage = null;
+    controller.setSource(null);
+    preparationView = {
+      state: "preparing",
+      origin: "embedded",
+      ...(track.codec === "external" ? {} : { codec: track.codec }),
+      canRetry: false,
+      canReselect: true,
+    };
+    updateSidebarState({ source: null, sourceIssue: null, sourcePreparation: preparationView });
+    void coordinator()
+      .then((value) => value.prepare(media, track))
+      .then((prepared) => acceptPrepared(key, prepared))
+      .catch(() => {
+        if (embeddedPreparationKey !== key) return;
+        preparationView = {
+          state: "failed",
+          origin: "embedded",
+          ...(track.codec === "external" ? {} : { codec: track.codec }),
+          canRetry: true,
+          canReselect: true,
+        };
+        updateSidebarState({ source: null, sourceIssue: null, sourcePreparation: preparationView });
+      });
   };
 
   const loadSource = (commitFailure = true): boolean => {
+    const snapshot = sourcePort.selectionSnapshot();
+    const selection = snapshot ? classifySubtitleSelection(snapshot) : null;
+    if (selection?.kind === "embedded") {
+      loadEmbedded(selection.media, selection.track);
+      return true;
+    }
+    if (selection?.kind === "unsupported") {
+      invalidatePreparation();
+      preparationView = {
+        state: selection.state,
+        origin: "embedded",
+        ...(selection.track?.codec && selection.track.codec !== "external"
+          ? { codec: selection.track.codec }
+          : {}),
+        canRetry: selection.state === "emptyOrUnreadable",
+        canReselect: true,
+      };
+      controller.setSource(null);
+      updateSidebarState({ source: null, sourceIssue: null, sourcePreparation: preparationView });
+      return true;
+    }
+    invalidatePreparation();
     const loaded = readSelectedSubtitle(sourcePort);
     if (!loaded.ok) {
       if (commitFailure) clearSource(loaded.reason);
@@ -126,6 +296,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
         warnings: loaded.source.decode.warnings,
       },
       sourceIssue: null,
+      sourcePreparation: null,
     });
     return true;
   };
@@ -169,6 +340,8 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   runtime.sidebar.onMessage("translation:set-enabled", (raw: unknown) => {
     const enabled = Boolean((raw as { payload?: { enabled?: unknown } }).payload?.enabled);
     controller.setEnabled(enabled);
+    if (!enabled) invalidatePreparation();
+    else if (!loadSource(false)) scheduleSourceReload();
     runtime.preferences.set("enabledByDefault", enabled);
     runtime.preferences.sync();
     updateSidebarState();
@@ -177,6 +350,40 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       ok: true,
       action: "translation",
     });
+    flushSidebar();
+  });
+  runtime.sidebar.onMessage("subtitle:retry-preparation", (raw: unknown) => {
+    let requestId: string | undefined;
+    try {
+      const message = parseRetrySubtitlePreparation(raw);
+      requestId = message.requestId;
+      const snapshot = sourcePort.selectionSnapshot();
+      const selection = snapshot ? classifySubtitleSelection(snapshot) : null;
+      if (selection?.kind !== "embedded") throw new Error("INVALID_RETRY");
+      const key = preparationKey(selection.track, selection.media.mediaEpoch);
+      if (!preparation || preparation.view?.canRetry !== true || key !== embeddedPreparationKey)
+        throw new Error("INVALID_RETRY");
+      preparationView = {
+        state: "preparing",
+        origin: "embedded",
+        ...(selection.track.codec === "external" ? {} : { codec: selection.track.codec }),
+        canRetry: false,
+        canReselect: true,
+      };
+      updateSidebarState({ source: null, sourceIssue: null, sourcePreparation: preparationView });
+      void preparation.retry().then((prepared) => acceptPrepared(key, prepared));
+      queueSidebarMessage("operation:result", {
+        requestId,
+        ok: true,
+        action: "retry-preparation",
+      });
+    } catch {
+      queueSidebarMessage("operation:result", {
+        requestId,
+        ok: false,
+        action: "retry-preparation",
+      });
+    }
     flushSidebar();
   });
   runtime.sidebar.onMessage("defaults:save", (raw: unknown) => {
@@ -336,6 +543,8 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   });
 
   runtime.event.on("iina.file-loaded", () => {
+    mediaEpoch += 1;
+    invalidatePreparation();
     controller.endFile();
     clearSource("unreadable");
     scheduleSourceReload();
@@ -351,13 +560,18 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     scheduleSourceReload(true);
   });
   runtime.event.on("mpv.track-list.changed", () => scheduleSourceReload());
-  runtime.event.on("mpv.seek", () =>
+  runtime.event.on("mpv.seek", () => {
+    preparation?.onSeek();
     controller.onSeek(
       finitePosition(
         runtime.core.status.position === null ? null : runtime.core.status.position * 1_000,
       ),
-    ),
-  );
+    );
+  });
+  runtime.event.on("mpv.end-file", () => {
+    mediaEpoch += 1;
+    invalidatePreparation();
+  });
   runtime.event.on("mpv.end-file", () => controller.endFile());
   setInterval(() => {
     controller.session.setPaused(runtime.core.status.paused);
@@ -380,6 +594,11 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     selectedSourceTrackId = null;
     selectedSourceContentHash = null;
     selectedSourceLanguage = null;
+    void preparation?.shutdown();
+    preparation = null;
+    preparationPromise = null;
+    preparationView = null;
+    embeddedPreparationKey = null;
     controller.endFile();
     controller.clearProviderSelection();
     updateSidebarState({ source: null, sourceIssue: "unreadable", selection: null });

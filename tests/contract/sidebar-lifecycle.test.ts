@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
+import { parseRetrySubtitlePreparation } from "../../src/domain/messages.js";
 
 describe("IINA sidebar lifecycle contract", () => {
   const mainSource = readFileSync(new URL("../../src/main.ts", import.meta.url), "utf8");
@@ -84,5 +85,36 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(sidebarSource).toContain('onMessage("operation:result"');
     expect(sidebarSource).toContain("requestId");
     expect(sidebarSource).toContain("aria-busy");
+  });
+
+  it("prioritizes every safe embedded preparation state and exposes Retry only when allowed", () => {
+    for (const text of [
+      "Preparing the selected embedded subtitle…",
+      "This subtitle type is not supported. Select a text subtitle in IINA.",
+      "Embedded subtitles in remote media are not supported.",
+      "The selected subtitle is empty or unreadable.",
+      "Subtitle preparation timed out. Playback continues.",
+      "Subtitle preparation failed. Playback continues.",
+    ])
+      expect(sidebarSource).toContain(text);
+    expect(sidebarSource).toContain('postMessage("subtitle:retry-preparation"');
+    expect(sidebarSource).toContain("canRetry");
+    expect(mainSource).toContain('runtime.sidebar.onMessage("subtitle:retry-preparation"');
+  });
+
+  it("accepts only a strict revisioned empty Retry envelope", () => {
+    expect(
+      parseRetrySubtitlePreparation({ requestId: "retry-1", revision: 1, payload: {} }),
+    ).toEqual({ requestId: "retry-1", revision: 1, payload: {} });
+    expect(() =>
+      parseRetrySubtitlePreparation({ requestId: "retry-1", revision: 0, payload: {} }),
+    ).toThrow("INVALID_MESSAGE");
+    expect(() =>
+      parseRetrySubtitlePreparation({
+        requestId: "retry-1",
+        revision: 1,
+        payload: { path: "/private/media" },
+      }),
+    ).toThrow("INVALID_MESSAGE");
   });
 });
