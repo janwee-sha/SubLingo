@@ -5,7 +5,7 @@ ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 STAGE_PARENT="$ROOT_DIR/build/package"
 STAGE_DIR="$STAGE_PARENT/SubLingo"
 PLUGIN_CLI=${IINA_PLUGIN_BIN:-/Applications/IINA.app/Contents/MacOS/iina-plugin}
-ARTIFACT="$STAGE_PARENT/SubLingo-0.1.0.iinaplgz"
+ARTIFACT="$STAGE_PARENT/SubLingo-0.1.1.iinaplgz"
 
 if [ ! -x "$PLUGIN_CLI" ]; then
   echo "IINA plugin CLI not found or not executable: $PLUGIN_CLI" >&2
@@ -17,7 +17,7 @@ case "$STAGE_DIR" in
   *) echo "Refusing to clean unexpected staging path: $STAGE_DIR" >&2; exit 1 ;;
 esac
 case "$ARTIFACT" in
-  "$ROOT_DIR"/build/package/SubLingo-0.1.0.iinaplgz) ;;
+  "$ROOT_DIR"/build/package/SubLingo-0.1.1.iinaplgz) ;;
   *) echo "Refusing to replace unexpected artifact path: $ARTIFACT" >&2; exit 1 ;;
 esac
 
@@ -34,14 +34,14 @@ rm -f "$ARTIFACT"
   "$PLUGIN_CLI" pack SubLingo
 )
 
-for required in Info.json README.md LICENSE THIRD_PARTY_NOTICES.txt dist/main.js dist/global.js dist/ui/sidebar.html dist/native/sublingo-transport; do
+for required in Info.json README.md LICENSE THIRD_PARTY_NOTICES.txt dist/main.js dist/global.js dist/ui/sidebar.html dist/native/sublingo-transport dist/native/sublingo-subtitle-extractor; do
   if ! unzip -Z1 "$ARTIFACT" | grep -Fqx "$required"; then
     echo "Packed artifact is missing $required" >&2
     exit 1
   fi
 done
 
-if unzip -Z1 "$ARTIFACT" | grep -Eq '(^|/)(node_modules|\.git|\.parcel-cache|specs|tests|src|native/transport|@data|@tmp)(/|$)|credentials\.json$|(^|/)\.env'; then
+if unzip -Z1 "$ARTIFACT" | grep -Eq '(^|/)(node_modules|\.git|\.parcel-cache|specs|tests|src|@data|@tmp)(/|$)|^native/|credentials\.json$|(^|/)\.env|\.(a|o|h)$|ffmpeg-.*\.tar\.'; then
   echo "Packed artifact contains a forbidden development or runtime path" >&2
   exit 1
 fi

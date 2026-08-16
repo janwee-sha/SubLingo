@@ -13,6 +13,7 @@ coverage/
 # Native build output
 native/.build/
 native/transport/.build/
+native/subtitle-extractor/.build/
 
 # Plugin runtime state and validation artifacts
 @data/
@@ -21,7 +22,7 @@ credentials.json
 *.credentials.json
 docs/validation/artifacts/
 docs/providers/
-docs/manual-test-recording/
+manual-tests/
 docs/open_issues/
 
 # macOS / editors

@@ -6,8 +6,11 @@ PACKAGE_DIR="$ROOT_DIR/native/transport"
 SOURCE_DIR="$ROOT_DIR/native/transport/Sources/SubLingoTransport"
 TEST_DIR="$ROOT_DIR/native/transport/Tests"
 BUILD_DIR="$ROOT_DIR/native/transport/.build/contract-tests"
+MODULE_CACHE="$ROOT_DIR/native/.build/module-cache"
 
-mkdir -p "$BUILD_DIR"
+mkdir -p "$BUILD_DIR" "$MODULE_CACHE"
+export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE"
+export SWIFTPM_MODULECACHE_OVERRIDE="$MODULE_CACHE"
 swiftc -parse-as-library \
   -I "$PACKAGE_DIR/Sources/CCurl" \
   -lcurl \
@@ -22,3 +25,26 @@ swiftc -parse-as-library \
   -o "$BUILD_DIR/sublingo-transport-contract-tests"
 "$BUILD_DIR/sublingo-transport-contract-tests"
 LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 "$BUILD_DIR/sublingo-transport-contract-tests"
+
+"$ROOT_DIR/scripts/build-ffmpeg.sh" "${SUBLINGO_FFMPEG_SOURCE:-$ROOT_DIR/native/.build/ffmpeg/downloads/ffmpeg-8.1.2.tar.xz}"
+EXTRACTOR_PREFIX="$ROOT_DIR/native/.build/ffmpeg/arm64"
+EXTRACTOR_SOURCE="$ROOT_DIR/native/subtitle-extractor/Sources/SubLingoSubtitleExtractor"
+EXTRACTOR_TESTS="$ROOT_DIR/native/subtitle-extractor/Tests/SubLingoSubtitleExtractorTests"
+EXTRACTOR_BUILD="$ROOT_DIR/native/subtitle-extractor/.build/contract-tests"
+mkdir -p "$EXTRACTOR_BUILD"
+swiftc -parse-as-library \
+  -I "$ROOT_DIR/native/subtitle-extractor/Sources/CFFmpeg" \
+  -Xcc -I"$EXTRACTOR_PREFIX/include" \
+  -L "$EXTRACTOR_PREFIX/lib" \
+  -lavformat -lavcodec -lavutil -lz \
+  "$EXTRACTOR_SOURCE/Protocol.swift" \
+  "$EXTRACTOR_SOURCE/Extractor.swift" \
+  "$EXTRACTOR_SOURCE/ExtractionJobs.swift" \
+  "$EXTRACTOR_SOURCE/Server.swift" \
+  "$EXTRACTOR_TESTS/PackageTests.swift" \
+  "$EXTRACTOR_TESTS/ExtractionTests.swift" \
+  "$EXTRACTOR_TESTS/LifecycleTests.swift" \
+  "$EXTRACTOR_TESTS/SecurityTests.swift" \
+  "$EXTRACTOR_TESTS/TestMain.swift" \
+  -o "$EXTRACTOR_BUILD/sublingo-subtitle-extractor-tests"
+"$EXTRACTOR_BUILD/sublingo-subtitle-extractor-tests"
