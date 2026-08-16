@@ -22,7 +22,7 @@ credentials.json
 *.credentials.json
 docs/validation/artifacts/
 docs/providers/
-docs/manual-test-recording/
+manual-tests/
 docs/open_issues/
 
 # macOS / editors
