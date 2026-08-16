@@ -37,16 +37,6 @@ interface PendingOperation {
 
 type ProfileTestState = "not tested" | "passed" | "failed";
 
-type SourcePreparationState =
-  | "preparing"
-  | "ready"
-  | "unsupportedType"
-  | "remoteUnsupported"
-  | "emptyOrUnreadable"
-  | "timedOut"
-  | "failed"
-  | "invalidated";
-
 const labels: Record<SessionStatus, string> = {
   disabled: "Translation is off",
   waitingForSubtitle: "Select a readable external SRT or ASS subtitle",
@@ -67,17 +57,6 @@ const sourceIssueLabels: Record<string, string> = {
   empty: "The selected subtitle contains no readable cues.",
 };
 
-const sourcePreparationLabels: Record<SourcePreparationState, string> = {
-  preparing: "Preparing the selected embedded subtitle…",
-  ready: "",
-  unsupportedType: "This subtitle type is not supported. Select a text subtitle in IINA.",
-  remoteUnsupported: "Embedded subtitles in remote media are not supported.",
-  emptyOrUnreadable: "The selected subtitle is empty or unreadable.",
-  timedOut: "Subtitle preparation timed out. Playback continues.",
-  failed: "Subtitle preparation failed. Playback continues.",
-  invalidated: "The subtitle selection changed. Reselect a subtitle in IINA.",
-};
-
 function safeProviderErrorDetail(error: SessionProviderError | null | undefined): string {
   if (!error) return "";
   if (typeof error.statusCode === "number") return `HTTP ${error.statusCode}`;
@@ -95,10 +74,6 @@ function safeProviderErrorDetail(error: SessionProviderError | null | undefined)
 
 const statusMessage = document.querySelector<HTMLParagraphElement>("#status")!;
 const statusDot = document.querySelector<HTMLSpanElement>("#status-dot")!;
-const sourcePreparationControls = document.querySelector<HTMLElement>(
-  "#source-preparation-controls",
-)!;
-const retrySubtitleButton = document.querySelector<HTMLButtonElement>("#retry-subtitle")!;
 const operationStatus = document.querySelector<HTMLParagraphElement>("#operation-status")!;
 const enabled = document.querySelector<HTMLInputElement>("#enabled")!;
 const targetLanguage = document.querySelector<HTMLSelectElement>("#target-language")!;
@@ -274,11 +249,6 @@ saveLanguagesButton.addEventListener("click", () => {
       requestId,
     ),
   );
-});
-
-retrySubtitleButton.addEventListener("click", () => {
-  const requestId = beginOperation(retrySubtitleButton, "Retrying…");
-  window.iina?.postMessage("subtitle:retry-preparation", envelope({}, requestId));
 });
 
 saveProfileButton.addEventListener("click", () => {
@@ -467,11 +437,7 @@ window.iina?.onMessage("operation:result", (raw: unknown) => {
         ? enabled.checked
           ? "Translation enabled."
           : "Translation disabled."
-        : result.action === "retry-preparation"
-          ? result.ok === true
-            ? "Subtitle preparation restarted."
-            : "Retry is no longer available for this subtitle."
-          : "Operation completed.";
+        : "Operation completed.";
   finishOperation(result.requestId, message, result.ok === true || result.cancelled === true);
 });
 
@@ -540,11 +506,6 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
     selection?: { profileId: string; revision: number } | null;
     sourceIssue?: string | null;
     providerError?: SessionProviderError | null;
-    sourcePreparation?: {
-      state: SourcePreparationState;
-      canRetry: boolean;
-      canReselect: boolean;
-    } | null;
   };
   if (view.status && labels[view.status]) {
     statusMessage.textContent = labels[view.status];
@@ -561,15 +522,6 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
     sourceIssueLabels[view.sourceIssue]
   )
     statusMessage.textContent = sourceIssueLabels[view.sourceIssue]!;
-  if (view.sourcePreparation && view.sourcePreparation.state !== "ready") {
-    sourcePreparationControls.hidden = !view.sourcePreparation.canRetry;
-    retrySubtitleButton.hidden = !view.sourcePreparation.canRetry;
-    statusMessage.textContent = sourcePreparationLabels[view.sourcePreparation.state];
-    statusDot.dataset.state = view.sourcePreparation.state;
-  } else {
-    sourcePreparationControls.hidden = true;
-    retrySubtitleButton.hidden = true;
-  }
   if (view.source) {
     sourceSummary.hidden = false;
     document.querySelector<HTMLElement>("#source-format")!.textContent =

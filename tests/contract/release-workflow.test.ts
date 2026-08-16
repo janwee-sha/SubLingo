@@ -70,15 +70,4 @@ describe("automatic release workflow", () => {
     expect(workflow).not.toContain("--replace-old-commit");
     expect(workflow).not.toContain("--replace-old-artifact-sha256");
   });
-
-  it("audits both native executables and publishes the locked FFmpeg source only from the audited payload", () => {
-    expect(workflow).toContain("--build-helper dist/native/sublingo-transport");
-    expect(workflow).toContain("--build-extractor dist/native/sublingo-subtitle-extractor");
-    expect(workflow).toContain(
-      "--ffmpeg-source native/.build/ffmpeg/downloads/ffmpeg-8.1.2.tar.xz",
-    );
-    expect(workflow).toContain("--ffmpeg-lock native/ffmpeg.lock.json");
-    expect(workflow).toContain("path: build/release/");
-    expect(workflow).not.toContain("native/.build/ffmpeg/downloads/**");
-  });
 });

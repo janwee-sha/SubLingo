@@ -12,19 +12,6 @@ export const SESSION_STATUSES = [
 
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
-export const SOURCE_PREPARATION_STATES = [
-  "preparing",
-  "ready",
-  "unsupportedType",
-  "remoteUnsupported",
-  "emptyOrUnreadable",
-  "timedOut",
-  "failed",
-  "invalidated",
-] as const;
-
-export type SourcePreparationState = (typeof SOURCE_PREPARATION_STATES)[number];
-
 export const USER_ACTIONS = [
   "NONE",
   "CHECK_NETWORK",

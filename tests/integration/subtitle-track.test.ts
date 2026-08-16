@@ -157,20 +157,4 @@ describe("plugin-owned second subtitle", () => {
     expect(port.secondId).toBe(2);
     expect(port.removedTracks).toEqual([100]);
   });
-
-  it("isolates generated files and cleanup between player sessions", async () => {
-    const firstPort = new FakeTrackPort();
-    const secondPort = new FakeTrackPort();
-    const first = new GeneratedSubtitleTrackManager(firstPort, "player-A", "session-A", 0);
-    const second = new GeneratedSubtitleTrackManager(secondPort, "player-B", "session-B", 0);
-    await first.swap("first");
-    await second.swap("second");
-    expect([...firstPort.files.keys()][0]).toContain("player-A-session-A");
-    expect([...secondPort.files.keys()][0]).toContain("player-B-session-B");
-    first.cleanup();
-    expect(firstPort.secondId).toBe(2);
-    expect(secondPort.secondId).toBe(100);
-    expect(secondPort.files.size).toBe(1);
-    expect(secondPort.primaryId).toBe(1);
-  });
 });

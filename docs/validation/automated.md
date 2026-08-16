@@ -1,24 +1,31 @@
-# 自动化验证
+# Automated Validation — 2026-08-11
 
-当前门禁要求 macOS、Node.js 24、npm 11 与 Swift 6。正式结论以本次命令输出、Release 审计和 Git 历史为准，本文不保存过时的逐次大小或哈希。
+Environment: macOS arm64, Node.js 24/npm 11, Swift 6.
+
+| Check                | Result | Current evidence                                                                                                      |
+| -------------------- | ------ | --------------------------------------------------------------------------------------------------------------------- |
+| TypeScript tests     | PASS   | 30 files and 129 tests passed; 2 authorized live-provider tests skipped by default.                                   |
+| Type checking        | PASS   | Plugin and WebView projects completed without diagnostics.                                                            |
+| ESLint               | PASS   | `src`, `ui`, `tests` and Vitest configuration completed without diagnostics.                                          |
+| Formatting           | PASS   | Prettier reported all matched files formatted.                                                                        |
+| Native contracts     | PASS   | Transport, credential file, health, cancellation and direct/system route contracts passed.                            |
+| Universal helper     | PASS   | 775,184-byte executable with arm64 and x86_64 slices and a valid signature.                                           |
+| Plugin bundle        | PASS   | Main 113,581 bytes; Global 133,935 bytes; Sidebar HTML 5,213 bytes.                                                   |
+| Package verification | PASS   | Required files, executable mode, architectures, secret scan and runtime-path exclusions passed.                       |
+| Release archive      | PASS   | `SubLingo-0.1.0.iinaplgz`, 300,588 bytes, SHA-256 `2da87446cbc2411337bc566b973c876afa265744718c864bde786fad466dd908`. |
+
+Commands executed:
 
 ```sh
 npm test
 npm run typecheck
 npm run lint
-npm run build:native
+npm run format:check
 npm run test:native
+npm run build:native
 npm run build
 npm run verify:package
 npm run pack
 ```
 
-内嵌字幕聚焦测试另见 [`specs/008-embedded-subtitle-translation/quickstart.md`](../../specs/008-embedded-subtitle-translation/quickstart.md)，覆盖：
-
-- 外挂、内嵌、远程、图形与未知轨道的失败关闭分类；
-- SubRip、ASS、SSA、`mov_text` 的真实小样本提取与 UTF-8 SRT 规范化；
-- 15 秒超时、显式 Retry、迟到结果释放、换轨/换片/seek/禁用/关窗和双窗口隔离；
-- 两个 native 可执行文件的 macOS 12 双架构、签名、系统动态依赖、权限与固定错误码；
-- 至少 30 个不透明样本 ID、20,000 cue/4 小时流式边界和每类 20 次生命周期模拟。
-
-native transport 测试需要绑定本机回环端口；受限沙箱若返回 `Operation not permitted`，应在获批的本地权限下原样重跑，不得把环境限制记为产品通过或失败。
+The first sandboxed test/native/build attempts could not use loopback or compiler/build caches. The same commands passed with the required local permissions; these were environment restrictions, not product failures.

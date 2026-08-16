@@ -43,24 +43,6 @@ export function validateReleaseMetadata(input) {
     throw new Error("README license badge is missing or incorrect");
   }
 
-  const ffmpeg = input.ffmpegLock;
-  const expectedSourceAsset = `ffmpeg-${ffmpeg?.version}.tar.xz`;
-  if (
-    ffmpeg?.version !== "8.1.2" ||
-    ffmpeg?.license !== "LGPL-2.1-or-later" ||
-    ffmpeg?.sourceAssetName !== expectedSourceAsset ||
-    ffmpeg?.sourceDistribution?.assetName !== expectedSourceAsset ||
-    ffmpeg?.sourceDistribution?.checksumAssetName !== `${expectedSourceAsset}.sha256` ||
-    !/^[0-9a-f]{64}$/.test(ffmpeg?.sha256 ?? "")
-  ) {
-    throw new Error("FFmpeg lock metadata is incomplete or inconsistent");
-  }
-  for (const value of [ffmpeg.version, ffmpeg.license, expectedSourceAsset, ffmpeg.sha256]) {
-    if (!input.thirdPartyNotices.includes(value)) {
-      throw new Error(`FFmpeg third-party notice is missing ${value}`);
-    }
-  }
-
   const packVersions = Array.from(
     input.packScript.matchAll(/SubLingo-([0-9A-Za-z.+-]+)\.iinaplgz/g),
     (match) => match[1],
@@ -78,8 +60,6 @@ export function validateReleaseMetadata(input) {
     artifactName,
     artifactPath: `build/package/${artifactName}`,
     license: projectLicense,
-    ffmpegSourceAssetName: ffmpeg.sourceDistribution.assetName,
-    ffmpegSourceChecksumName: ffmpeg.sourceDistribution.checksumAssetName,
   };
 }
 
@@ -90,10 +70,6 @@ export function readReleaseMetadata(rootDirectory) {
   const packScript = readFileSync(resolve(rootDirectory, "scripts/pack.sh"), "utf8");
   const licenseText = readFileSync(resolve(rootDirectory, "LICENSE"), "utf8");
   const readme = readFileSync(resolve(rootDirectory, "README.md"), "utf8");
-  const ffmpegLock = JSON.parse(
-    readFileSync(resolve(rootDirectory, "native/ffmpeg.lock.json"), "utf8"),
-  );
-  const thirdPartyNotices = readFileSync(resolve(rootDirectory, "THIRD_PARTY_NOTICES.txt"), "utf8");
 
   return validateReleaseMetadata({
     infoVersion: info.version,
@@ -105,8 +81,6 @@ export function readReleaseMetadata(rootDirectory) {
     licenseText,
     readme,
     packScript,
-    ffmpegLock,
-    thirdPartyNotices,
   });
 }
 
@@ -138,8 +112,6 @@ function main() {
         `tag=${metadata.tag}`,
         `artifact_name=${metadata.artifactName}`,
         `artifact_path=${metadata.artifactPath}`,
-        `ffmpeg_source_asset_name=${metadata.ffmpegSourceAssetName}`,
-        `ffmpeg_source_checksum_name=${metadata.ffmpegSourceChecksumName}`,
         "",
       ].join("\n"),
       { flag: "a" },
