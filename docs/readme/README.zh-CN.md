@@ -119,6 +119,6 @@ SubLingo 不提供音频转写、图形字幕 OCR/提取、远程媒体内嵌字
 
 如果 SubLingo 对你有帮助，可以通过[爱发电](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link)或 [Ko-fi](https://ko-fi.com/ianhsia) 自愿请创作者喝杯咖啡。
 
-[![请 SubLingo 创作者喝杯咖啡的爱发电二维码](assets/aifadian-sponsor.jpeg)](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link)
+[![请 SubLingo 创作者喝杯咖啡的爱发电二维码](assets/aifadian-sponsor.webp)](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link)
 
 SubLingo 对所有人保持免费且功能完整。打赏不会解锁额外功能、优先翻译或专属版本，也不包含翻译服务 API 额度。你选择的 Provider 可能根据其条款与内容政策独立收费。
