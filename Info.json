@@ -1,6 +1,6 @@
 {
   "name": "SubLingo",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "identifier": "io.sublingo.iina",
   "description": "Translate the selected local embedded text subtitle or external SRT/ASS subtitle into an IINA second subtitle track.",
   "author": {
