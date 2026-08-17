@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { readReleaseNotes } from "./release-notes.mjs";
+
 const stableSemverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const projectLicense = "GPL-3.0-only";
 const licenseBadge =
@@ -95,7 +97,7 @@ export function readReleaseMetadata(rootDirectory) {
   );
   const thirdPartyNotices = readFileSync(resolve(rootDirectory, "THIRD_PARTY_NOTICES.txt"), "utf8");
 
-  return validateReleaseMetadata({
+  const metadata = validateReleaseMetadata({
     infoVersion: info.version,
     packageVersion: packageManifest.version,
     lockVersion: packageLock.version,
@@ -108,6 +110,12 @@ export function readReleaseMetadata(rootDirectory) {
     ffmpegLock,
     thirdPartyNotices,
   });
+  const releaseNotes = readReleaseNotes(rootDirectory, metadata.version);
+  return {
+    ...metadata,
+    releaseNotesPath: releaseNotes.sourcePath,
+    releaseNotesSha256: releaseNotes.rawSha256,
+  };
 }
 
 function parseArguments(argumentsList) {
@@ -138,6 +146,8 @@ function main() {
         `tag=${metadata.tag}`,
         `artifact_name=${metadata.artifactName}`,
         `artifact_path=${metadata.artifactPath}`,
+        `release_notes_path=${metadata.releaseNotesPath}`,
+        `release_notes_sha256=${metadata.releaseNotesSha256}`,
         `ffmpeg_source_asset_name=${metadata.ffmpegSourceAssetName}`,
         `ffmpeg_source_checksum_name=${metadata.ffmpegSourceChecksumName}`,
         "",

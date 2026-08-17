@@ -15,6 +15,8 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { readReleaseNotes } from "./release-notes.mjs";
+
 const gateLabels = [
   ["test", "npm run test"],
   ["typecheck", "npm run typecheck"],
@@ -244,75 +246,101 @@ export function validateFFmpegSource(lock, sourceName, sourceBuffer) {
   };
 }
 
-function formatHelper(label, helper) {
-  return [
-    `### ${label}`,
-    "",
-    `- 架构：${helper.architectures.join("、")}`,
-    `- 可执行权限：${helper.executable ? "是" : "否"}`,
-    `- 签名验证：${helper.signed ? "有效" : "无效"}`,
-    `- 签名摘要：${helper.signature}`,
-    `- 最低系统：${helper.minimumMacos.join("、")}`,
-    `- 动态依赖：${helper.dependencies.length > 0 ? helper.dependencies.join("、") : "无"}`,
-    `- SHA-256：${helper.sha256}`,
-  ].join("\n");
+export function copyAuditedReleaseNotes(options) {
+  const releaseNotes = readReleaseNotes(options.rootDirectory, options.expectedVersion);
+  if (options.sourcePath && options.sourcePath !== releaseNotes.sourcePath) {
+    throw new Error(
+      `Release notes path mismatch: ${options.sourcePath} != ${releaseNotes.sourcePath}`,
+    );
+  }
+  if (releaseNotes.rawSha256 !== options.expectedSha256) {
+    throw new Error("Release notes SHA-256 changed after metadata validation");
+  }
+  mkdirSync(resolve(options.outputDirectory), { recursive: true });
+  writeFileSync(resolve(options.outputDirectory, "release-notes.md"), releaseNotes.rawContent);
+  return {
+    sourcePath: releaseNotes.sourcePath,
+    rawSha256: releaseNotes.rawSha256,
+  };
 }
 
-export function buildReleaseNotes(input) {
-  const gateLines = gateLabels.map(
-    ([key, label]) => `- \`${label}\`：${input.gates[key] ? "通过" : "失败"}`,
-  );
-  const archiveLines = input.entries.map((entry) => entry);
-  return [
-    `# SubLingo ${input.version} 发布证据`,
+export function buildReleaseAudit(input) {
+  return {
+    version: input.version,
+    tag: `v${input.version}`,
+    commit: input.commit,
+    artifactName: input.artifactName,
+    checksumName: `${input.artifactName}.sha256`,
+    packageVersion: input.packageVersion,
+    byteSize: input.byteSize,
+    sha256: input.sha256,
+    gates: input.gates,
+    entries: input.entries,
+    buildHelpers: input.buildHelpers,
+    packageHelpers: input.packageHelpers,
+    ffmpeg: input.ffmpeg,
+    releaseNotes: input.releaseNotes,
+    hostValidation: {
+      installation: "not-covered",
+      uninstallation: "not-covered",
+      playback: "not-covered",
+    },
+  };
+}
+
+export function formatReleaseAuditSummary(audit) {
+  const lines = [
+    "## Release audit",
     "",
-    `- 触发提交：\`${input.commit}\``,
-    `- 产物：\`${input.artifactName}\``,
-    `- 包内版本：\`${input.packageVersion}\``,
-    `- 精确大小：${input.byteSize} 字节`,
-    `- SHA-256：\`${input.sha256}\``,
+    `- Version: \`${audit.version}\``,
+    `- Tag: \`${audit.tag}\``,
+    `- Commit: \`${audit.commit}\``,
+    `- Artifact: \`${audit.artifactName}\` (${audit.byteSize} bytes)`,
+    `- Artifact SHA-256: \`${audit.sha256}\``,
+    `- Release notes: \`${audit.releaseNotes.sourcePath}\``,
+    `- Release notes SHA-256: \`${audit.releaseNotes.rawSha256}\``,
     "",
-    "## 自动化门禁",
+    "### Gates",
     "",
-    ...gateLines,
+    ...gateLabels.map(
+      ([key, command]) => `- \`${command}\`: ${audit.gates[key] ? "PASS" : "FAIL"}`,
+    ),
     "",
-    "## 最终归档清单",
+    "### Archive entries",
     "",
-    "```text",
-    ...archiveLines,
-    "```",
+    ...audit.entries.map((entry) => `- \`${entry.name}\``),
     "",
-    ...Object.entries(input.buildHelpers).flatMap(([name, helper]) => [
-      formatHelper(`构建文件 ${name}`, helper),
-      "",
+    "### Native helpers",
+    "",
+    ...Object.entries(audit.buildHelpers).flatMap(([name, helper]) => [
+      `- Build \`${name}\`: \`${helper.sha256}\``,
+      `  - Architectures: ${helper.architectures.join(", ")}`,
+      `  - Minimum macOS: ${helper.minimumMacos.join(", ")}`,
+      `  - Signature: ${helper.signature}`,
+      `  - Dependencies: ${helper.dependencies.join(", ") || "none"}`,
     ]),
-    ...Object.entries(input.packageHelpers).flatMap(([name, helper]) => [
-      formatHelper(`包内 ${name}`, helper),
-      "",
+    ...Object.entries(audit.packageHelpers).flatMap(([name, helper]) => [
+      `- Package \`${name}\`: \`${helper.sha256}\``,
+      `  - Architectures: ${helper.architectures.join(", ")}`,
+      `  - Minimum macOS: ${helper.minimumMacos.join(", ")}`,
+      `  - Signature: ${helper.signature}`,
+      `  - Dependencies: ${helper.dependencies.join(", ") || "none"}`,
     ]),
-    "## FFmpeg 对应源码",
     "",
-    `- 版本：${input.ffmpeg.version}`,
-    `- 许可证：${input.ffmpeg.license}`,
-    `- 源码资产：${input.ffmpeg.assetName}`,
-    `- 校验资产：${input.ffmpeg.checksumAssetName}`,
-    `- SHA-256：${input.ffmpeg.sha256}`,
+    "### FFmpeg source",
     "",
-    "## IINA 图形界面验收边界",
+    `- Asset: \`${audit.ffmpeg.assetName}\``,
+    `- Checksum asset: \`${audit.ffmpeg.checksumAssetName}\``,
+    `- SHA-256: \`${audit.ffmpeg.sha256}\``,
     "",
-    "- 真实安装：CI 未覆盖",
-    "- 真实卸载：CI 未覆盖",
-    "- 实际播放：CI 未覆盖",
+    "### Host validation",
     "",
-    "以上宿主行为不属于本自动发布门禁，未标记为已验证，也不阻塞本次正式发布。",
+    `- Installation: ${audit.hostValidation.installation}`,
+    `- Uninstallation: ${audit.hostValidation.uninstallation}`,
+    `- Playback: ${audit.hostValidation.playback}`,
     "",
-    "## 自愿支持",
-    "",
-    "如果 SubLingo 对你有帮助，可以前往[爱发电](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link)或 [Ko-fi](https://ko-fi.com/ianhsia) 自愿请创作者喝杯咖啡。",
-    "",
-    "SubLingo 对所有人保持免费完整使用。打赏不会解锁额外功能、优先翻译或专属版本，也不包含翻译服务 API 额度；用户选择的 Provider 可能独立收费。",
-    "",
-  ].join("\n");
+  ];
+  return lines.join("\n");
 }
 
 export function readZipEntries(archiveBuffer) {
@@ -528,25 +556,18 @@ export function auditRelease(options) {
     const byteSize = statSync(artifactPath).size;
     const sha256 = createHash("sha256").update(archiveBuffer).digest("hex");
     const artifactName = basename(artifactPath);
-    const notes = buildReleaseNotes({
-      version: options.expectedVersion,
-      commit: options.expectedCommit,
-      packageVersion: packageInfo.version,
-      artifactName,
-      byteSize,
-      sha256,
-      entries: entries.map((entry) => entry.name),
-      gates,
-      buildHelpers,
-      packageHelpers,
-      ffmpeg,
+    const outputDirectory = resolve(options.outputDirectory);
+    const releaseNotes = copyAuditedReleaseNotes({
+      rootDirectory: process.cwd(),
+      expectedVersion: options.expectedVersion,
+      expectedSha256: options.expectedReleaseNotesSha256,
+      sourcePath: options.releaseNotes,
+      outputDirectory,
     });
-    const audit = {
+    const audit = buildReleaseAudit({
       version: options.expectedVersion,
-      tag: `v${options.expectedVersion}`,
       commit: options.expectedCommit,
       artifactName,
-      checksumName: `${artifactName}.sha256`,
       packageVersion: packageInfo.version,
       byteSize,
       sha256,
@@ -555,9 +576,9 @@ export function auditRelease(options) {
       buildHelpers,
       packageHelpers,
       ffmpeg,
-    };
+      releaseNotes,
+    });
 
-    const outputDirectory = resolve(options.outputDirectory);
     mkdirSync(outputDirectory, { recursive: true });
     const outputArtifact = join(outputDirectory, artifactName);
     if (outputArtifact !== artifactPath) {
@@ -572,11 +593,13 @@ export function auditRelease(options) {
       join(outputDirectory, ffmpeg.checksumAssetName),
       `${ffmpeg.sha256}  ${ffmpeg.assetName}\n`,
     );
-    writeFileSync(join(outputDirectory, "release-notes.md"), notes);
     writeFileSync(
       join(outputDirectory, "release-audit.json"),
       `${JSON.stringify(audit, null, 2)}\n`,
     );
+    if (options.summaryFile) {
+      writeFileSync(resolve(options.summaryFile), formatReleaseAuditSummary(audit), { flag: "a" });
+    }
     return audit;
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
@@ -594,6 +617,9 @@ function parseArguments(argumentsList) {
     ["--ffmpeg-source", "ffmpegSource"],
     ["--ffmpeg-lock", "ffmpegLock"],
     ["--gates", "gates"],
+    ["--release-notes", "releaseNotes"],
+    ["--release-notes-sha256", "expectedReleaseNotesSha256"],
+    ["--summary-file", "summaryFile"],
     ["--output-dir", "outputDirectory"],
   ]);
   for (let index = 0; index < argumentsList.length; index += 2) {
@@ -604,7 +630,19 @@ function parseArguments(argumentsList) {
     }
     options[name] = value;
   }
-  for (const name of names.values()) {
+  for (const name of [
+    "artifact",
+    "expectedVersion",
+    "expectedCommit",
+    "buildHelper",
+    "buildExtractor",
+    "ffmpegSource",
+    "ffmpegLock",
+    "gates",
+    "releaseNotes",
+    "expectedReleaseNotesSha256",
+    "outputDirectory",
+  ]) {
     if (!options[name]) {
       throw new Error(`Missing required option: ${name}`);
     }

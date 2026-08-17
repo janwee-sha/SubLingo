@@ -27,6 +27,7 @@ docs/open_issues/
 
 # macOS / editors
 .DS_Store
+Thumbs.db
 *.tmp
 *.swp
 .vscode/

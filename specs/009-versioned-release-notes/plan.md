@@ -16,7 +16,7 @@
 
 **存储**：版本控制中的 `docs/releases/vX.Y.Z.md`；`build/release/` 下的瞬时正文副本、审计 JSON 和校验文件；GitHub Release 远端正文
 
-**测试**：发布说明解析契约、元数据、最终归档审计、发布状态和 workflow 的 Vitest 回归；`npm run test:release`、完整项目检查和单人发布说明验收
+**测试**：元数据、最终归档审计、发布状态和 workflow 的 Vitest 回归；`npm run test:release`、完整项目检查和单人发布说明验收。版本化正文由发布脚本在运行时校验，不维护专门的文档测试套件
 
 **目标平台**：GitHub-hosted `macos-15` Arm64 构建任务与 Ubuntu 24.04 发布任务；本地 Node.js 24；GitHub Releases
 
@@ -26,7 +26,7 @@
 
 **约束**：只支持稳定 `X.Y.Z`；中文用户正文；固定小型 Markdown 子集；workflow 不生成或回写仓库文档；跨任务正文按原始摘要绑定；公开 Release 不覆盖；生产脚本不新增注释，非用户数据的可执行字符串使用英语
 
-**规模与范围**：每个稳定版本 1 份发布说明、最多 4 类章节；1 个共享校验模块、3 个现有发布脚本、1 个 workflow、5 组聚焦契约测试及相关当前意图文档
+**规模与范围**：每个稳定版本 1 份发布说明、最多 4 类章节；1 个共享校验模块、3 个现有发布脚本、1 个 workflow、4 组聚焦契约测试及相关当前意图文档
 
 ## 宪法检查
 
@@ -78,7 +78,6 @@ scripts/
 ├── audit-release.mjs
 └── publish-release.mjs
 tests/contract/
-├── release-notes.test.ts
 ├── release-metadata.test.ts
 ├── release-audit.test.ts
 ├── release-publish.test.ts

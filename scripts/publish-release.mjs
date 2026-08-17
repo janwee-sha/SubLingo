@@ -6,17 +6,25 @@ import { basename, join, resolve } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
-const remoteStateRetryDelays = [0, 500, 1_000, 2_000, 4_000, 8_000, 16_000];
+import {
+  normalizeReleaseBody,
+  readReleaseNotesFile,
+  releaseNotesRelativePath,
+} from "./release-notes.mjs";
 
-function normalizeBody(body) {
-  return (body ?? "").replaceAll("\r\n", "\n").trimEnd();
-}
+const remoteStateRetryDelays = [0, 500, 1_000, 2_000, 4_000, 8_000, 16_000];
 
 export function decideReleaseAction(input) {
   const release = input.release;
   if (release && !release.draft) {
     if (release.prerelease) {
       throw new Error("The existing release is a prerelease");
+    }
+    if (!input.tagCommit) {
+      throw new Error("The published release tag is missing");
+    }
+    if (normalizeReleaseBody(release.body) !== normalizeReleaseBody(input.expectedBody)) {
+      throw new Error("Published release body conflict");
     }
     return { kind: "skip" };
   }
@@ -37,7 +45,7 @@ export function decideReleaseAction(input) {
   if (targetCommit !== input.expectedCommit) {
     throw new Error(`Draft target mismatch: ${targetCommit} != ${input.expectedCommit}`);
   }
-  if (normalizeBody(release.body) !== normalizeBody(input.expectedBody)) {
+  if (normalizeReleaseBody(release.body) !== normalizeReleaseBody(input.expectedBody)) {
     throw new Error("Draft release body does not match the audited evidence");
   }
   return { kind: "resume", releaseId: release.id };
@@ -86,7 +94,13 @@ export function releaseAssetNames(version, ffmpegLock) {
   ];
 }
 
-export function assertPublishedRelease(release, tagCommit, expectedCommit, latestReleaseId) {
+export function assertPublishedRelease(
+  release,
+  tagCommit,
+  expectedCommit,
+  latestReleaseId,
+  expectedBody,
+) {
   if (release.draft) {
     throw new Error("Release is not public after publication");
   }
@@ -98,6 +112,12 @@ export function assertPublishedRelease(release, tagCommit, expectedCommit, lates
   }
   if (latestReleaseId !== undefined && release.id !== latestReleaseId) {
     throw new Error(`Published release is not Latest: ${release.id} != ${latestReleaseId}`);
+  }
+  if (
+    expectedBody !== undefined &&
+    normalizeReleaseBody(release.body) !== normalizeReleaseBody(expectedBody)
+  ) {
+    throw new Error("Published release body does not match the audited release notes");
   }
 }
 
@@ -125,13 +145,27 @@ export function hasExpectedAssetNames(release, expectedAssets) {
   return expectedAssets.every((asset) => remoteNames.has(asset.name));
 }
 
-export function isPublishedStateReady(state, expectedCommit) {
+export function isPublishedStateReady(state, expectedCommit, expectedBody) {
   return Boolean(
     state?.release &&
     !state.release.draft &&
     state.tagCommit === expectedCommit &&
-    state.latestReleaseId === state.release.id,
+    state.latestReleaseId === state.release.id &&
+    (expectedBody === undefined ||
+      normalizeReleaseBody(state.release.body) === normalizeReleaseBody(expectedBody)),
   );
+}
+
+export function readAuditedReleaseNotes(options) {
+  const expectedSourcePath = releaseNotesRelativePath(options.version);
+  if (options.auditReleaseNotes?.sourcePath !== expectedSourcePath) {
+    throw new Error("Audited release notes source path does not match the publication version");
+  }
+  const releaseNotes = readReleaseNotesFile(options.notesFile, options.version);
+  if (releaseNotes.rawSha256 !== options.auditReleaseNotes?.rawSha256) {
+    throw new Error("Audited release notes SHA-256 does not match the publication body");
+  }
+  return releaseNotes.rawContent;
 }
 
 function runGh(argumentsList, options = {}) {
@@ -292,8 +326,12 @@ export async function publishRelease(options) {
   validateOptions(options);
   const notesFile = resolve(options.notesFile);
   const assetsDirectory = resolve(options.assetsDirectory);
-  const expectedBody = readFileSync(notesFile, "utf8");
   const audit = JSON.parse(readFileSync(join(assetsDirectory, "release-audit.json"), "utf8"));
+  const expectedBody = readAuditedReleaseNotes({
+    notesFile,
+    version: options.version,
+    auditReleaseNotes: audit.releaseNotes,
+  });
   const artifactName = `SubLingo-${options.version}.iinaplgz`;
   if (
     audit.version !== options.version ||
@@ -411,7 +449,7 @@ export async function publishRelease(options) {
         tagCommit: resolveTagCommit(options.repository, options.tag),
         latestReleaseId: findLatestReleaseId(options.repository, true),
       }),
-      (candidate) => isPublishedStateReady(candidate, options.commit),
+      (candidate) => isPublishedStateReady(candidate, options.commit, expectedBody),
     );
     release = publishedState.state?.release;
     tagCommit = publishedState.state?.tagCommit;
@@ -419,7 +457,7 @@ export async function publishRelease(options) {
     if (!release) {
       throw new Error(`Release ${options.tag} was not visible after publication`);
     }
-    assertPublishedRelease(release, tagCommit, options.commit, latestReleaseId);
+    assertPublishedRelease(release, tagCommit, options.commit, latestReleaseId, expectedBody);
     if (!publishedState.matched) {
       throw new Error(`Release ${options.tag} did not become Latest after publication`);
     }

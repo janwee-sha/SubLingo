@@ -1,4 +1,8 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -9,6 +13,7 @@ import {
   isPublishedStateReady,
   planAssetOperations,
   pollRemoteState,
+  readAuditedReleaseNotes,
   releaseAssetNames,
 } from "../../scripts/publish-release.mjs";
 
@@ -73,7 +78,7 @@ describe("release publication state", () => {
     ).toThrow(/tag target/);
   });
 
-  it("skips a published stable release without comparing a later commit", () => {
+  it("skips a published stable release only when its body still matches", () => {
     expect(
       decideReleaseAction({
         release: {
@@ -81,7 +86,7 @@ describe("release publication state", () => {
           draft: false,
           prerelease: false,
           targetCommitish: "older-main-commit",
-          body: "existing body",
+          body,
           assets: [],
         },
         tagCommit: "b".repeat(40),
@@ -89,6 +94,22 @@ describe("release publication state", () => {
         expectedBody: body,
       }),
     ).toEqual({ kind: "skip" });
+
+    expect(() =>
+      decideReleaseAction({
+        release: {
+          id: 1,
+          draft: false,
+          prerelease: false,
+          targetCommitish: "older-main-commit",
+          body: "different body",
+          assets: [],
+        },
+        tagCommit: "b".repeat(40),
+        expectedCommit: commit,
+        expectedBody: body,
+      }),
+    ).toThrow(/published.*body|body.*conflict/i);
   });
 
   it("resumes only a matching stable draft", () => {
@@ -235,5 +256,47 @@ describe("release publication state", () => {
     expect(() =>
       assertPublishedRelease({ id: 1, draft: false, prerelease: false }, commit, commit, 2),
     ).toThrow(/not Latest/);
+    expect(() =>
+      assertPublishedRelease(
+        { id: 1, draft: false, prerelease: false, body: "different" },
+        commit,
+        commit,
+        1,
+        body,
+      ),
+    ).toThrow(/published.*body/i);
+  });
+
+  it("validates the audited user body and raw digest before remote state checks", () => {
+    const directory = mkdtempSync(join(tmpdir(), "sublingo-publish-notes-"));
+    const notesFile = join(directory, "release-notes.md");
+    const releaseBody = "# SubLingo v0.2.0\n\n本版本没有面向用户的行为变化。\n";
+    writeFileSync(notesFile, releaseBody);
+
+    try {
+      const rawSha256 = createHash("sha256").update(releaseBody).digest("hex");
+      expect(
+        readAuditedReleaseNotes({
+          notesFile,
+          version: "0.2.0",
+          auditReleaseNotes: {
+            sourcePath: "docs/releases/v0.2.0.md",
+            rawSha256,
+          },
+        }),
+      ).toBe(releaseBody);
+      expect(() =>
+        readAuditedReleaseNotes({
+          notesFile,
+          version: "0.2.0",
+          auditReleaseNotes: {
+            sourcePath: "docs/releases/v0.2.0.md",
+            rawSha256: "a".repeat(64),
+          },
+        }),
+      ).toThrow(/SHA-256|digest/i);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

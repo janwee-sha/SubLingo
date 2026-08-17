@@ -38,7 +38,11 @@ npm run pack
 - `npm run test:native`：运行 transport 与 subtitle extractor 的 Swift 合同、安全和真实小样本测试。
 - `npm run build`：构建插件运行时代码和 Sidebar。
 - `npm run verify:package`：检查待打包内容。
-- `npm run pack`：生成 `build/package/SubLingo-0.1.0.iinaplgz`。
+- `npm run pack`：生成 `build/package/SubLingo-0.2.0.iinaplgz`。
+
+## 发布准备
+
+开始稳定版本发布前，用户必须明确目标版本 `X.Y.Z` 及该版本对应的一项或多项已验收规格。维护者据此准备唯一的中文用户正文 `docs/releases/vX.Y.Z.md`；缺少版本、规格或验收依据时停止发布准备。正文结构、内容边界和失败规则见[版本化用户发布说明规格](../../specs/009-versioned-release-notes/spec.md)。
 
 ## IINA 开发链接
 
@@ -60,7 +64,7 @@ npm run pack
 
 ```sh
 /Applications/IINA.app/Contents/MacOS/iina-plugin unlink .
-open build/package/SubLingo-0.1.0.iinaplgz
+open build/package/SubLingo-0.2.0.iinaplgz
 ```
 
 重启 IINA，在“设置 → 插件”中启用 SubLingo，并从播放器侧边栏打开插件。正式 `.iinaplgz` 安装项必须可以从插件管理面板卸载；不要同时保留同一版本的正式安装项和开发链接。
@@ -87,6 +91,7 @@ open build/package/SubLingo-0.1.0.iinaplgz
 - [渐进翻译输出](../../specs/002-progressive-translation-output/spec.md)
 - [Provider 连接生命周期](../../specs/003-provider-connection-lifecycle/spec.md)
 - [自动 GitHub Release](../../specs/004-automatic-github-release/spec.md)
+- [版本化用户发布说明](../../specs/009-versioned-release-notes/spec.md)
 - [内嵌字幕翻译](../../specs/008-embedded-subtitle-translation/spec.md)
 
 所有变更必须遵守[项目宪法](constitution.md)和仓库根目录的 `AGENTS.md`。

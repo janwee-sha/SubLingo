@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
-  buildReleaseNotes,
+  buildReleaseAudit,
+  formatReleaseAuditSummary,
   parseOtoolDependencies,
   validateArchiveEntries,
   validateArtifactIdentity,
@@ -234,25 +235,26 @@ describe("release archive audit", () => {
     );
   });
 
-  it("builds Chinese evidence with all gates and explicit host limitations", () => {
-    const notes = buildReleaseNotes({
-      version: "0.1.0",
+  it("keeps complete technical evidence separate from the user body", () => {
+    const gates = {
+      test: true,
+      typecheck: true,
+      lint: true,
+      buildNative: true,
+      testNative: true,
+      build: true,
+      verifyPackage: true,
+      pack: true,
+    };
+    const audit = buildReleaseAudit({
+      version: "0.2.0",
       commit: "a".repeat(40),
-      packageVersion: "0.1.0",
-      artifactName: "SubLingo-0.1.0.iinaplgz",
+      artifactName: "SubLingo-0.2.0.iinaplgz",
+      packageVersion: "0.2.0",
       byteSize: 42,
       sha256: "b".repeat(64),
-      entries: validEntries.map((entry) => entry.name),
-      gates: {
-        test: true,
-        typecheck: true,
-        lint: true,
-        buildNative: true,
-        testNative: true,
-        build: true,
-        verifyPackage: true,
-        pack: true,
-      },
+      gates,
+      entries: validEntries,
       buildHelpers: {
         "sublingo-transport": helperFacts("c"),
         "sublingo-subtitle-extractor": helperFacts("d"),
@@ -268,23 +270,42 @@ describe("release archive audit", () => {
         checksumAssetName: "ffmpeg-8.1.2.tar.xz.sha256",
         sha256: "e".repeat(64),
       },
+      releaseNotes: {
+        sourcePath: "docs/releases/v0.2.0.md",
+        rawSha256: "f".repeat(64),
+      },
     });
 
-    expect(notes.match(/通过/g)).toHaveLength(8);
-    expect(notes).toContain("真实安装：CI 未覆盖");
-    expect(notes).toContain("真实卸载：CI 未覆盖");
-    expect(notes).toContain("实际播放：CI 未覆盖");
-    expect(notes).toContain("## 自愿支持");
-    expect(notes).toContain("https://ko-fi.com/ianhsia");
-    expect(notes).toContain(
-      "https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link",
-    );
-    expect(notes).toContain("免费完整使用");
-    expect(notes).toContain("不会解锁额外功能、优先翻译或专属版本");
-    expect(notes).toContain("不包含翻译服务 API 额度");
-    expect(notes).toContain("sublingo-transport");
-    expect(notes).toContain("sublingo-subtitle-extractor");
-    expect(notes).toContain("ffmpeg-8.1.2.tar.xz");
+    expect(audit).toMatchObject({
+      version: "0.2.0",
+      tag: "v0.2.0",
+      commit: "a".repeat(40),
+      artifactName: "SubLingo-0.2.0.iinaplgz",
+      checksumName: "SubLingo-0.2.0.iinaplgz.sha256",
+      gates,
+      entries: validEntries,
+      releaseNotes: {
+        sourcePath: "docs/releases/v0.2.0.md",
+        rawSha256: "f".repeat(64),
+      },
+      hostValidation: {
+        installation: "not-covered",
+        uninstallation: "not-covered",
+        playback: "not-covered",
+      },
+    });
+    expect(Object.keys(audit.buildHelpers)).toHaveLength(2);
+    expect(Object.keys(audit.packageHelpers)).toHaveLength(2);
+    expect(audit.ffmpeg.assetName).toBe("ffmpeg-8.1.2.tar.xz");
+
+    const summary = formatReleaseAuditSummary(audit);
+    expect(summary.match(/PASS/g)).toHaveLength(8);
+    expect(summary).toContain("SubLingo-0.2.0.iinaplgz");
+    expect(summary).toContain("sublingo-transport");
+    expect(summary).toContain("sublingo-subtitle-extractor");
+    expect(summary).toContain("ffmpeg-8.1.2.tar.xz");
+    expect(summary.match(/not-covered/g)).toHaveLength(3);
+    expect(summary).not.toContain("用户获得新功能");
   });
 });
 

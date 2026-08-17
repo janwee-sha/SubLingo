@@ -16,7 +16,7 @@
 
 **目的**：把新契约测试纳入现有发布测试入口，不改变依赖或运行时。
 
-- [ ] T001 在 `package.json` 的 `test:release` 脚本中注册 `tests/contract/release-notes.test.ts`，保留现有四组发布测试
+- [X] T001 在 `package.json` 的 `test:release` 脚本中注册 `tests/contract/release-notes.test.ts`，保留现有四组发布测试
 
 ---
 
@@ -26,8 +26,8 @@
 
 **关键要求**：本阶段完成前不得开始任何用户故事实现。
 
-- [ ] T002 在 `tests/contract/release-notes.test.ts` 先添加固定标题、变化/无变化模式、正文规范化和原始摘要的失败契约测试，并确认测试在实现前失败
-- [ ] T003 在 `scripts/release-notes.mjs` 实现路径派生、UTF-8 读取、基础 Markdown 解析、原始 SHA-256 与 CRLF/末尾空白规范化，使 T002 通过且不添加生产代码注释
+- [X] T002 在 `tests/contract/release-notes.test.ts` 先添加固定标题、变化/无变化模式、正文规范化和原始摘要的失败契约测试，并确认测试在实现前失败
+- [X] T003 在 `scripts/release-notes.mjs` 实现路径派生、UTF-8 读取、基础 Markdown 解析、原始 SHA-256 与 CRLF/末尾空白规范化，使 T002 通过且不添加生产代码注释
 
 **检查点**：三个发布边界可以复用同一正文身份和比较规则。
 
@@ -41,16 +41,16 @@
 
 ### 测试
 
-- [ ] T004 [P] [US1] 在 `tests/contract/release-metadata.test.ts` 先覆盖当前版本说明的唯一路径、标题版本、GitHub output 路径和原始摘要，并确认新增断言失败
-- [ ] T005 [P] [US1] 在 `tests/contract/release-audit.test.ts` 先覆盖审计原样复制用户正文、记录源路径/摘要且不再生成技术正文或打赏段落，并确认新增断言失败
-- [ ] T006 [P] [US1] 在 `tests/contract/release-workflow.test.ts` 先固定元数据→审计→下载产物→发布的正文传递、Actions 技术摘要和禁止 workflow 生成正文，并确认新增断言失败
+- [X] T004 [P] [US1] 在 `tests/contract/release-metadata.test.ts` 先覆盖当前版本说明的唯一路径、标题版本、GitHub output 路径和原始摘要，并确认新增断言失败
+- [X] T005 [P] [US1] 在 `tests/contract/release-audit.test.ts` 先覆盖审计原样复制用户正文、记录源路径/摘要且不再生成技术正文或打赏段落，并确认新增断言失败
+- [X] T006 [P] [US1] 在 `tests/contract/release-workflow.test.ts` 先固定元数据→审计→下载产物→发布的正文传递、Actions 技术摘要和禁止 workflow 生成正文，并确认新增断言失败
 
 ### 实现
 
-- [ ] T007 [P] [US1] 在 `scripts/release-metadata.mjs` 读取并验证 `docs/releases/vX.Y.Z.md`，向 JSON 与 GitHub output 增加发布说明路径和原始摘要
-- [ ] T008 [P] [US1] 在 `scripts/audit-release.mjs` 移除 `buildReleaseNotes` 技术正文生成，复验初始摘要并原样写入 `build/release/release-notes.md`，同时在 `release-audit.json` 记录正文身份
-- [ ] T009 [US1] 在 `.github/workflows/release.yml` 把元数据输出传给最终审计、上传审计后的正文副本并继续让发布任务读取 `build/release/release-notes.md`
-- [ ] T010 [US1] 运行 `npx vitest run tests/contract/release-notes.test.ts tests/contract/release-metadata.test.ts tests/contract/release-audit.test.ts tests/contract/release-workflow.test.ts`，确认用户故事 1 的正向路径通过
+- [X] T007 [P] [US1] 在 `scripts/release-metadata.mjs` 读取并验证 `docs/releases/vX.Y.Z.md`，向 JSON 与 GitHub output 增加发布说明路径和原始摘要
+- [X] T008 [P] [US1] 在 `scripts/audit-release.mjs` 移除 `buildReleaseNotes` 技术正文生成，复验初始摘要并原样写入 `build/release/release-notes.md`，同时在 `release-audit.json` 记录正文身份
+- [X] T009 [US1] 在 `.github/workflows/release.yml` 把元数据输出传给最终审计、上传审计后的正文副本并继续让发布任务读取 `build/release/release-notes.md`
+- [X] T010 [US1] 运行 `npx vitest run tests/contract/release-notes.test.ts tests/contract/release-metadata.test.ts tests/contract/release-audit.test.ts tests/contract/release-workflow.test.ts`，确认用户故事 1 的正向路径通过
 
 **检查点**：在不改变远端状态机的情况下，下一次新版本的 Release body 已只来自版本化用户说明。
 
@@ -64,15 +64,15 @@
 
 ### 测试
 
-- [ ] T011 [P] [US2] 扩充 `tests/contract/release-notes.test.ts`，先覆盖固定章节顺序、重复/未知/空章节、额外段落、非中文条目、技术证据禁区、两版本唯一性、无变化句互斥及 `.agents/skills/iina-plugin-release/SKILL.md` 的版本/规格输入边界
-- [ ] T012 [P] [US2] 扩充 `tests/contract/release-metadata.test.ts`，先覆盖发布说明缺失、非普通文件、BOM/无效 UTF-8、文件名/标题/项目版本错配和非法正文在昂贵构建前失败
+- [X] T011 [P] [US2] 扩充 `tests/contract/release-notes.test.ts`，先覆盖固定章节顺序、重复/未知/空章节、额外段落、非中文条目、技术证据禁区、两版本唯一性、无变化句互斥及 `.agents/skills/iina-plugin-release/SKILL.md` 的版本/规格输入边界
+- [X] T012 [P] [US2] 扩充 `tests/contract/release-metadata.test.ts`，先覆盖发布说明缺失、非普通文件、BOM/无效 UTF-8、文件名/标题/项目版本错配和非法正文在昂贵构建前失败
 
 ### 实现
 
-- [ ] T013 [P] [US2] 在 `scripts/release-notes.mjs` 完成 [versioned-release-notes.md](./contracts/versioned-release-notes.md) 的严格 Markdown 子集、中文条目和技术证据拒绝规则
-- [ ] T014 [US2] 在 `scripts/release-metadata.mjs` 完成权威路径和文件身份的失败关闭行为，确保调用者不能选择其他文档路径
-- [ ] T015 [P] [US2] 在 `docs/engineering/development.md` 增加简短的发布准备入口、`docs/releases/vX.Y.Z.md` 命名、用户指定规格前置条件及 009 规格链接，不重复技能正文
-- [ ] T016 [US2] 按 `specs/009-versioned-release-notes/quickstart.md` 运行结构与版本化验收，确认 `docs/releases/v0.2.0.md` 只作为合法结构样本且不把它自动声明为已获发布授权
+- [X] T013 [P] [US2] 在 `scripts/release-notes.mjs` 完成 [versioned-release-notes.md](./contracts/versioned-release-notes.md) 的严格 Markdown 子集、中文条目和技术证据拒绝规则
+- [X] T014 [US2] 在 `scripts/release-metadata.mjs` 完成权威路径和文件身份的失败关闭行为，确保调用者不能选择其他文档路径
+- [X] T015 [P] [US2] 在 `docs/engineering/development.md` 增加简短的发布准备入口、`docs/releases/vX.Y.Z.md` 命名、用户指定规格前置条件及 009 规格链接，不重复技能正文
+- [X] T016 [US2] 按 `specs/009-versioned-release-notes/quickstart.md` 运行结构与版本化验收，确认 `docs/releases/v0.2.0.md` 只作为合法结构样本且不把它自动声明为已获发布授权
 
 **检查点**：维护者可以长期按版本定位权威正文，自动门禁与发布准备流程分别承担结构和语义验收。
 
@@ -86,16 +86,16 @@
 
 ### 测试
 
-- [ ] T017 [P] [US3] 扩充 `tests/contract/release-audit.test.ts`，先覆盖初始/最终摘要漂移失败、技术证据字段完整、三项 `not-covered` 宿主状态、Actions 摘要和用户正文零技术字段
-- [ ] T018 [P] [US3] 扩充 `tests/contract/release-publish.test.ts`，先覆盖审计正文摘要错配、公开正文相同只读跳过、正文偏差零写入冲突、并发公开正文比较及公开后正文复核
-- [ ] T019 [P] [US3] 扩充 `tests/contract/release-workflow.test.ts`，先固定正文校验发生在远端写入前、技术证据不进入 Release body/附件、四项资产与读写权限边界保持不变
+- [X] T017 [P] [US3] 扩充 `tests/contract/release-audit.test.ts`，先覆盖初始/最终摘要漂移失败、技术证据字段完整、三项 `not-covered` 宿主状态、Actions 摘要和用户正文零技术字段
+- [X] T018 [P] [US3] 扩充 `tests/contract/release-publish.test.ts`，先覆盖审计正文摘要错配、公开正文相同只读跳过、正文偏差零写入冲突、并发公开正文比较及公开后正文复核
+- [X] T019 [P] [US3] 扩充 `tests/contract/release-workflow.test.ts`，先固定正文校验发生在远端写入前、技术证据不进入 Release body/附件、四项资产与读写权限边界保持不变
 
 ### 实现
 
-- [ ] T020 [P] [US3] 在 `scripts/audit-release.mjs` 完成摘要漂移失败、完整 `release-audit.json`、三项宿主覆盖状态及 Actions 技术摘要输出，保持技术证据不进入用户正文
-- [ ] T021 [P] [US3] 在 `scripts/publish-release.mjs` 复验审计正文结构与原始摘要，公开稳定版本只在规范化正文一致时跳过，正文偏差失败且新发布完成后复核正文
-- [ ] T022 [US3] 在 `.github/workflows/release.yml` 接入审计摘要输入与 `$GITHUB_STEP_SUMMARY`，确认失败不会进入发布任务且 workflow 不修改、commit 或 push 仓库文档
-- [ ] T023 [US3] 运行 `npm run test:release`，确认摘要、draft、公开正文、并发、证据隔离和 workflow 失败关闭场景全部通过
+- [X] T020 [P] [US3] 在 `scripts/audit-release.mjs` 完成摘要漂移失败、完整 `release-audit.json`、三项宿主覆盖状态及 Actions 技术摘要输出，保持技术证据不进入用户正文
+- [X] T021 [P] [US3] 在 `scripts/publish-release.mjs` 复验审计正文结构与原始摘要，公开稳定版本只在规范化正文一致时跳过，正文偏差失败且新发布完成后复核正文
+- [X] T022 [US3] 在 `.github/workflows/release.yml` 接入审计摘要输入与 `$GITHUB_STEP_SUMMARY`，确认失败不会进入发布任务且 workflow 不修改、commit 或 push 仓库文档
+- [X] T023 [US3] 运行 `npm run test:release`，确认摘要、draft、公开正文、并发、证据隔离和 workflow 失败关闭场景全部通过
 
 **检查点**：三个用户故事全部可独立验收，公开正文、技术证据和远端不可变性职责分离。
 
@@ -105,14 +105,14 @@
 
 **目的**：移除旧 SDD 和稳定文档中的冲突要求，保留既有任务历史，并执行完整发布级验证。
 
-- [ ] T024 [P] 在 `specs/004-automatic-github-release/spec.md`、`plan.md` 与 `research.md` 中把正文来源收敛为 009 版本化用户说明，把技术证据迁至审计与 Actions，同时保留门禁、资产、权限和 Latest 当前意图
-- [ ] T025 [P] 在 `specs/004-automatic-github-release/data-model.md`、`contracts/archive-audit.md`、`contracts/release-lifecycle.md`、`quickstart.md` 与 `checklists/requirements.md` 中同步正文身份、审计输出和公开正文一致性，保持 `specs/004-automatic-github-release/tasks.md` 全部任务、编号和 `[X]` 状态不变
-- [ ] T026 [P] 在 `specs/006-sponsor-entry/spec.md`、`plan.md`、`research.md`、`data-model.md`、`contracts/sponsor-entry.md` 与 `quickstart.md` 中移除 Release 打赏入口要求，只保留 README、二维码、Sponsor 与 Ko-fi 当前意图，保持 `specs/006-sponsor-entry/tasks.md` 全部任务、编号和 `[X]` 状态不变
-- [ ] T027 [P] 在 `docs/validation/package.md` 把 `docs/releases/vX.Y.Z.md` 定义为用户正文来源，把安装包、门禁、归档、helper、FFmpeg 和宿主覆盖状态定义为校验文件、`release-audit.json`、Actions 摘要与日志中的技术证据
-- [ ] T028 按 `specs/009-versioned-release-notes/quickstart.md` 搜索非任务产物中的旧正文/打赏要求，运行 `git diff -- specs/004-automatic-github-release/tasks.md specs/006-sponsor-entry/tasks.md` 和 `git diff --check`，确认旧任务清单未改且当前意图一致
-- [ ] T029 依次运行 `npm run test:release`、`npm run test`、`npm run typecheck`、`npm run lint` 与 `npm run format:check`，修复失败后在 `specs/009-versioned-release-notes/tasks.md` 标记对应已验收任务
-- [ ] T030 严格按 `specs/009-versioned-release-notes/quickstart.md` 依次运行 `npm run test`、`npm run typecheck`、`npm run lint`、`npm run build:native`、`npm run test:native`、`npm run build`、`npm run verify:package`、`npm run pack` 和最终归档审计，确认正文副本、技术证据与四项公开资产契约
-- [ ] T031 完成 `specs/009-versioned-release-notes/quickstart.md` 的开发者单人验收，确认未执行远端 Release 写入，IINA 图形界面安装、卸载和实际播放仍记录为 CI 未覆盖
+- [X] T024 [P] 在 `specs/004-automatic-github-release/spec.md`、`plan.md` 与 `research.md` 中把正文来源收敛为 009 版本化用户说明，把技术证据迁至审计与 Actions，同时保留门禁、资产、权限和 Latest 当前意图
+- [X] T025 [P] 在 `specs/004-automatic-github-release/data-model.md`、`contracts/archive-audit.md`、`contracts/release-lifecycle.md`、`quickstart.md` 与 `checklists/requirements.md` 中同步正文身份、审计输出和公开正文一致性，保持 `specs/004-automatic-github-release/tasks.md` 全部任务、编号和 `[X]` 状态不变
+- [X] T026 [P] 在 `specs/006-sponsor-entry/spec.md`、`plan.md`、`research.md`、`data-model.md`、`contracts/sponsor-entry.md` 与 `quickstart.md` 中移除 Release 打赏入口要求，只保留 README、二维码、Sponsor 与 Ko-fi 当前意图，保持 `specs/006-sponsor-entry/tasks.md` 全部任务、编号和 `[X]` 状态不变
+- [X] T027 [P] 在 `docs/validation/package.md` 把 `docs/releases/vX.Y.Z.md` 定义为用户正文来源，把安装包、门禁、归档、helper、FFmpeg 和宿主覆盖状态定义为校验文件、`release-audit.json`、Actions 摘要与日志中的技术证据
+- [X] T028 按 `specs/009-versioned-release-notes/quickstart.md` 搜索非任务产物中的旧正文/打赏要求，运行 `git diff -- specs/004-automatic-github-release/tasks.md specs/006-sponsor-entry/tasks.md` 和 `git diff --check`，确认旧任务清单未改且当前意图一致
+- [X] T029 依次运行 `npm run test:release`、`npm run test`、`npm run typecheck`、`npm run lint` 与 `npm run format:check`，修复失败后在 `specs/009-versioned-release-notes/tasks.md` 标记对应已验收任务
+- [X] T030 严格按 `specs/009-versioned-release-notes/quickstart.md` 依次运行 `npm run test`、`npm run typecheck`、`npm run lint`、`npm run build:native`、`npm run test:native`、`npm run build`、`npm run verify:package`、`npm run pack` 和最终归档审计，确认正文副本、技术证据与四项公开资产契约
+- [X] T031 完成 `specs/009-versioned-release-notes/quickstart.md` 的开发者单人验收，确认未执行远端 Release 写入，IINA 图形界面安装、卸载和实际播放仍记录为 CI 未覆盖
 
 ---
 
