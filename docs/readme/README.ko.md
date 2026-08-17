@@ -14,12 +14,12 @@
 
 ---
 
-SubLingo는 [IINA](https://iina.io/)에서 현재 선택한 로컬 영상의 내장 텍스트 자막 또는 외부 SRT/ASS 자막을 번역해 보조 자막으로 표시합니다. 재생 위치 가까이만 제한된 묶음으로 번역하며, 지연되거나 실패해도 원본 자막과 영상 재생은 계속됩니다.
+SubLingo는 [IINA](https://iina.io/)에서 현재 선택한 외부 SRT 또는 ASS 자막을 번역해 보조 자막으로 표시합니다. 재생 위치에서 가까운 구간만 제한적으로 미리 살펴보고 묶음 단위로 번역하며, 번역이 늦어지거나 실패해도 원본 자막과 영상 재생은 계속됩니다.
 
 ## ✨ 주요 기능
 
 - **실시간 이중 언어 자막:** 원본 자막은 주 자막으로 유지하고 번역문은 IINA의 보조 자막으로 표시합니다.
-- **내장 및 외부 텍스트 자막:** 로컬 Matroska SubRip/ASS/SSA, MOV/MP4 `mov_text`, 외부 SRT/ASS를 지원합니다. extractor가 포함되어 외부 `ffmpeg`나 `ffprobe`가 필요하지 않습니다.
+- **외부 SRT 및 ASS 지원:** IINA에서 선택한 읽기 가능한 외부 SRT 및 ASS/SSA 텍스트 자막을 지원합니다.
 - **번역 서비스 선택:** OpenAI-compatible Chat Completions endpoint 또는 로컬/원격 Ollama 서버를 사용할 수 있습니다.
 - **재생 우선 동작:** 번역 작업 때문에 영상이 일시 정지되거나 원본 자막이 숨겨지지 않습니다.
 - **제한된 요청:** 재생 위치 주변의 자막만 번역하고 플레이어 창마다 동시 작업을 제한하며, 성공한 결과는 현재 영상 세션에만 캐시합니다.
@@ -30,7 +30,7 @@ SubLingo는 [IINA](https://iina.io/)에서 현재 선택한 로컬 영상의 내
 
 - macOS 12 이상
 - IINA 1.4.0 이상
-- 지원되는 로컬 내장 텍스트 자막 또는 읽을 수 있는 외부 SRT/ASS/SSA 자막
+- 읽을 수 있는 외부 SRT 또는 ASS/SSA 텍스트 자막
 - 다음 번역 서비스 중 하나:
   - OpenAI-compatible endpoint, Model ID, 그리고 서비스에서 요구하는 경우 API key
   - 호환 모델이 이미 설치된 Ollama 서버
@@ -61,7 +61,7 @@ GitHub에서 설치한 플러그인은 IINA에서 자동으로 업데이트할 �
 
 ## 🌍 빠른 시작
 
-1. 로컬 영상을 열고 지원되는 내장 텍스트 자막 또는 외부 SRT/ASS를 IINA 주 자막으로 선택합니다.
+1. 영상을 열고 외부 SRT 또는 ASS 자막을 주 자막으로 선택합니다.
 2. **Languages**에서 모국어를 선택합니다. IINA가 자막 언어를 식별하지 못하면 직접 확인한 뒤 언어 설정을 저장합니다.
 3. **Translation service**에서 OpenAI-compatible 또는 Ollama Profile을 만들고 정확한 Model ID를 입력합니다.
 4. Profile을 저장하고 테스트한 다음 **Select**를 클릭합니다. Profile 선택은 화면에 표시된 endpoint로 재생 위치 주변의 자막 텍스트를 전송하도록 SubLingo에 명시적으로 허용하는 동작입니다.
@@ -99,11 +99,11 @@ Endpoint, 모델, API key 또는 네트워크 경로가 바뀌면 Profile을 다
 
 ## 📌 현재 지원 범위
 
-SubLingo는 오디오 전사, 이미지 기반 자막 OCR/추출, 원격 미디어 내장 자막 추출, 전체 영상 사전 번역, 내보내기, 클라우드 동기화, 영구 캐시를 제공하지 않습니다. 임시 추출 데이터는 분석, 취소, 시간 초과 또는 종료 후 삭제됩니다.
+SubLingo는 오디오 전사, 이미지 기반/내장 자막의 OCR 또는 추출, 전체 영상 사전 번역, 번역 내보내기, 클라우드 동기화, 영구 번역 캐시를 제공하지 않습니다.
 
 ## 🛠️ 문제 해결
 
-- **Select a supported text subtitle:** 로컬 내장 SubRip/ASS/SSA/`mov_text` 또는 외부 SRT/ASS를 주 자막으로 선택하세요. 이미지 기반 및 원격 내장 자막은 지원하지 않으며, 상태 안내에 따라 다시 선택하거나 준비 실패 후 Retry하세요.
+- **Select a readable external SRT or ASS subtitle:** IINA에서 외부 텍스트 자막을 주 자막으로 선택하세요. 이미지 기반 및 내장 자막 track은 지원하지 않습니다.
 - **Confirm the subtitle language:** `en-US`와 같은 BCP 47 언어 tag를 입력하고 언어 설정을 저장하세요.
 - **Translation service unavailable:** Profile을 테스트하고 endpoint, 모델, API key, 네트워크 경로 또는 Ollama 프로세스를 확인하세요. 영상과 원본 자막은 계속 정상 재생됩니다.
 - **Credential could not be saved:** 불완전한 개발 사본 대신 Release 패키지를 설치하고 플러그인 데이터 디렉터리가 쓰기 가능한지 확인한 뒤 IINA를 완전히 종료하고 다시 시작하세요.

@@ -14,38 +14,7 @@ export const SIDEBAR_MESSAGE_NAMES = [
   "profile:delete-request",
   "provider:test",
   "translation:set-enabled",
-  "subtitle:retry-preparation",
 ] as const;
-
-export interface RetrySubtitlePreparationPayload {
-  requestId: string;
-  revision: number;
-  payload: Record<string, never>;
-}
-
-export interface SafeSourcePreparationMessage {
-  state:
-    | "preparing"
-    | "ready"
-    | "unsupportedType"
-    | "remoteUnsupported"
-    | "emptyOrUnreadable"
-    | "timedOut"
-    | "failed"
-    | "invalidated";
-  origin: "embedded";
-  codec?: "subrip" | "ass" | "ssa" | "mov_text";
-  cueCount?: number;
-  canRetry: boolean;
-  canReselect: boolean;
-}
-
-export function parseRetrySubtitlePreparation(value: unknown): RetrySubtitlePreparationPayload {
-  const envelope = parseEnvelope(value);
-  if (Object.keys(envelope.payload as Record<string, unknown>).length !== 0)
-    throw new Error("INVALID_MESSAGE");
-  return envelope as RetrySubtitlePreparationPayload;
-}
 
 export const GLOBAL_MESSAGE_NAMES = [
   "profiles:list",

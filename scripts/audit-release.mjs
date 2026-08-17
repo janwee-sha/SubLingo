@@ -15,8 +15,6 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { readReleaseNotes } from "./release-notes.mjs";
-
 const gateLabels = [
   ["test", "npm run test"],
   ["typecheck", "npm run typecheck"],
@@ -136,7 +134,6 @@ export function validateArchiveEntries(entries, expectedCompliance = {}) {
     "dist/main.js",
     "dist/global.js",
     "dist/ui/sidebar.html",
-    "dist/native/sublingo-subtitle-extractor",
     "dist/native/sublingo-transport",
   ];
   for (const name of required) {
@@ -145,22 +142,9 @@ export function validateArchiveEntries(entries, expectedCompliance = {}) {
     }
   }
 
-  const nativeFiles = entries
-    .filter((entry) => entry.name.startsWith("dist/native/") && !entry.name.endsWith("/"))
-    .map((entry) => entry.name)
-    .sort();
-  const expectedNativeFiles = [
-    "dist/native/sublingo-subtitle-extractor",
-    "dist/native/sublingo-transport",
-  ];
-  if (JSON.stringify(nativeFiles) !== JSON.stringify(expectedNativeFiles)) {
-    throw new Error("The archive native executable allowlist does not match");
-  }
-  for (const name of expectedNativeFiles) {
-    const helper = entries.find((entry) => entry.name === name);
-    if (!helper || (helper.unixMode & 0o111) === 0) {
-      throw new Error(`The archived native helper is not executable: ${name}`);
-    }
+  const helper = entries.find((entry) => entry.name === "dist/native/sublingo-transport");
+  if (!helper || (helper.unixMode & 0o111) === 0) {
+    throw new Error("The archived native helper is not executable");
   }
   return entries;
 }
@@ -191,156 +175,63 @@ export function validateHelperFacts(label, facts) {
   if (!facts.signed) {
     throw new Error(`${label} does not have a valid signature`);
   }
-  if (
-    !Array.isArray(facts.minimumMacos) ||
-    facts.minimumMacos.length !== 2 ||
-    facts.minimumMacos.some((version) => version !== "12.0")
-  ) {
-    throw new Error(`${label} does not declare macOS 12.0 for both architectures`);
-  }
-  if (
-    !Array.isArray(facts.dependencies) ||
-    facts.dependencies.some(
-      (dependency) =>
-        !dependency.startsWith("/usr/lib/") && !dependency.startsWith("/System/Library/"),
-    )
-  ) {
-    throw new Error(`${label} has a non-system dynamic dependency`);
-  }
-  if (!/^[0-9a-f]{64}$/.test(facts.sha256)) {
-    throw new Error(`${label} does not have a valid SHA-256`);
-  }
   return facts;
 }
 
-export function parseOtoolDependencies(output) {
-  return output
-    .split("\n")
-    .filter((line) => /^\s+\//.test(line))
-    .map((line) => line.trim().split(/\s+/)[0])
-    .filter(Boolean);
+function formatHelper(label, helper) {
+  return [
+    `### ${label}`,
+    "",
+    `- 架构：${helper.architectures.join("、")}`,
+    `- 可执行权限：${helper.executable ? "是" : "否"}`,
+    `- 签名验证：${helper.signed ? "有效" : "无效"}`,
+    `- 签名摘要：${helper.signature}`,
+  ].join("\n");
 }
 
-export function validateFFmpegSource(lock, sourceName, sourceBuffer) {
-  const distribution = lock?.sourceDistribution;
-  if (
-    lock?.version !== "8.1.2" ||
-    lock?.license !== "LGPL-2.1-or-later" ||
-    lock?.sourceAssetName !== sourceName ||
-    distribution?.assetName !== sourceName ||
-    distribution?.checksumAssetName !== `${sourceName}.sha256` ||
-    !/^[0-9a-f]{64}$/.test(lock?.sha256 ?? "")
-  ) {
-    throw new Error("FFmpeg source metadata does not match the lock");
-  }
-  const sha256 = createHash("sha256").update(sourceBuffer).digest("hex");
-  if (sha256 !== lock.sha256) {
-    throw new Error("FFmpeg source SHA-256 does not match the lock");
-  }
-  return {
-    version: lock.version,
-    license: lock.license,
-    assetName: distribution.assetName,
-    checksumAssetName: distribution.checksumAssetName,
-    sha256,
-  };
-}
-
-export function copyAuditedReleaseNotes(options) {
-  const releaseNotes = readReleaseNotes(options.rootDirectory, options.expectedVersion);
-  if (options.sourcePath && options.sourcePath !== releaseNotes.sourcePath) {
-    throw new Error(
-      `Release notes path mismatch: ${options.sourcePath} != ${releaseNotes.sourcePath}`,
-    );
-  }
-  if (releaseNotes.rawSha256 !== options.expectedSha256) {
-    throw new Error("Release notes SHA-256 changed after metadata validation");
-  }
-  mkdirSync(resolve(options.outputDirectory), { recursive: true });
-  writeFileSync(resolve(options.outputDirectory, "release-notes.md"), releaseNotes.rawContent);
-  return {
-    sourcePath: releaseNotes.sourcePath,
-    rawSha256: releaseNotes.rawSha256,
-  };
-}
-
-export function buildReleaseAudit(input) {
-  return {
-    version: input.version,
-    tag: `v${input.version}`,
-    commit: input.commit,
-    artifactName: input.artifactName,
-    checksumName: `${input.artifactName}.sha256`,
-    packageVersion: input.packageVersion,
-    byteSize: input.byteSize,
-    sha256: input.sha256,
-    gates: input.gates,
-    entries: input.entries,
-    buildHelpers: input.buildHelpers,
-    packageHelpers: input.packageHelpers,
-    ffmpeg: input.ffmpeg,
-    releaseNotes: input.releaseNotes,
-    hostValidation: {
-      installation: "not-covered",
-      uninstallation: "not-covered",
-      playback: "not-covered",
-    },
-  };
-}
-
-export function formatReleaseAuditSummary(audit) {
-  const lines = [
-    "## Release audit",
+export function buildReleaseNotes(input) {
+  const gateLines = gateLabels.map(
+    ([key, label]) => `- \`${label}\`：${input.gates[key] ? "通过" : "失败"}`,
+  );
+  const archiveLines = input.entries.map((entry) => entry);
+  return [
+    `# SubLingo ${input.version} 发布证据`,
     "",
-    `- Version: \`${audit.version}\``,
-    `- Tag: \`${audit.tag}\``,
-    `- Commit: \`${audit.commit}\``,
-    `- Artifact: \`${audit.artifactName}\` (${audit.byteSize} bytes)`,
-    `- Artifact SHA-256: \`${audit.sha256}\``,
-    `- Release notes: \`${audit.releaseNotes.sourcePath}\``,
-    `- Release notes SHA-256: \`${audit.releaseNotes.rawSha256}\``,
+    `- 触发提交：\`${input.commit}\``,
+    `- 产物：\`${input.artifactName}\``,
+    `- 包内版本：\`${input.packageVersion}\``,
+    `- 精确大小：${input.byteSize} 字节`,
+    `- SHA-256：\`${input.sha256}\``,
     "",
-    "### Gates",
+    "## 自动化门禁",
     "",
-    ...gateLabels.map(
-      ([key, command]) => `- \`${command}\`: ${audit.gates[key] ? "PASS" : "FAIL"}`,
-    ),
+    ...gateLines,
     "",
-    "### Archive entries",
+    "## 最终归档清单",
     "",
-    ...audit.entries.map((entry) => `- \`${entry.name}\``),
+    "```text",
+    ...archiveLines,
+    "```",
     "",
-    "### Native helpers",
+    formatHelper("构建文件 native helper", input.buildHelper),
     "",
-    ...Object.entries(audit.buildHelpers).flatMap(([name, helper]) => [
-      `- Build \`${name}\`: \`${helper.sha256}\``,
-      `  - Architectures: ${helper.architectures.join(", ")}`,
-      `  - Minimum macOS: ${helper.minimumMacos.join(", ")}`,
-      `  - Signature: ${helper.signature}`,
-      `  - Dependencies: ${helper.dependencies.join(", ") || "none"}`,
-    ]),
-    ...Object.entries(audit.packageHelpers).flatMap(([name, helper]) => [
-      `- Package \`${name}\`: \`${helper.sha256}\``,
-      `  - Architectures: ${helper.architectures.join(", ")}`,
-      `  - Minimum macOS: ${helper.minimumMacos.join(", ")}`,
-      `  - Signature: ${helper.signature}`,
-      `  - Dependencies: ${helper.dependencies.join(", ") || "none"}`,
-    ]),
+    formatHelper("包内 native helper", input.packageHelper),
     "",
-    "### FFmpeg source",
+    "## IINA 图形界面验收边界",
     "",
-    `- Asset: \`${audit.ffmpeg.assetName}\``,
-    `- Checksum asset: \`${audit.ffmpeg.checksumAssetName}\``,
-    `- SHA-256: \`${audit.ffmpeg.sha256}\``,
+    "- 真实安装：CI 未覆盖",
+    "- 真实卸载：CI 未覆盖",
+    "- 实际播放：CI 未覆盖",
     "",
-    "### Host validation",
+    "以上宿主行为不属于本自动发布门禁，未标记为已验证，也不阻塞本次正式发布。",
     "",
-    `- Installation: ${audit.hostValidation.installation}`,
-    `- Uninstallation: ${audit.hostValidation.uninstallation}`,
-    `- Playback: ${audit.hostValidation.playback}`,
+    "## 自愿支持",
     "",
-  ];
-  return lines.join("\n");
+    "如果 SubLingo 对你有帮助，可以前往[爱发电](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link)或 [Ko-fi](https://ko-fi.com/ianhsia) 自愿请创作者喝杯咖啡。",
+    "",
+    "SubLingo 对所有人保持免费完整使用。打赏不会解锁额外功能、优先翻译或专属版本，也不包含翻译服务 API 额度；用户选择的 Provider 可能独立收费。",
+    "",
+  ].join("\n");
 }
 
 export function readZipEntries(archiveBuffer) {
@@ -452,7 +343,6 @@ function runCommand(command, argumentsList) {
 function verifyHelper(filePath, label) {
   const lipo = process.env.LIPO_BIN || "lipo";
   const codesign = process.env.CODESIGN_BIN || "codesign";
-  const otool = process.env.OTOOL_BIN || "otool";
   const architectureOutput = runCommand(lipo, ["-archs", filePath]).stdout;
   const architectures = architectureOutput.split(/\s+/).filter(Boolean);
   let executable = true;
@@ -474,21 +364,7 @@ function verifyHelper(filePath, label) {
       .filter((line) => /^(Identifier|Format|CodeDirectory|Signature|TeamIdentifier)=/.test(line));
     signature = selected.length > 0 ? selected.join("; ") : "valid";
   }
-  const minimumMacos = runCommand(otool, ["-l", filePath])
-    .stdout.split("\n")
-    .map((line) => line.trim().match(/^minos\s+([^\s]+)$/)?.[1])
-    .filter(Boolean);
-  const dependencies = parseOtoolDependencies(runCommand(otool, ["-L", filePath]).stdout);
-  const sha256 = createHash("sha256").update(readFileSync(filePath)).digest("hex");
-  return validateHelperFacts(label, {
-    architectures,
-    minimumMacos,
-    executable,
-    signed,
-    signature,
-    dependencies,
-    sha256,
-  });
+  return validateHelperFacts(label, { architectures, executable, signed, signature });
 }
 
 function readGates(filePath) {
@@ -513,10 +389,6 @@ export function auditRelease(options) {
   const archiveBuffer = readFileSync(artifactPath);
   const entries = validateArchiveEntries(readZipEntries(archiveBuffer));
   const gates = readGates(resolve(options.gates));
-  const ffmpegLock = JSON.parse(readFileSync(resolve(options.ffmpegLock), "utf8"));
-  const ffmpegSourcePath = resolve(options.ffmpegSource);
-  const ffmpegSourceBuffer = readFileSync(ffmpegSourcePath);
-  const ffmpeg = validateFFmpegSource(ffmpegLock, basename(ffmpegSourcePath), ffmpegSourceBuffer);
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "sublingo-release-"));
 
   try {
@@ -537,69 +409,53 @@ export function auditRelease(options) {
       expectedVersion: options.expectedVersion,
     });
 
-    const helperPaths = {
-      "sublingo-transport": resolve(options.buildHelper),
-      "sublingo-subtitle-extractor": resolve(options.buildExtractor),
-    };
-    const buildHelpers = {};
-    const packageHelpers = {};
-    for (const [name, buildPath] of Object.entries(helperPaths)) {
-      buildHelpers[name] = verifyHelper(buildPath, `Build ${name}`);
-      packageHelpers[name] = verifyHelper(
-        join(temporaryDirectory, `dist/native/${name}`),
-        `Packaged ${name}`,
-      );
-      if (buildHelpers[name].sha256 !== packageHelpers[name].sha256) {
-        throw new Error(`Packaged ${name} differs from the audited build`);
-      }
-    }
+    const buildHelper = verifyHelper(resolve(options.buildHelper), "Build native helper");
+    const packageHelper = verifyHelper(
+      join(temporaryDirectory, "dist/native/sublingo-transport"),
+      "Packaged native helper",
+    );
     const byteSize = statSync(artifactPath).size;
     const sha256 = createHash("sha256").update(archiveBuffer).digest("hex");
     const artifactName = basename(artifactPath);
-    const outputDirectory = resolve(options.outputDirectory);
-    const releaseNotes = copyAuditedReleaseNotes({
-      rootDirectory: process.cwd(),
-      expectedVersion: options.expectedVersion,
-      expectedSha256: options.expectedReleaseNotesSha256,
-      sourcePath: options.releaseNotes,
-      outputDirectory,
-    });
-    const audit = buildReleaseAudit({
+    const notes = buildReleaseNotes({
       version: options.expectedVersion,
       commit: options.expectedCommit,
+      packageVersion: packageInfo.version,
       artifactName,
+      byteSize,
+      sha256,
+      entries: entries.map((entry) => entry.name),
+      gates,
+      buildHelper,
+      packageHelper,
+    });
+    const audit = {
+      version: options.expectedVersion,
+      tag: `v${options.expectedVersion}`,
+      commit: options.expectedCommit,
+      artifactName,
+      checksumName: `${artifactName}.sha256`,
       packageVersion: packageInfo.version,
       byteSize,
       sha256,
       gates,
       entries,
-      buildHelpers,
-      packageHelpers,
-      ffmpeg,
-      releaseNotes,
-    });
+      buildHelper,
+      packageHelper,
+    };
 
+    const outputDirectory = resolve(options.outputDirectory);
     mkdirSync(outputDirectory, { recursive: true });
     const outputArtifact = join(outputDirectory, artifactName);
     if (outputArtifact !== artifactPath) {
       copyFileSync(artifactPath, outputArtifact);
     }
     writeFileSync(join(outputDirectory, `${artifactName}.sha256`), `${sha256}  ${artifactName}\n`);
-    const outputSource = join(outputDirectory, ffmpeg.assetName);
-    if (outputSource !== ffmpegSourcePath) {
-      copyFileSync(ffmpegSourcePath, outputSource);
-    }
-    writeFileSync(
-      join(outputDirectory, ffmpeg.checksumAssetName),
-      `${ffmpeg.sha256}  ${ffmpeg.assetName}\n`,
-    );
+    writeFileSync(join(outputDirectory, "release-notes.md"), notes);
     writeFileSync(
       join(outputDirectory, "release-audit.json"),
       `${JSON.stringify(audit, null, 2)}\n`,
     );
-    if (options.summaryFile) {
-      writeFileSync(resolve(options.summaryFile), formatReleaseAuditSummary(audit), { flag: "a" });
-    }
     return audit;
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
@@ -613,13 +469,7 @@ function parseArguments(argumentsList) {
     ["--expected-version", "expectedVersion"],
     ["--expected-commit", "expectedCommit"],
     ["--build-helper", "buildHelper"],
-    ["--build-extractor", "buildExtractor"],
-    ["--ffmpeg-source", "ffmpegSource"],
-    ["--ffmpeg-lock", "ffmpegLock"],
     ["--gates", "gates"],
-    ["--release-notes", "releaseNotes"],
-    ["--release-notes-sha256", "expectedReleaseNotesSha256"],
-    ["--summary-file", "summaryFile"],
     ["--output-dir", "outputDirectory"],
   ]);
   for (let index = 0; index < argumentsList.length; index += 2) {
@@ -630,19 +480,7 @@ function parseArguments(argumentsList) {
     }
     options[name] = value;
   }
-  for (const name of [
-    "artifact",
-    "expectedVersion",
-    "expectedCommit",
-    "buildHelper",
-    "buildExtractor",
-    "ffmpegSource",
-    "ffmpegLock",
-    "gates",
-    "releaseNotes",
-    "expectedReleaseNotesSha256",
-    "outputDirectory",
-  ]) {
+  for (const name of names.values()) {
     if (!options[name]) {
       throw new Error(`Missing required option: ${name}`);
     }
