@@ -14,11 +14,11 @@ npm run test:release
 
 预期覆盖：
 
-- 合法四章节组合、合法无变化句和当前 `docs/releases/v0.2.0.md` 正向样本通过。
-- 缺失、空白、错版标题、重复或乱序章节、空章节、额外正文、非中文条目和技术证据页失败。
-- 元数据输出权威路径与原始摘要；审计复核并原样复制正文，技术证据仍完整且与用户正文分离。
+- 元数据、审计和发布阶段保持权威路径与原始摘要的安全传递，技术证据仍完整且与用户正文分离。
 - draft 正文匹配时恢复；公开正文匹配时只读跳过；任一正文偏差都冲突失败且不覆盖。
 - workflow 继续保持八项门禁、只读构建/可写发布边界、四项公开资产和禁止仓库回写。
+
+版本化正文由发布脚本在运行时校验，不为 Markdown 内容维护专门的自动化测试套件。
 
 ## 元数据验收
 
@@ -26,7 +26,7 @@ npm run test:release
 node scripts/release-metadata.mjs
 ```
 
-预期：输出的 `version`、`tag`、`artifactPath`、`releaseNotesPath` 和 `releaseNotesSha256` 相互一致。临时构造的非法发布说明必须只在测试临时目录中验证，不修改真实版本文件。
+预期：输出的 `version`、`tag`、`artifactPath`、`releaseNotesPath` 和 `releaseNotesSha256` 相互一致。
 
 ## 完整本地回归
 
