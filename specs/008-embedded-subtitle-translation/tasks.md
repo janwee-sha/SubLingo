@@ -58,7 +58,7 @@
 - [X] T021 [US1] 重构 `src/main.ts`，把外挂源继续送入既有 reader，把受支持内嵌源送入逐窗口准备协调器，并仅在当前 identity/attempt 仍有效时调用 `PlaybackController.setSource`
 - [X] T022 [US1] 更新 `ui/sidebar.ts`、`ui/sidebar.html` 与 `ui/sidebar.css`，在既有翻译状态之前显示英文 `preparing` 状态，准备成功后无额外操作回到既有翻译体验
 - [X] T023 [US1] 更新 `scripts/verify-package.sh` 与 `scripts/pack.sh`，对白名单中的两个 native 文件执行架构、最低系统、执行位、签名、动态依赖和仓库构建 hash 校验，并拒绝 FFmpeg 构建材料进入归档
-- [ ] T024 [US1] 按 `specs/008-embedded-subtitle-translation/quickstart.md` 运行 US1 单元、合同、native 与 happy-path 集成测试，并在无外部 FFmpeg 的正式包环境完成三类 codec 的聚焦验收
+- [X] T024 [US1] 按 `specs/008-embedded-subtitle-translation/quickstart.md` 运行 US1 单元、合同、native 与 happy-path 集成测试，并在无外部 FFmpeg 的正式包环境完成三类 codec 的聚焦验收
 
 **检查点**：US1 可独立演示核心内嵌文本字幕翻译，且外挂字幕路径保持原样。
 
