@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { utf8Encode } from "../../src/domain/codec.js";
 import {
+  classifySubtitleSelection,
   IinaSubtitleSourcePort,
+  normalizeSubtitleCodec,
   readSelectedSubtitle,
 } from "../../src/adapters/iina/subtitle-source.js";
 import { loadSubtitleSource } from "../../src/subtitles/source.js";
@@ -62,5 +64,133 @@ describe("selected subtitle source", () => {
     const loaded = readSelectedSubtitle(new IinaSubtitleSourcePort(subtitle, file));
     expect(loaded.ok).toBe(true);
     if (loaded.ok) expect(loaded.source).toMatchObject({ trackId: 7, format: "srt" });
+  });
+
+  it("keeps the external @sub path and never reads it for an embedded track", () => {
+    const paths: string[] = [];
+    const external = readSelectedSubtitle({
+      selectedTrack: () => ({ id: 7, isExternal: true, title: "movie.srt", lang: "en" }),
+      readBinary: (path) => {
+        paths.push(path);
+        return utf8Encode(content);
+      },
+    });
+    expect(external.ok).toBe(true);
+    expect(paths).toEqual(["@sub/7"]);
+
+    const embedded = readSelectedSubtitle({
+      selectedTrack: () => ({ id: 8, isExternal: false, title: "embedded" }),
+      readBinary: (path) => {
+        paths.push(path);
+        return utf8Encode(content);
+      },
+    });
+    expect(embedded).toEqual({ ok: false, reason: "not-external" });
+    expect(paths).toEqual(["@sub/7"]);
+  });
+
+  it.each([
+    ["srt", "subrip"],
+    ["subrip", "subrip"],
+    ["ass", "ass"],
+    ["ssa", "ssa"],
+    ["mov_text", "mov_text"],
+  ] as const)("normalizes supported codec %s", (input, expected) => {
+    expect(normalizeSubtitleCodec(input)).toBe(expected);
+  });
+
+  it("classifies only the unique selected main track by exact stream identity", () => {
+    const result = classifySubtitleSelection({
+      playerId: "player-A",
+      mediaEpoch: 4,
+      mediaUrl: "file:///private/media/movie.mkv",
+      isNetworkResource: false,
+      selectedTrackId: 7,
+      tracks: [
+        {
+          type: "sub",
+          id: 7,
+          selected: true,
+          "main-selection": 0,
+          external: false,
+          codec: "ass",
+          "ff-index": 3,
+          "src-id": 12,
+          lang: "en",
+          title: "English",
+        },
+        {
+          type: "sub",
+          id: 8,
+          selected: false,
+          "main-selection": 0,
+          external: false,
+          codec: "ass",
+          "ff-index": 4,
+          "src-id": 13,
+          lang: "en",
+          title: "English",
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "embedded",
+      media: { playerId: "player-A", mediaEpoch: 4, localPath: "/private/media/movie.mkv" },
+      track: { trackId: 7, codec: "ass", ffIndex: 3, sourceId: 12 },
+    });
+  });
+
+  it("fails closed for missing, ambiguous, remote, graphic, unknown, and conflicting tracks", () => {
+    const base = {
+      playerId: "player-A",
+      mediaEpoch: 1,
+      mediaUrl: "file:///private/media/movie.mkv",
+      isNetworkResource: false,
+      selectedTrackId: 7,
+    };
+    const graphic = (codec: string) => ({
+      type: "sub",
+      id: 7,
+      selected: true,
+      "main-selection": 0,
+      external: false,
+      codec,
+      "ff-index": 3,
+      "src-id": 12,
+    });
+
+    expect(classifySubtitleSelection({ ...base, selectedTrackId: null, tracks: [] })).toEqual({
+      kind: "none",
+      state: "emptyOrUnreadable",
+    });
+    expect(
+      classifySubtitleSelection({ ...base, tracks: [graphic("ass"), graphic("ass")] }),
+    ).toEqual({ kind: "none", state: "emptyOrUnreadable" });
+    for (const codec of ["hdmv_pgs_subtitle", "dvd_subtitle", "dvb_subtitle", "unknown"])
+      expect(classifySubtitleSelection({ ...base, tracks: [graphic(codec)] })).toEqual({
+        kind: "unsupported",
+        state: "unsupportedType",
+      });
+    expect(
+      classifySubtitleSelection({
+        ...base,
+        mediaUrl: "https://example.test/movie.mkv",
+        isNetworkResource: true,
+        tracks: [graphic("ass")],
+      }),
+    ).toEqual({ kind: "unsupported", state: "remoteUnsupported" });
+    expect(
+      classifySubtitleSelection({
+        ...base,
+        tracks: [{ ...graphic("ass"), "ff-index": "3" }],
+      }),
+    ).toEqual({ kind: "unsupported", state: "unsupportedType" });
+    expect(
+      classifySubtitleSelection({
+        ...base,
+        tracks: [{ ...graphic("ass"), "src-id": "12" }],
+      }),
+    ).toEqual({ kind: "unsupported", state: "unsupportedType" });
   });
 });
