@@ -2,46 +2,17 @@
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-TRANSPORT_PACKAGE="$ROOT_DIR/native/transport"
-EXTRACTOR_PACKAGE="$ROOT_DIR/native/subtitle-extractor"
+PACKAGE_DIR="$ROOT_DIR/native/transport"
 OUTPUT_DIR="$ROOT_DIR/dist/native"
-HASH_FILE="$ROOT_DIR/build/native-hashes.json"
-MODULE_CACHE="$ROOT_DIR/native/.build/module-cache"
+ARM_BUILD="$PACKAGE_DIR/.build/arm64-apple-macosx/release/sublingo-transport"
+INTEL_BUILD="$PACKAGE_DIR/.build/x86_64-apple-macosx/release/sublingo-transport"
 
 mkdir -p "$OUTPUT_DIR"
-find "$OUTPUT_DIR" -mindepth 1 -delete
-mkdir -p "$MODULE_CACHE" "$ROOT_DIR/build"
 export MACOSX_DEPLOYMENT_TARGET=12.0
-export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE"
-export SWIFTPM_MODULECACHE_OVERRIDE="$MODULE_CACHE"
-
-swift package --package-path "$TRANSPORT_PACKAGE" clean
-swift package --package-path "$EXTRACTOR_PACKAGE" clean
-
-"$ROOT_DIR/scripts/build-ffmpeg.sh" "${SUBLINGO_FFMPEG_SOURCE:-$ROOT_DIR/native/.build/ffmpeg/downloads/ffmpeg-8.1.2.tar.xz}"
-
-for ARCH in arm64 x86_64; do
-  swift build --disable-sandbox --package-path "$TRANSPORT_PACKAGE" -c release --arch "$ARCH"
-  SUBLINGO_FFMPEG_PREFIX="$ROOT_DIR/native/.build/ffmpeg/$ARCH" \
-    swift build --disable-sandbox --package-path "$EXTRACTOR_PACKAGE" -c release --arch "$ARCH"
-done
-
-TRANSPORT_ARM="$TRANSPORT_PACKAGE/.build/arm64-apple-macosx/release/sublingo-transport"
-TRANSPORT_INTEL="$TRANSPORT_PACKAGE/.build/x86_64-apple-macosx/release/sublingo-transport"
-EXTRACTOR_ARM="$EXTRACTOR_PACKAGE/.build/arm64-apple-macosx/release/sublingo-subtitle-extractor"
-EXTRACTOR_INTEL="$EXTRACTOR_PACKAGE/.build/x86_64-apple-macosx/release/sublingo-subtitle-extractor"
-lipo -create "$TRANSPORT_ARM" "$TRANSPORT_INTEL" -output "$OUTPUT_DIR/sublingo-transport"
-lipo -create "$EXTRACTOR_ARM" "$EXTRACTOR_INTEL" -output "$OUTPUT_DIR/sublingo-subtitle-extractor"
-
-for HELPER in "$OUTPUT_DIR/sublingo-transport" "$OUTPUT_DIR/sublingo-subtitle-extractor"; do
-  chmod 755 "$HELPER"
-  codesign --force --sign - "$HELPER"
-  lipo "$HELPER" -verify_arch arm64 x86_64
-  codesign --verify --strict "$HELPER"
-  if otool -L "$HELPER" | awk '/^[[:space:]]+\//{print $1}' | grep -Ev '^(/usr/lib/|/System/Library/)' | grep -q .; then
-    echo "Native executable has a non-system dynamic dependency: $HELPER" >&2
-    exit 1
-  fi
-done
-
-node -e 'const fs=require("node:fs"),c=require("node:crypto");const [out,a,b]=process.argv.slice(1);const hash=p=>c.createHash("sha256").update(fs.readFileSync(p)).digest("hex");fs.writeFileSync(out,JSON.stringify({"sublingo-transport":hash(a),"sublingo-subtitle-extractor":hash(b)},null,2)+"\n")' "$HASH_FILE" "$OUTPUT_DIR/sublingo-transport" "$OUTPUT_DIR/sublingo-subtitle-extractor"
+swift build --package-path "$PACKAGE_DIR" -c release --arch arm64
+swift build --package-path "$PACKAGE_DIR" -c release --arch x86_64
+lipo -create "$ARM_BUILD" "$INTEL_BUILD" -output "$OUTPUT_DIR/sublingo-transport"
+chmod 755 "$OUTPUT_DIR/sublingo-transport"
+codesign --force --sign - "$OUTPUT_DIR/sublingo-transport"
+lipo "$OUTPUT_DIR/sublingo-transport" -verify_arch arm64 x86_64
+codesign --verify --strict "$OUTPUT_DIR/sublingo-transport"

@@ -17,6 +17,11 @@
 - 每份 README 必须用本地语言说明：自愿支持、免费完整使用、无额外权益、无模型额度、Provider 可能独立收费。
 - 只有 `docs/readme/README.zh-CN.md` 必须嵌入 `assets/aifadian-sponsor.jpeg`。
 
+## Release 说明
+
+- 生成正文必须保留发布版本、提交、产物、哈希、自动化门禁、归档清单、helper 与 IINA 验收边界。
+- 正文末尾必须追加两个规范渠道地址及免费使用、无额外权益和无模型额度声明。
+
 ## 私密信息边界
 
 - 仓库不得出现收款邮箱、具体地区邮编或 `aifadian-creator-verification.md` 内容。

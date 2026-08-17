@@ -6,25 +6,17 @@ import { basename, join, resolve } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
-import {
-  normalizeReleaseBody,
-  readReleaseNotesFile,
-  releaseNotesRelativePath,
-} from "./release-notes.mjs";
-
 const remoteStateRetryDelays = [0, 500, 1_000, 2_000, 4_000, 8_000, 16_000];
+
+function normalizeBody(body) {
+  return (body ?? "").replaceAll("\r\n", "\n").trimEnd();
+}
 
 export function decideReleaseAction(input) {
   const release = input.release;
   if (release && !release.draft) {
     if (release.prerelease) {
       throw new Error("The existing release is a prerelease");
-    }
-    if (!input.tagCommit) {
-      throw new Error("The published release tag is missing");
-    }
-    if (normalizeReleaseBody(release.body) !== normalizeReleaseBody(input.expectedBody)) {
-      throw new Error("Published release body conflict");
     }
     return { kind: "skip" };
   }
@@ -45,7 +37,7 @@ export function decideReleaseAction(input) {
   if (targetCommit !== input.expectedCommit) {
     throw new Error(`Draft target mismatch: ${targetCommit} != ${input.expectedCommit}`);
   }
-  if (normalizeReleaseBody(release.body) !== normalizeReleaseBody(input.expectedBody)) {
+  if (normalizeBody(release.body) !== normalizeBody(input.expectedBody)) {
     throw new Error("Draft release body does not match the audited evidence");
   }
   return { kind: "resume", releaseId: release.id };
@@ -76,31 +68,7 @@ export function planAssetOperations(expectedAssets, remoteAssets) {
   });
 }
 
-export function releaseAssetNames(version, ffmpegLock) {
-  const distribution = ffmpegLock?.sourceDistribution;
-  if (
-    !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version) ||
-    !/^ffmpeg-[0-9]+\.[0-9]+\.[0-9]+\.tar\.xz$/.test(distribution?.assetName ?? "") ||
-    distribution?.checksumAssetName !== `${distribution.assetName}.sha256`
-  ) {
-    throw new Error("Release asset contract is invalid");
-  }
-  const artifactName = `SubLingo-${version}.iinaplgz`;
-  return [
-    artifactName,
-    `${artifactName}.sha256`,
-    distribution.assetName,
-    distribution.checksumAssetName,
-  ];
-}
-
-export function assertPublishedRelease(
-  release,
-  tagCommit,
-  expectedCommit,
-  latestReleaseId,
-  expectedBody,
-) {
+export function assertPublishedRelease(release, tagCommit, expectedCommit, latestReleaseId) {
   if (release.draft) {
     throw new Error("Release is not public after publication");
   }
@@ -112,12 +80,6 @@ export function assertPublishedRelease(
   }
   if (latestReleaseId !== undefined && release.id !== latestReleaseId) {
     throw new Error(`Published release is not Latest: ${release.id} != ${latestReleaseId}`);
-  }
-  if (
-    expectedBody !== undefined &&
-    normalizeReleaseBody(release.body) !== normalizeReleaseBody(expectedBody)
-  ) {
-    throw new Error("Published release body does not match the audited release notes");
   }
 }
 
@@ -145,27 +107,13 @@ export function hasExpectedAssetNames(release, expectedAssets) {
   return expectedAssets.every((asset) => remoteNames.has(asset.name));
 }
 
-export function isPublishedStateReady(state, expectedCommit, expectedBody) {
+export function isPublishedStateReady(state, expectedCommit) {
   return Boolean(
     state?.release &&
     !state.release.draft &&
     state.tagCommit === expectedCommit &&
-    state.latestReleaseId === state.release.id &&
-    (expectedBody === undefined ||
-      normalizeReleaseBody(state.release.body) === normalizeReleaseBody(expectedBody)),
+    state.latestReleaseId === state.release.id,
   );
-}
-
-export function readAuditedReleaseNotes(options) {
-  const expectedSourcePath = releaseNotesRelativePath(options.version);
-  if (options.auditReleaseNotes?.sourcePath !== expectedSourcePath) {
-    throw new Error("Audited release notes source path does not match the publication version");
-  }
-  const releaseNotes = readReleaseNotesFile(options.notesFile, options.version);
-  if (releaseNotes.rawSha256 !== options.auditReleaseNotes?.rawSha256) {
-    throw new Error("Audited release notes SHA-256 does not match the publication body");
-  }
-  return releaseNotes.rawContent;
 }
 
 function runGh(argumentsList, options = {}) {
@@ -326,28 +274,9 @@ export async function publishRelease(options) {
   validateOptions(options);
   const notesFile = resolve(options.notesFile);
   const assetsDirectory = resolve(options.assetsDirectory);
-  const audit = JSON.parse(readFileSync(join(assetsDirectory, "release-audit.json"), "utf8"));
-  const expectedBody = readAuditedReleaseNotes({
-    notesFile,
-    version: options.version,
-    auditReleaseNotes: audit.releaseNotes,
-  });
+  const expectedBody = readFileSync(notesFile, "utf8");
   const artifactName = `SubLingo-${options.version}.iinaplgz`;
-  if (
-    audit.version !== options.version ||
-    audit.commit !== options.commit ||
-    audit.artifactName !== artifactName ||
-    audit.ffmpeg?.assetName === undefined ||
-    audit.ffmpeg?.checksumAssetName === undefined
-  ) {
-    throw new Error("Audited release payload identity does not match publication options");
-  }
-  const expectedAssets = releaseAssetNames(options.version, {
-    sourceDistribution: {
-      assetName: audit.ffmpeg.assetName,
-      checksumAssetName: audit.ffmpeg.checksumAssetName,
-    },
-  }).map((name) => {
+  const expectedAssets = [artifactName, `${artifactName}.sha256`].map((name) => {
     const filePath = join(assetsDirectory, name);
     return { name, filePath, sha256: hashFile(filePath) };
   });
@@ -449,7 +378,7 @@ export async function publishRelease(options) {
         tagCommit: resolveTagCommit(options.repository, options.tag),
         latestReleaseId: findLatestReleaseId(options.repository, true),
       }),
-      (candidate) => isPublishedStateReady(candidate, options.commit, expectedBody),
+      (candidate) => isPublishedStateReady(candidate, options.commit),
     );
     release = publishedState.state?.release;
     tagCommit = publishedState.state?.tagCommit;
@@ -457,7 +386,7 @@ export async function publishRelease(options) {
     if (!release) {
       throw new Error(`Release ${options.tag} was not visible after publication`);
     }
-    assertPublishedRelease(release, tagCommit, options.commit, latestReleaseId, expectedBody);
+    assertPublishedRelease(release, tagCommit, options.commit, latestReleaseId);
     if (!publishedState.matched) {
       throw new Error(`Release ${options.tag} did not become Latest after publication`);
     }

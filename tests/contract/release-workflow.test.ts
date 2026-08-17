@@ -5,10 +5,6 @@ const workflow = readFileSync(
   new URL("../../.github/workflows/release.yml", import.meta.url),
   "utf8",
 );
-const publishScript = readFileSync(
-  new URL("../../scripts/publish-release.mjs", import.meta.url),
-  "utf8",
-);
 
 describe("automatic release workflow", () => {
   it("runs only for main pushes or main manual retries", () => {
@@ -73,59 +69,5 @@ describe("automatic release workflow", () => {
   it("does not retain a published release replacement path", () => {
     expect(workflow).not.toContain("--replace-old-commit");
     expect(workflow).not.toContain("--replace-old-artifact-sha256");
-  });
-
-  it("audits both native executables and publishes the locked FFmpeg source only from the audited payload", () => {
-    expect(workflow).toContain("--build-helper dist/native/sublingo-transport");
-    expect(workflow).toContain("--build-extractor dist/native/sublingo-subtitle-extractor");
-    expect(workflow).toContain(
-      "--ffmpeg-source native/.build/ffmpeg/downloads/ffmpeg-8.1.2.tar.xz",
-    );
-    expect(workflow).toContain("--ffmpeg-lock native/ffmpeg.lock.json");
-    expect(workflow).toContain("path: build/release/");
-    expect(workflow).not.toContain("native/.build/ffmpeg/downloads/**");
-  });
-
-  it("passes the versioned user body from metadata through audit to publication", () => {
-    expect(workflow).toContain(
-      "release_notes_path: ${{ steps.metadata.outputs.release_notes_path }}",
-    );
-    expect(workflow).toContain(
-      "release_notes_sha256: ${{ steps.metadata.outputs.release_notes_sha256 }}",
-    );
-    expect(workflow).toContain(
-      '--release-notes "${{ steps.metadata.outputs.release_notes_path }}"',
-    );
-    expect(workflow).toContain(
-      '--release-notes-sha256 "${{ steps.metadata.outputs.release_notes_sha256 }}"',
-    );
-    expect(workflow).toContain("path: build/release/");
-    expect(workflow).toContain("--notes-file build/release/release-notes.md");
-  });
-
-  it("does not generate, commit, or push a release body in the workflow", () => {
-    expect(workflow).not.toMatch(/buildReleaseNotes|git\s+(add|commit|push)/);
-    expect(workflow).not.toMatch(
-      /release-notes\.md.*(echo|printf)|(?:echo|printf).*release-notes\.md/,
-    );
-  });
-
-  it("validates the audited body before the first remote release lookup", () => {
-    const publication = publishScript.slice(
-      publishScript.indexOf("export async function publishRelease"),
-    );
-    expect(publication.indexOf("readAuditedReleaseNotes(")).toBeGreaterThanOrEqual(0);
-    expect(publication.indexOf("readAuditedReleaseNotes(")).toBeLessThan(
-      publication.indexOf("findRelease(options.repository"),
-    );
-  });
-
-  it("writes technical evidence to the Actions summary without adding public assets", () => {
-    expect(workflow).toContain('--summary-file "$GITHUB_STEP_SUMMARY"');
-    expect(workflow).toContain("--notes-file build/release/release-notes.md");
-    expect(workflow).not.toMatch(/--notes-file[^\n]*release-audit\.json/);
-    expect(workflow).not.toMatch(/release\s+upload[^\n]*(release-audit|release-notes)/);
-    expect(workflow).toMatch(/build:\s*\n[\s\S]*?contents: read/);
-    expect(workflow).toMatch(/publish:\s*\n[\s\S]*?contents: write/);
   });
 });

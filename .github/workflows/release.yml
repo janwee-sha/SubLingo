@@ -20,8 +20,6 @@ jobs:
       contents: read
     outputs:
       artifact_name: ${{ steps.metadata.outputs.artifact_name }}
-      release_notes_path: ${{ steps.metadata.outputs.release_notes_path }}
-      release_notes_sha256: ${{ steps.metadata.outputs.release_notes_sha256 }}
       tag: ${{ steps.metadata.outputs.tag }}
       version: ${{ steps.metadata.outputs.version }}
     steps:
@@ -107,13 +105,7 @@ jobs:
           --expected-version "${{ steps.metadata.outputs.version }}"
           --expected-commit "$GITHUB_SHA"
           --build-helper dist/native/sublingo-transport
-          --build-extractor dist/native/sublingo-subtitle-extractor
-          --ffmpeg-source native/.build/ffmpeg/downloads/ffmpeg-8.1.2.tar.xz
-          --ffmpeg-lock native/ffmpeg.lock.json
           --gates build/release-gates.json
-          --release-notes "${{ steps.metadata.outputs.release_notes_path }}"
-          --release-notes-sha256 "${{ steps.metadata.outputs.release_notes_sha256 }}"
-          --summary-file "$GITHUB_STEP_SUMMARY"
           --output-dir build/release
 
       - name: Upload audited release payload

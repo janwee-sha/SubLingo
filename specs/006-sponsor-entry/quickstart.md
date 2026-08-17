@@ -3,14 +3,14 @@
 ## 自动检查
 
 ```bash
-npx vitest run tests/contract/sponsor-entry.test.ts
+npx vitest run tests/contract/sponsor-entry.test.ts tests/contract/release-audit.test.ts
 npm run test
 npm run typecheck
 npm run lint
 npm run format:check
 ```
 
-预期：全部命令通过；契约测试验证 Sponsor、七份 README 与二维码引用。
+预期：全部命令通过；契约测试验证 Sponsor、七份 README、二维码引用与 Release 文案。
 
 ## README 与 Sponsor 人工验收
 
