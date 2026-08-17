@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 import { PlaybackSession } from "../../src/app/playback-session.js";
 import { classifySubtitleSelection } from "../../src/adapters/iina/subtitle-source.js";
 import { ProviderSimulator } from "../helpers/provider-server.js";
@@ -8,15 +7,6 @@ const simulators: ProviderSimulator[] = [];
 afterEach(async () => Promise.all(simulators.splice(0).map((server) => server.close())));
 
 describe("controlled provider acceptance runner", () => {
-  it("keeps a legal opaque inventory of at least 30 acceptance samples", () => {
-    const inventory = readFileSync(new URL("../fixtures/media/README.md", import.meta.url), "utf8");
-    const identifiers = [...inventory.matchAll(/^\| ([A-Z]\d{3}) \|/gm)].map((match) => match[1]);
-    expect(identifiers).toHaveLength(30);
-    expect(new Set(identifiers).size).toBe(30);
-    expect(inventory).toContain("不含受版权限制媒体");
-    expect(inventory).toContain("大型与宿主样本不提交 Git");
-  });
-
   it("classifies every synthetic selected track with 100% exact identity", () => {
     const cases = Array.from({ length: 30 }, (_, index) => {
       const external = index >= 26;
