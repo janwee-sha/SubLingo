@@ -19,6 +19,17 @@ const validInput = {
     'ARTIFACT="$STAGE_PARENT/SubLingo-0.1.0.iinaplgz"',
     '"$ROOT_DIR"/build/package/SubLingo-0.1.0.iinaplgz) ;;',
   ].join("\n"),
+  ffmpegLock: {
+    version: "8.1.2",
+    sourceAssetName: "ffmpeg-8.1.2.tar.xz",
+    sha256: "4".repeat(64),
+    license: "LGPL-2.1-or-later",
+    sourceDistribution: {
+      assetName: "ffmpeg-8.1.2.tar.xz",
+      checksumAssetName: "ffmpeg-8.1.2.tar.xz.sha256",
+    },
+  },
+  thirdPartyNotices: "FFmpeg 8.1.2 — LGPL-2.1-or-later — ffmpeg-8.1.2.tar.xz — " + "4".repeat(64),
 };
 
 describe("release metadata", () => {
@@ -29,6 +40,8 @@ describe("release metadata", () => {
       artifactName: "SubLingo-0.1.0.iinaplgz",
       artifactPath: "build/package/SubLingo-0.1.0.iinaplgz",
       license: "GPL-3.0-only",
+      ffmpegSourceAssetName: "ffmpeg-8.1.2.tar.xz",
+      ffmpegSourceChecksumName: "ffmpeg-8.1.2.tar.xz.sha256",
     });
   });
 
@@ -82,5 +95,18 @@ describe("release metadata", () => {
   it("keeps repository license sources consistent", () => {
     const metadata = readReleaseMetadata(fileURLToPath(new URL("../../", import.meta.url)));
     expect(metadata.license).toBe("GPL-3.0-only");
+    expect(metadata.ffmpegSourceAssetName).toBe("ffmpeg-8.1.2.tar.xz");
+  });
+
+  it("rejects FFmpeg lock and third-party notice drift", () => {
+    expect(() =>
+      validateReleaseMetadata({
+        ...validInput,
+        ffmpegLock: { ...validInput.ffmpegLock, sourceAssetName: "ffmpeg-other.tar.xz" },
+      }),
+    ).toThrow(/FFmpeg/i);
+    expect(() => validateReleaseMetadata({ ...validInput, thirdPartyNotices: "missing" })).toThrow(
+      /FFmpeg/i,
+    );
   });
 });

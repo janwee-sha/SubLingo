@@ -1,5 +1,4 @@
 declare namespace IINA {
-  /** APIs used by SubLingo across IINA 1.4.0–1.4.4. */
   interface SubLingoRuntimeAugmentation {
     core?: API.Core;
     event?: API.Event;
@@ -10,5 +9,18 @@ declare namespace IINA {
     preferences?: API.Preferences;
     sidebar?: API.SidebarView;
     utils?: API.Utils;
+  }
+
+  interface SubLingoMpvSubtitleTrackNode {
+    type: "sub";
+    id: number;
+    selected: boolean;
+    "main-selection": number;
+    external: boolean;
+    codec?: string;
+    "ff-index"?: number;
+    "src-id"?: number;
+    lang?: string;
+    title?: string;
   }
 }

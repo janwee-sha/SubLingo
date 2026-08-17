@@ -14,12 +14,12 @@
 
 ---
 
-SubLingo traduit le sous-titre externe SRT ou ASS actuellement sélectionné dans [IINA](https://iina.io/) et affiche le résultat comme seconde piste de sous-titres. Il ne regarde qu'une courte distance devant la position de lecture et traduit par lots limités. Si une traduction prend du retard ou échoue, la vidéo et les sous-titres d'origine continuent d'être lus.
+SubLingo traduit le sous-titre texte intégré d'un média local ou le sous-titre externe SRT/ASS actuellement sélectionné dans [IINA](https://iina.io/) et affiche le résultat comme seconde piste. Il ne regarde qu'une courte distance devant la position de lecture et traduit par lots limités. Si une traduction prend du retard ou échoue, la vidéo et les sous-titres d'origine continuent d'être lus.
 
 ## ✨ Fonctionnalités
 
 - **Sous-titres bilingues en temps réel :** le texte d'origine reste la piste principale et la traduction apparaît comme seconde piste IINA.
-- **Prise en charge des SRT et ASS externes :** fonctionne avec les pistes texte SRT et ASS/SSA externes et lisibles sélectionnées dans IINA.
+- **Sous-titres texte intégrés et externes :** prend en charge Matroska SubRip/ASS/SSA et MOV/MP4 `mov_text` locaux, ainsi que les SRT/ASS externes. L'extracteur est inclus ; aucun `ffmpeg` ou `ffprobe` externe n'est requis.
 - **Service de traduction au choix :** utilisez un endpoint OpenAI-compatible Chat Completions ou un serveur Ollama local/distant.
 - **Priorité à la lecture :** la traduction ne met jamais la vidéo en pause et ne masque pas les sous-titres d'origine.
 - **Requêtes limitées :** SubLingo ne traduit que les cue proches, limite les tâches simultanées par fenêtre de lecture et ne met en cache les résultats réussis que pendant la session vidéo actuelle.
@@ -30,7 +30,7 @@ SubLingo traduit le sous-titre externe SRT ou ASS actuellement sélectionné dan
 
 - macOS 12 ou version ultérieure
 - IINA 1.4.0 ou version ultérieure
-- Une piste texte externe SRT ou ASS/SSA lisible
+- Une piste texte intégrée locale prise en charge ou une piste externe SRT/ASS/SSA lisible
 - L'un des services de traduction suivants :
   - Un endpoint OpenAI-compatible, un Model ID et une API key si le service l'exige
   - Un serveur Ollama avec un modèle compatible déjà installé
@@ -61,7 +61,7 @@ Avec l'une ou l'autre méthode, approuvez les autorisations demandées si IINA l
 
 ## 🌍 Démarrage rapide
 
-1. Ouvrez une vidéo et sélectionnez un sous-titre externe SRT ou ASS comme sous-titre principal.
+1. Ouvrez une vidéo locale et sélectionnez dans IINA une piste texte intégrée prise en charge ou un SRT/ASS externe comme sous-titre principal.
 2. Dans **Languages**, sélectionnez votre langue maternelle. Si IINA ne peut pas identifier la langue du sous-titre, confirmez-la manuellement, puis enregistrez les réglages.
 3. Dans **Translation service**, créez un Profile OpenAI-compatible ou Ollama et saisissez le Model ID exact.
 4. Enregistrez et testez le Profile, puis cliquez sur **Select**. La sélection autorise explicitement SubLingo à envoyer le texte des sous-titres proches à l'endpoint affiché.
@@ -99,11 +99,11 @@ Pour les deux services, commencez par **Use macOS proxy settings**. Ne choisisse
 
 ## 📌 Périmètre actuel
 
-SubLingo n'effectue pas de transcription audio, d'OCR ou d'extraction des sous-titres graphiques/intégrés, de prétraduction de la vidéo entière, d'export des traductions, de synchronisation cloud ou de cache de traduction persistant.
+SubLingo n'effectue pas de transcription audio, d'OCR ou d'extraction de sous-titres graphiques, d'extraction intégrée depuis un média distant, de prétraduction complète, d'export, de synchronisation cloud ou de cache persistant. Les données temporaires d'extraction sont supprimées après analyse, annulation, délai dépassé ou fermeture.
 
 ## 🛠️ Dépannage
 
-- **Select a readable external SRT or ASS subtitle :** sélectionnez un sous-titre texte externe comme piste principale dans IINA. Les pistes graphiques et intégrées ne sont pas prises en charge.
+- **Select a supported text subtitle :** sélectionnez une piste locale intégrée SubRip/ASS/SSA/`mov_text` ou un SRT/ASS externe. Les pistes graphiques et intégrées distantes ne sont pas prises en charge ; suivez l'état pour resélectionner ou utiliser Retry après un échec.
 - **Confirm the subtitle language :** saisissez un tag de langue BCP 47, par exemple `en-US`, puis enregistrez les réglages.
 - **Translation service unavailable :** testez le Profile et vérifiez son endpoint, son modèle, son API key, sa route réseau ou le processus Ollama. La vidéo et les sous-titres d'origine continuent normalement.
 - **Credential could not be saved :** installez le paquet Release plutôt qu'une copie de développement incomplète, vérifiez que le répertoire de données du plugin est accessible en écriture, puis quittez complètement et relancez IINA.
