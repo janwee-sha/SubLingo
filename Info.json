@@ -1,6 +1,6 @@
 {
   "name": "SubLingo",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "identifier": "io.sublingo.iina",
   "description": "Translates the selected local embedded text subtitle or external SRT/ASS subtitle and renders translated subtitles itself in IINA.",
   "author": {

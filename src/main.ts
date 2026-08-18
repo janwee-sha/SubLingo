@@ -14,7 +14,16 @@ import {
 import { IinaLocalHttpBridge, IinaProcessLauncher } from "./adapters/iina/provider-transport.js";
 import { IinaTranslationOverlay } from "./adapters/iina/subtitle-overlay.js";
 import { SubtitlePreparationCoordinator } from "./app/subtitle-preparation.js";
-import { parseRetrySubtitlePreparation } from "./domain/messages.js";
+import { LanguageDetectionCoordinator } from "./app/language-detection.js";
+import {
+  parseRetrySubtitlePreparation,
+  parseLanguageOperationError,
+  parseTargetLanguageSave,
+  parseTargetLanguageSaved,
+} from "./domain/messages.js";
+import { TARGET_LANGUAGES } from "./domain/target-languages.js";
+import { TargetLanguagePreferences } from "./adapters/iina/target-language-preferences.js";
+import { TargetLanguageSession } from "./app/target-language-session.js";
 import type {
   PreparedSubtitleSource,
   SourcePreparationView,
@@ -45,16 +54,11 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     () => mediaEpoch,
   );
   const translationOverlay = new IinaTranslationOverlay(runtime.mpv);
-  const savedTarget = runtime.preferences.get("targetLanguage");
-  const savedSource = runtime.preferences.get("sourceLanguage");
-  const savedSourceMode = runtime.preferences.get("sourceLanguageMode");
-  let manualSourceLanguage =
-    savedSourceMode !== "track" && typeof savedSource === "string" && savedSource.trim()
-      ? savedSource.trim()
-      : null;
+  const restoredTarget = new TargetLanguagePreferences(runtime.preferences).read();
+  const targetLanguageSession = new TargetLanguageSession(restoredTarget.targetLanguage);
+  const languageDetection = new LanguageDetectionCoordinator();
   let selectedSourceTrackId: number | null = null;
   let selectedSourceContentHash: string | null = null;
-  let selectedSourceLanguage: string | null = null;
   let sourceSelectionTimer: ReturnType<typeof setTimeout> | null = null;
   let sourceReloadAttempt = 0;
   let preparation: SubtitlePreparationCoordinator | null = null;
@@ -65,7 +69,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     playerId,
     provider,
     overlay: translationOverlay,
-    targetLanguage: typeof savedTarget === "string" ? savedTarget : "zh-Hans",
+    targetLanguage: targetLanguageSession.snapshot.targetLanguage,
     requiresProviderSelection: true,
   });
   controller.setEnabled(runtime.preferences.get("enabledByDefault") === true);
@@ -83,6 +87,9 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     source: null,
     sourceIssue: "unreadable",
     sourcePreparation: null,
+    targetLanguage: targetLanguageSession.snapshot.targetLanguage,
+    targetLanguageRevision: targetLanguageSession.snapshot.revision,
+    targetLanguages: TARGET_LANGUAGES,
   };
   const sidebarMessages: Array<{ name: string; data: unknown }> = [];
 
@@ -94,6 +101,9 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       providerError: controller.providerError,
       boundedWork,
       sourcePreparation: preparation?.view ?? preparationView,
+      targetLanguage: targetLanguageSession.snapshot.targetLanguage,
+      targetLanguageRevision: targetLanguageSession.snapshot.revision,
+      targetLanguages: TARGET_LANGUAGES,
       ...patch,
     };
   };
@@ -121,11 +131,39 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
 
   const clearSource = (reason: string, invalidateEmbedded = true): void => {
     if (invalidateEmbedded) invalidatePreparation();
+    languageDetection.invalidate();
     selectedSourceTrackId = runtime.core.subtitle.id;
     selectedSourceContentHash = null;
-    selectedSourceLanguage = null;
     controller.setSource(null);
     updateSidebarState({ source: null, sourceIssue: reason, sourcePreparation: preparationView });
+  };
+
+  const detectLanguage = (
+    trackIdentity: string,
+    contentHash: string,
+    cues: PreparedSubtitleSource["cues"],
+  ): void => {
+    void languageDetection.start(
+      { playerId, mediaEpoch, trackIdentity, contentHash, cues },
+      (result) => {
+        if (selectedSourceContentHash !== result.contentHash) return;
+        if (result.state === "reliable")
+          controller.setLanguageDetection({ languageId: result.languageId });
+        else controller.setLanguageDetection(result.state);
+        const currentSource =
+          sidebarState.source && typeof sidebarState.source === "object"
+            ? (sidebarState.source as Record<string, unknown>)
+            : null;
+        updateSidebarState({
+          source: currentSource
+            ? {
+                ...currentSource,
+                detectedLanguage: result.state === "reliable" ? result.languageId : null,
+              }
+            : null,
+        });
+      },
+    );
   };
 
   const preparationKey = (track: SubtitleTrackIdentity, epoch: number): string =>
@@ -175,21 +213,23 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       preparation?.invalidate("invalidated");
       return;
     }
-    const effectiveLanguage = manualSourceLanguage ?? prepared.language;
     selectedSourceContentHash = prepared.contentHash;
-    selectedSourceLanguage = effectiveLanguage;
     controller.setSource({
       cues: prepared.cues,
       contentHash: prepared.contentHash,
-      language: effectiveLanguage,
+      language: null,
       format: "srt",
     });
+    detectLanguage(
+      `${prepared.trackId}:embedded:${prepared.codec}`,
+      prepared.contentHash,
+      prepared.cues,
+    );
     updateSidebarState({
       source: {
         format: prepared.codec,
         cueCount: prepared.cues.length,
-        language: effectiveLanguage,
-        detectedLanguage: prepared.language,
+        detectedLanguage: null,
         warnings: [],
       },
       sourceIssue: null,
@@ -211,7 +251,6 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     embeddedPreparationKey = key;
     selectedSourceTrackId = track.trackId;
     selectedSourceContentHash = null;
-    selectedSourceLanguage = null;
     controller.setSource(null);
     preparationView = {
       state: "preparing",
@@ -265,27 +304,29 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       if (commitFailure) clearSource(loaded.reason);
       return false;
     }
-    const effectiveLanguage = manualSourceLanguage ?? loaded.source.language;
     const unchanged =
       selectedSourceTrackId === loaded.source.trackId &&
-      selectedSourceContentHash === loaded.source.contentHash &&
-      selectedSourceLanguage === effectiveLanguage;
+      selectedSourceContentHash === loaded.source.contentHash;
     selectedSourceTrackId = loaded.source.trackId;
     selectedSourceContentHash = loaded.source.contentHash;
-    selectedSourceLanguage = effectiveLanguage;
     if (!unchanged)
       controller.setSource({
         cues: loaded.source.cues,
         contentHash: loaded.source.contentHash,
-        language: effectiveLanguage,
+        language: null,
         format: loaded.source.format,
       });
+    if (!unchanged)
+      detectLanguage(
+        `${loaded.source.trackId}:external`,
+        loaded.source.contentHash,
+        loaded.source.cues,
+      );
     updateSidebarState({
       source: {
         format: loaded.source.format,
         cueCount: loaded.source.cues.length,
-        language: effectiveLanguage,
-        detectedLanguage: loaded.source.language,
+        detectedLanguage: null,
         warnings: loaded.source.decode.warnings,
       },
       sourceIssue: null,
@@ -330,8 +371,10 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   runtime.sidebar.onMessage("translation:set-enabled", (raw: unknown) => {
     const enabled = Boolean((raw as { payload?: { enabled?: unknown } }).payload?.enabled);
     controller.setEnabled(enabled);
-    if (!enabled) invalidatePreparation();
-    else if (!loadSource(false)) scheduleSourceReload();
+    if (!enabled) {
+      languageDetection.invalidate();
+      clearSource("unreadable");
+    } else if (!loadSource(false)) scheduleSourceReload();
     runtime.preferences.set("enabledByDefault", enabled);
     runtime.preferences.sync();
     updateSidebarState();
@@ -377,25 +420,27 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     flushSidebar();
   });
   runtime.sidebar.onMessage("defaults:save", (raw: unknown) => {
-    const payload = (raw as { payload?: Record<string, unknown> }).payload;
-    if (payload && typeof payload.targetLanguage === "string") {
-      manualSourceLanguage =
-        typeof payload.sourceLanguage === "string" && payload.sourceLanguage.trim()
-          ? payload.sourceLanguage.trim()
-          : null;
-      runtime.preferences.set("targetLanguage", payload.targetLanguage);
-      runtime.preferences.set("sourceLanguage", manualSourceLanguage);
-      runtime.preferences.set("sourceLanguageMode", manualSourceLanguage ? "manual" : "track");
-      runtime.preferences.sync();
-      controller.setLanguages(payload.targetLanguage, manualSourceLanguage);
-      if (!loadSource(false)) scheduleSourceReload();
+    try {
+      const message = parseTargetLanguageSave(raw);
+      if (
+        !targetLanguageSession.begin({
+          requestId: message.requestId,
+          revision: message.revision,
+          targetLanguage: message.payload.targetLanguage,
+        })
+      )
+        throw new Error("LANGUAGE_SAVE_NOT_AVAILABLE");
+      updateSidebarState({ languageSavePending: true });
+      runtime.global.postMessage("defaults:save", message);
+    } catch {
+      const requestId = (raw as { requestId?: unknown }).requestId;
+      if (typeof requestId === "string") targetLanguageSession.fail(requestId);
+      queueSidebarMessage("operation:result", {
+        requestId,
+        ok: false,
+        action: "languages",
+      });
     }
-    queueSidebarMessage("operation:result", {
-      requestId: (raw as { requestId?: unknown }).requestId,
-      ok: true,
-      action: "languages",
-    });
-    runtime.global.postMessage("defaults:save", raw);
     flushSidebar();
   });
 
@@ -475,9 +520,41 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   runtime.global.onMessage("provider:test-result", (raw: unknown) =>
     queueSidebarMessage("provider:test-result", raw),
   );
-  runtime.global.onMessage("operation:error", (raw: unknown) =>
-    queueSidebarMessage("operation:error", raw),
-  );
+  runtime.global.onMessage("defaults:saved", (raw: unknown) => {
+    try {
+      const result = parseTargetLanguageSaved(raw);
+      const committed = targetLanguageSession.commit(result);
+      if (!committed) return;
+      controller.setTargetLanguage(committed.targetLanguage);
+      updateSidebarState({ languageSavePending: false });
+      queueSidebarMessage("operation:result", {
+        requestId: result.requestId,
+        ok: true,
+        action: "languages",
+        targetLanguage: committed.targetLanguage,
+        targetLanguageRevision: committed.revision,
+      });
+    } catch (error) {
+      void error;
+    }
+  });
+  runtime.global.onMessage("operation:error", (raw: unknown) => {
+    try {
+      const result = parseLanguageOperationError(raw);
+      if (targetLanguageSession.fail(result.requestId)) {
+        updateSidebarState({ languageSavePending: false });
+        queueSidebarMessage("operation:result", {
+          requestId: result.requestId,
+          ok: false,
+          action: "languages",
+        });
+        return;
+      }
+    } catch (error) {
+      void error;
+    }
+    queueSidebarMessage("operation:error", raw);
+  });
   runtime.global.onMessage("profile:selected", (raw: unknown) => {
     const selection = (
       raw as {
@@ -547,6 +624,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   runtime.event.on("mpv.track-list.changed", () => scheduleSourceReload());
   runtime.event.on("mpv.seek", () => {
     preparation?.onSeek();
+    languageDetection.onSeek();
     controller.onSeek(
       finitePosition(
         runtime.core.status.position === null ? null : runtime.core.status.position * 1_000,
@@ -556,6 +634,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   runtime.event.on("mpv.end-file", () => {
     mediaEpoch += 1;
     invalidatePreparation();
+    languageDetection.invalidate();
   });
   runtime.event.on("mpv.end-file", () => controller.endFile());
   setInterval(() => {
@@ -576,9 +655,10 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
         payload: currentSelection,
       });
     currentSelection = null;
+    languageDetection.invalidate();
+    targetLanguageSession.close();
     selectedSourceTrackId = null;
     selectedSourceContentHash = null;
-    selectedSourceLanguage = null;
     void preparation?.shutdown();
     preparation = null;
     preparationPromise = null;

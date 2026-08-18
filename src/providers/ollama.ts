@@ -10,6 +10,7 @@ import { providerHttpError, protocolError } from "./errors.js";
 import { normalizeProviderEndpoint } from "./profiles.js";
 import { validateIdOutput } from "./validation.js";
 import { encodeWireItems, providerOutputSchema } from "./wire-items.js";
+import { getProviderLanguageLabel } from "../domain/target-languages.js";
 
 const MAX_ITEMS_PER_CHAT_REQUEST = 2;
 
@@ -170,6 +171,9 @@ export class OllamaProvider implements ConfiguredProvider {
     targetLanguage: string,
     timeoutMs: number,
   ): Promise<ProviderTransportResponse> {
+    const sourceLabel = getProviderLanguageLabel(sourceLanguage);
+    const targetLabel = getProviderLanguageLabel(targetLanguage);
+    if (!sourceLabel || !targetLabel) throw protocolError("INVALID_LANGUAGE_ID");
     this.activeJobs.add(jobId);
     try {
       return await this.transport.request({
@@ -187,7 +191,7 @@ export class OllamaProvider implements ConfiguredProvider {
           messages: [
             {
               role: "system",
-              content: `Translate every JSON subtitle item from ${sourceLanguage} to ${targetLanguage}. Each input ID must appear exactly once in translations. Return JSON only.`,
+              content: `Translate every JSON subtitle item from ${sourceLabel} to ${targetLabel}. Each input ID must appear exactly once in translations. Return JSON only.`,
             },
             { role: "user", content: JSON.stringify({ items }) },
           ],

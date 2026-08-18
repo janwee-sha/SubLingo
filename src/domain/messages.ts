@@ -4,6 +4,86 @@ export interface RpcEnvelope<T = unknown> {
   payload: T;
 }
 
+import { isTargetLanguageId } from "./target-languages.js";
+
+export type TargetLanguageSaveMessage = RpcEnvelope<{ targetLanguage: string }>;
+
+export function parseTargetLanguageSave(value: unknown): TargetLanguageSaveMessage {
+  const envelope = parseEnvelope(value);
+  const payload = envelope.payload as Record<string, unknown>;
+  if (
+    Object.keys(payload).sort().join(",") !== "targetLanguage" ||
+    !isTargetLanguageId(payload.targetLanguage)
+  )
+    throw new Error("INVALID_TARGET_LANGUAGE");
+  return envelope as TargetLanguageSaveMessage;
+}
+
+export function parseTargetLanguageSaved(value: unknown): {
+  requestId: string;
+  targetLanguage: string;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("INVALID_MESSAGE");
+  const record = value as Record<string, unknown>;
+  if (
+    Object.keys(record).sort().join(",") !== "requestId,targetLanguage" ||
+    typeof record.requestId !== "string" ||
+    !isTargetLanguageId(record.targetLanguage)
+  )
+    throw new Error("INVALID_MESSAGE");
+  return { requestId: record.requestId, targetLanguage: record.targetLanguage };
+}
+
+export function parseLanguageOperationResult(value: unknown): {
+  requestId: string;
+  ok: boolean;
+  action: "languages";
+  targetLanguage?: string;
+  targetLanguageRevision?: number;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("INVALID_MESSAGE");
+  const record = value as Record<string, unknown>;
+  const allowed = new Set([
+    "requestId",
+    "ok",
+    "action",
+    "targetLanguage",
+    "targetLanguageRevision",
+  ]);
+  if (
+    Object.keys(record).some((key) => !allowed.has(key)) ||
+    typeof record.requestId !== "string" ||
+    typeof record.ok !== "boolean" ||
+    record.action !== "languages" ||
+    (record.targetLanguage !== undefined && !isTargetLanguageId(record.targetLanguage)) ||
+    (record.targetLanguageRevision !== undefined &&
+      (!Number.isInteger(record.targetLanguageRevision) ||
+        (record.targetLanguageRevision as number) < 1))
+  )
+    throw new Error("INVALID_MESSAGE");
+  return record as ReturnType<typeof parseLanguageOperationResult>;
+}
+
+export function parseLanguageOperationError(value: unknown): {
+  requestId: string;
+  code: "INVALID_TARGET_LANGUAGE" | "TARGET_LANGUAGE_SAVE_FAILED";
+  userAction: "NONE";
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("INVALID_MESSAGE");
+  const record = value as Record<string, unknown>;
+  if (
+    Object.keys(record).sort().join(",") !== "code,requestId,userAction" ||
+    typeof record.requestId !== "string" ||
+    (record.code !== "INVALID_TARGET_LANGUAGE" && record.code !== "TARGET_LANGUAGE_SAVE_FAILED") ||
+    record.userAction !== "NONE"
+  )
+    throw new Error("INVALID_MESSAGE");
+  return record as ReturnType<typeof parseLanguageOperationError>;
+}
+
 export const SIDEBAR_MESSAGE_NAMES = [
   "ui:ready",
   "ui:poll",
@@ -48,6 +128,7 @@ export function parseRetrySubtitlePreparation(value: unknown): RetrySubtitlePrep
 }
 
 export const GLOBAL_MESSAGE_NAMES = [
+  "defaults:save",
   "profiles:list",
   "profile:create-revision",
   "profile:delete",

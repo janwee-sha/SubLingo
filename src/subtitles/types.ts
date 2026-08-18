@@ -71,7 +71,7 @@ export interface PreparedSubtitleSource {
   origin: "embedded";
   codec: EmbeddedSubtitleCodec;
   contentHash: Sha256Hex;
-  language: string | null;
+  trackLanguage: string | null;
   cues: SubtitleCue[];
 }
 
@@ -104,8 +104,7 @@ export interface SubtitleSource {
   isExternal: true;
   format: "srt" | "ass";
   contentHash: Sha256Hex;
-  language: string | null;
-  languageOrigin: "track" | "manual" | "unknown";
+  trackLanguage: string | null;
   decode: { encoding: string; bom: boolean; warnings: string[] };
   cues: SubtitleCue[];
 }

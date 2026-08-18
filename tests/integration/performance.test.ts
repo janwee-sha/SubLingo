@@ -4,6 +4,7 @@ import type { TranslationProvider } from "../../src/providers/provider.js";
 import type { SubtitleCue } from "../../src/subtitles/types.js";
 import { readFileSync } from "node:fs";
 import { selectNearbyCues } from "../../src/app/scheduler.js";
+import { detectSubtitleLanguage } from "../../src/subtitles/language-detection.js";
 
 class LatestOverlay implements TranslationOverlaySink {
   lines: string[] = [];
@@ -27,6 +28,30 @@ const cues = Array.from({ length: 120 }, (_, index): SubtitleCue => ({
 }));
 
 describe("automated acceptance performance", () => {
+  it("keeps maximum language detection samples within first, warm and sync budgets", () => {
+    const sample = Array.from({ length: 64 }, (_, index): SubtitleCue => ({
+      id: `language-${index}`,
+      index,
+      startMs: index * 1_000,
+      endMs: index * 1_000 + 900,
+      sourceText: `The passengers wait beside the station while the damaged engine is repaired in scene ${index}`,
+      normalizedText: `The passengers wait beside the station while the damaged engine is repaired in scene ${index}`,
+    }));
+    const durations: number[] = [];
+    for (let iteration = 0; iteration < 40; iteration += 1) {
+      const started = performance.now();
+      detectSubtitleLanguage(sample);
+      durations.push(performance.now() - started);
+    }
+    const percentile = (values: number[], percentage: number): number =>
+      [...values].sort((left, right) => left - right)[
+        Math.min(values.length - 1, Math.ceil(values.length * percentage) - 1)
+      ]!;
+    expect(percentile(durations.slice(0, 20), 0.95)).toBeLessThanOrEqual(100);
+    expect(percentile(durations.slice(20), 0.95)).toBeLessThanOrEqual(50);
+    expect(percentile(durations, 0.99)).toBeLessThanOrEqual(16);
+  });
+
   it("streams a four-hour, 20 GB-class, 20,000-cue workload without whole-media loading", () => {
     const large = Array.from({ length: 20_000 }, (_, index): SubtitleCue => ({
       id: `large-${index}`,

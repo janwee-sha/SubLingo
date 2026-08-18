@@ -38,4 +38,23 @@ describe("IINA sidebar bundle contract", () => {
     expect(sidebarSource).toContain('type ProfileTestState = "not tested" | "passed" | "failed"');
     expect(sidebarSource).toContain('" · no key saved"');
   });
+
+  it("exposes one catalog-driven Target Language control without source language input", () => {
+    expect(html.match(/Target Language/g)).toHaveLength(1);
+    expect(html).toContain('id="target-language"');
+    expect(html).toContain('id="save-languages"');
+    expect(html).toContain("Save Languages");
+    expect(html).not.toMatch(/Mother language|Subtitle language|source-language/);
+    expect(sidebarSource).toContain("view.targetLanguages");
+    expect(sidebarSource).toContain("language.displayName");
+  });
+
+  it("keeps committed, dirty and single-pending language form state request-correlated", () => {
+    expect(sidebarSource).toContain("committedTargetLanguage");
+    expect(sidebarSource).toContain("targetLanguageDirty");
+    expect(sidebarSource).toContain("pendingLanguageSaveRequestId");
+    expect(sidebarSource).toContain("!targetLanguageDirty && !pendingLanguageSaveRequestId");
+    expect(sidebarSource).toContain("result.requestId === pendingLanguageSaveRequestId");
+    expect(sidebarSource).not.toContain("sourceLanguageMode");
+  });
 });

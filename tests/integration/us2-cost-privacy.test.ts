@@ -33,10 +33,10 @@ describe("US2 cost/privacy acceptance", () => {
     controller.tick(0);
     await controller.whenIdle();
     expect(provider.requests).toHaveLength(0);
-    expect(controller.status).toBe("nativeNoTranslation");
+    expect(controller.status).toBe("noTranslationNeeded");
     controller.setSource({ cues: longCues, contentHash: "hash", language: null, format: "srt" });
     controller.tick(0);
-    expect(controller.status).toBe("waitingForLanguage");
+    expect(controller.status).toBe("detectingLanguage");
     expect(provider.requests).toHaveLength(0);
   });
 

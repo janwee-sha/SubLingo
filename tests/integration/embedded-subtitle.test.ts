@@ -83,9 +83,10 @@ describe("embedded subtitle translation", () => {
     controller.setSource({
       cues: prepared!.cues,
       contentHash: prepared!.contentHash,
-      language: prepared!.language,
+      language: null,
       format: "srt",
     });
+    controller.setLanguageDetection({ languageId: "en" });
     controller.tick(1_000);
     await controller.whenIdle();
 

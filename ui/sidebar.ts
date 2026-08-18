@@ -1,8 +1,10 @@
 type SessionStatus =
   | "disabled"
   | "waitingForSubtitle"
-  | "waitingForLanguage"
-  | "nativeNoTranslation"
+  | "detectingLanguage"
+  | "languageUnrecognized"
+  | "languageUnsupported"
+  | "noTranslationNeeded"
   | "waitingForConfiguration"
   | "preparing"
   | "running"
@@ -50,8 +52,10 @@ type SourcePreparationState =
 const labels: Record<SessionStatus, string> = {
   disabled: "Translation is off",
   waitingForSubtitle: "Select a readable external SRT or ASS subtitle",
-  waitingForLanguage: "Confirm the subtitle language before sending text",
-  nativeNoTranslation: "The subtitle already matches your mother language",
+  detectingLanguage: "Detecting subtitle language…",
+  languageUnrecognized: "Subtitle language could not be identified; playback continues",
+  languageUnsupported: "This subtitle language is not supported; playback continues",
+  noTranslationNeeded: "The subtitle already matches the target language",
   waitingForConfiguration: "Select and test a translation service",
   preparing: "Preparing nearby translations…",
   running: "Translations are running",
@@ -102,7 +106,6 @@ const retrySubtitleButton = document.querySelector<HTMLButtonElement>("#retry-su
 const operationStatus = document.querySelector<HTMLParagraphElement>("#operation-status")!;
 const enabled = document.querySelector<HTMLInputElement>("#enabled")!;
 const targetLanguage = document.querySelector<HTMLSelectElement>("#target-language")!;
-const sourceLanguage = document.querySelector<HTMLInputElement>("#source-language")!;
 const sourceSummary = document.querySelector<HTMLElement>("#source-summary")!;
 const providerKind = document.querySelector<HTMLSelectElement>("#provider-kind")!;
 const profileName = document.querySelector<HTMLInputElement>("#profile-name")!;
@@ -134,6 +137,12 @@ let selectedProfileId: string | null = null;
 let pendingProfileSave: { requestId: string; secret: string | null } | null = null;
 let requestSequence = 0;
 let renderedProfilesSignature = "";
+let targetLanguageRevision = 1;
+let committedTargetLanguage = "zh-Hans";
+let targetLanguageHydrated = false;
+let targetLanguageDirty = false;
+let pendingLanguageSaveRequestId: string | null = null;
+let renderedLanguageCatalogSignature = "";
 
 function nextRequestId(): string {
   requestSequence += 1;
@@ -143,8 +152,9 @@ function nextRequestId(): string {
 function envelope(
   payload: Record<string, unknown>,
   requestId = nextRequestId(),
+  revision = 1,
 ): Record<string, unknown> {
-  return { requestId, revision: 1, payload };
+  return { requestId, revision, payload };
 }
 
 function beginOperation(button: HTMLButtonElement | null, busyLabel: string): string {
@@ -262,18 +272,17 @@ enabled.addEventListener("change", () => {
 });
 
 saveLanguagesButton.addEventListener("click", () => {
+  if (pendingLanguageSaveRequestId) return;
   const requestId = beginOperation(saveLanguagesButton, "Saving languages…");
+  pendingLanguageSaveRequestId = requestId;
   window.iina?.postMessage(
     "defaults:save",
-    envelope(
-      {
-        targetLanguage: targetLanguage.value,
-        sourceLanguage: sourceLanguage.value.trim() || null,
-        sourceLanguageMode: sourceLanguage.value.trim() ? "manual" : "track",
-      },
-      requestId,
-    ),
+    envelope({ targetLanguage: targetLanguage.value }, requestId, targetLanguageRevision),
   );
+});
+
+targetLanguage.addEventListener("change", () => {
+  targetLanguageDirty = targetLanguage.value !== committedTargetLanguage;
 });
 
 retrySubtitleButton.addEventListener("click", () => {
@@ -458,11 +467,29 @@ window.iina?.onMessage("operation:result", (raw: unknown) => {
     ok?: boolean;
     cancelled?: boolean;
     action?: string;
+    targetLanguage?: string;
+    targetLanguageRevision?: number;
   };
+  if (result.action === "languages" && result.requestId === pendingLanguageSaveRequestId) {
+    pendingLanguageSaveRequestId = null;
+    if (
+      result.ok === true &&
+      typeof result.targetLanguage === "string" &&
+      typeof result.targetLanguageRevision === "number"
+    ) {
+      committedTargetLanguage = result.targetLanguage;
+      targetLanguageRevision = result.targetLanguageRevision;
+      targetLanguage.value = result.targetLanguage;
+      targetLanguageDirty = false;
+      targetLanguageHydrated = true;
+    }
+  }
   const message = result.cancelled
     ? "Operation cancelled. Nothing was changed."
     : result.action === "languages"
-      ? "Language settings saved."
+      ? result.ok === true
+        ? "Language settings saved."
+        : "Language settings could not be saved. The previous target remains active."
       : result.action === "translation"
         ? enabled.checked
           ? "Translation enabled."
@@ -477,6 +504,7 @@ window.iina?.onMessage("operation:result", (raw: unknown) => {
 
 window.iina?.onMessage("operation:error", (raw: unknown) => {
   const result = raw as { requestId?: string };
+  if (result.requestId === pendingLanguageSaveRequestId) pendingLanguageSaveRequestId = null;
   finishOperation(
     result.requestId,
     "The operation could not be completed. Review the service settings and try again.",
@@ -531,7 +559,6 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
     source?: {
       format: string;
       cueCount: number;
-      language: string | null;
       detectedLanguage?: string | null;
     } | null;
     cacheSize?: number;
@@ -545,7 +572,34 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
       canRetry: boolean;
       canReselect: boolean;
     } | null;
+    targetLanguage?: string;
+    targetLanguageRevision?: number;
+    targetLanguages?: Array<{ id: string; displayName: string; order: number }>;
   };
+  if (view.targetLanguages) {
+    const signature = JSON.stringify(view.targetLanguages);
+    if (signature !== renderedLanguageCatalogSignature) {
+      renderedLanguageCatalogSignature = signature;
+      targetLanguage.replaceChildren();
+      for (const language of [...view.targetLanguages].sort(
+        (left, right) => left.order - right.order,
+      )) {
+        const option = document.createElement("option");
+        option.value = language.id;
+        option.textContent = language.displayName;
+        targetLanguage.append(option);
+      }
+    }
+  }
+  if (typeof view.targetLanguage === "string" && typeof view.targetLanguageRevision === "number") {
+    committedTargetLanguage = view.targetLanguage;
+    targetLanguageRevision = view.targetLanguageRevision;
+    if (!targetLanguageHydrated || (!targetLanguageDirty && !pendingLanguageSaveRequestId)) {
+      targetLanguage.value = committedTargetLanguage;
+      targetLanguageDirty = false;
+      targetLanguageHydrated = true;
+    }
+  }
   if (view.status && labels[view.status]) {
     statusMessage.textContent = labels[view.status];
     statusDot.dataset.state = view.status;
@@ -577,7 +631,6 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
     document.querySelector<HTMLElement>("#source-cues")!.textContent = String(view.source.cueCount);
     document.querySelector<HTMLElement>("#source-detected-language")!.textContent =
       view.source.detectedLanguage ?? "Unknown";
-    if (!sourceLanguage.value && view.source.language) sourceLanguage.value = view.source.language;
   } else if (view.source === null) {
     sourceSummary.hidden = true;
   }
