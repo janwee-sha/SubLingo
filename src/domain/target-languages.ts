@@ -169,16 +169,18 @@ const entries = [
 ] as const satisfies readonly (readonly [string, string, string?, LanguageEquivalence?])[];
 
 export const TARGET_LANGUAGES: readonly TargetLanguageOption[] = Object.freeze(
-  entries.map(([id, displayName, detectorCode, equivalence], index) =>
-    Object.freeze({
-      id,
-      displayName,
-      providerLabel: `${displayName} [${id}]`,
-      ...(detectorCode ? { detectorCode } : {}),
-      equivalence: equivalence ?? "base",
-      order: index + 1,
-    }),
-  ),
+  [...entries]
+    .sort((left, right) => (left[1] < right[1] ? -1 : left[1] > right[1] ? 1 : 0))
+    .map(([id, displayName, detectorCode, equivalence], index) =>
+      Object.freeze({
+        id,
+        displayName,
+        providerLabel: `${displayName} [${id}]`,
+        ...(detectorCode ? { detectorCode } : {}),
+        equivalence: equivalence ?? "base",
+        order: index + 1,
+      }),
+    ),
 );
 
 const targetLanguagesById = new Map(TARGET_LANGUAGES.map((option) => [option.id, option]));

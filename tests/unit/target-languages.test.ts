@@ -10,13 +10,18 @@ import {
 describe("target language catalog", () => {
   it("contains the exact ordered 156-item identity set", () => {
     expect(TARGET_LANGUAGES).toHaveLength(156);
+    expect(TARGET_LANGUAGES.map((item) => item.displayName)).toEqual(
+      [...TARGET_LANGUAGES]
+        .map((item) => item.displayName)
+        .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0)),
+    );
     expect(TARGET_LANGUAGES.map((item) => item.order)).toEqual(
       Array.from({ length: 156 }, (_, index) => index + 1),
     );
     for (const field of ["id", "displayName", "providerLabel"] as const)
       expect(new Set(TARGET_LANGUAGES.map((item) => item[field])).size).toBe(156);
     expect(TARGET_LANGUAGES[0]).toMatchObject({ id: "ab", displayName: "Abkhazian" });
-    expect(TARGET_LANGUAGES.at(-1)).toMatchObject({ id: "kri", displayName: "Krio" });
+    expect(TARGET_LANGUAGES.at(-1)).toMatchObject({ id: "zu", displayName: "Zulu" });
   });
 
   it("keeps explicit variants and named edge identities distinct", () => {
