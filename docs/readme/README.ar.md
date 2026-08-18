@@ -110,10 +110,6 @@
 - **لا تظهر الترجمة المرسومة:** تأكد من اختبار Profile وتحديده، ومن اختلاف لغة المصدر عن لغتك الأم، ومن تفعيل **Translate**، وأن موضع التشغيل يقع ضمن توقيت cue تتوفر له ترجمة.
 - **يحجب proxy الخدمة:** جرّب أولًا مسار proxy الافتراضي في macOS. إذا رفض الخدمة، فغيّر Profile إلى **Connect directly** واحفظه ثم نفّذ Select/Test مجددًا.
 
-## 🧑‍💻 التطوير
-
-تتوفر تعليمات البناء والفحوص الآلية والتحزيم والتحقق في IINA ضمن [دليل التطوير](../engineering/development.md).
-
 ## ☕ دعم SubLingo
 
 إذا كان SubLingo مفيدًا لك، يمكنك طوعًا شراء فنجان قهوة للمطوّر عبر [Afdian](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link) أو [Ko-fi](https://ko-fi.com/ianhsia).

@@ -110,10 +110,6 @@ SubLingo n'effectue pas de transcription audio, d'OCR ou d'extraction de sous-ti
 - **Aucune traduction affichée :** vérifiez que le Profile est testé et sélectionné, que la langue source diffère de votre langue maternelle, que **Translate** est activé et que la lecture se trouve dans l'intervalle d'un cue déjà traduit.
 - **Le proxy bloque le service :** essayez d'abord la route proxy macOS par défaut. Si elle refuse le service, passez ce Profile à **Connect directly**, enregistrez-le, puis relancez Select/Test.
 
-## 🧑‍💻 Développement
-
-Les instructions de compilation, de vérification automatisée, de création du paquet et de validation dans IINA se trouvent dans le [guide de développement](../engineering/development.md).
-
 ## ☕ Soutenir SubLingo
 
 Si SubLingo vous est utile, vous pouvez offrir volontairement un café à son créateur via [Afdian](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link) ou [Ko-fi](https://ko-fi.com/ianhsia).

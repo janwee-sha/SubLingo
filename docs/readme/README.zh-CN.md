@@ -111,14 +111,10 @@ SubLingo 不提供音频转写、图形字幕 OCR/提取、远程媒体内嵌字
 - **没有显示译文：** 确认 Profile 已测试并选中、源语言与母语不同，并且已开启 **Translate**；播放位置还需要处于已有译文的字幕时段内。
 - **代理阻止服务连接：** 先尝试默认的 macOS 代理路由。如果代理拒绝该服务，将 Profile 改为 **Connect directly**，保存后重新 Select/Test。
 
-## 🧑‍💻 开发
-
-构建、自动化检查、打包和 IINA 验收说明见[开发指南](../engineering/development.md)。
-
 ## ☕ 支持 SubLingo
 
 如果 SubLingo 对你有帮助，可以通过[爱发电](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link)或 [Ko-fi](https://ko-fi.com/ianhsia) 自愿请创作者喝杯咖啡。
 
-[![请 SubLingo 创作者喝杯咖啡的爱发电二维码](assets/aifadian-sponsor.webp)](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link)
+![请 SubLingo 创作者喝杯咖啡的爱发电二维码](assets/aifadian-sponsor.webp)
 
 SubLingo 对所有人保持免费且功能完整。打赏不会解锁额外功能、优先翻译或专属版本，也不包含翻译服务 API 额度。你选择的 Provider 可能根据其条款与内容政策独立收费。
