@@ -111,7 +111,7 @@
 - [X] T027 收敛 `src/adapters/iina/subtitle-overlay.ts` 与 `src/app/controller.ts` 的失败处理，只保留固定英文状态/错误码，不拼接、记录或向 Sidebar 传播译文、ASS data、路径或命令参数，并使 T026 通过
 - [X] T028 [P] 在 `scripts/verify-package.sh` 增加正式 bundle 旧输出路径扫描，并在 `tests/contract/package-manifest.test.ts` 覆盖 `sub-add`、`sub-remove`、`secondary-sid` 和译文 `sublingo-*.srt` 不存在，同时明确允许内嵌原字幕的 `@tmp/sublingo-extraction`
 - [X] T029 按 `specs/010-overlay-translated-subtitles/quickstart.md` 依次运行 `npm test`、typecheck、lint、format check、native build/test、plugin build、package verification 与 pack，检查工作树未纳入生成包、缓存或运行时状态
-- [ ] T030 使用 T029 的同一正式 `.iinaplgz` 完成 `specs/010-overlay-translated-subtitles/quickstart.md` 的 30 分钟/100 cue、轨道零变更、固定样式、20 次窗口变化、各 20 次生命周期、多窗口、指针、IINA OSD、安装卸载和日志 sentinel 验收，并仅将最终包 SHA-256、环境、合成样本 ID、耗时、计数与结果追加到 `docs/validation/iina-matrix.md`
+- [X] T030 使用 T029 的同一正式 `.iinaplgz` 完成 `specs/010-overlay-translated-subtitles/quickstart.md` 的 30 分钟/100 cue、轨道零变更、固定样式、20 次窗口变化、各 20 次生命周期、多窗口、指针、IINA OSD、安装卸载和日志 sentinel 验收，并仅将最终包 SHA-256、环境、合成样本 ID、耗时、计数与结果追加到 `docs/validation/iina-matrix.md`
 
 **最终检查点**：自动化、包审计、当前 IINA 1.4.4 宿主兼容与日志安全全部通过，当前产物与实现一致。
 
