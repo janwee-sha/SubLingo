@@ -39,9 +39,7 @@ const providerConnectionTests = new ProviderConnectionTests(localUuid);
 const targetLanguagePreferences = new TargetLanguagePreferences(iina.preferences);
 
 try {
-  iina.preferences.set("sourceLanguage", null);
-  iina.preferences.set("sourceLanguageMode", null);
-  iina.preferences.sync();
+  targetLanguagePreferences.clearLegacySourcePreferences();
 } catch (error) {
   void error;
 }

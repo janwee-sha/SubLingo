@@ -74,7 +74,7 @@
 
 ### 实现
 
-- [X] T024 [P] [US2] 在 `src/adapters/iina/target-language-preferences.ts` 封装同步读取、目录校验、内存默认、`set + sync` 原子写入与旧值/缺失态回滚，且只处理 `targetLanguage`
+- [X] T024 [P] [US2] 在 `src/adapters/iina/target-language-preferences.ts` 封装同步读取、目录校验、内存默认、`set + sync` 原子写入、旧值/缺失态回滚及 property-list 安全的旧源语言键清理
 - [X] T025 [P] [US2] 在 `src/domain/messages.ts` 实现 `defaults:save`、`defaults:saved`、`operation:error` 与 `operation:result` 的严格语言消息解析，拒绝附加字段、非法目标、错误 revision 和不匹配 requestId
 - [X] T026 [US2] 在 `src/global.ts` 使用偏好 adapter 成为 `targetLanguage` 唯一写入者，初始化时有界清空 `sourceLanguage`/`sourceLanguageMode`，并仅在 `set + sync` 成功后向 IINA 提供的发起窗口回执
 - [X] T027 [US2] 在 `src/main.ts` 创建 Controller 前恢复有效偏好或内存默认 `zh-Hans`，通过首次 `state:update` 提供目标目录、committed 值和 revision，维护单一 pending，并仅在匹配 `defaults:saved` 后提交当前窗口且忽略未知或迟到回执

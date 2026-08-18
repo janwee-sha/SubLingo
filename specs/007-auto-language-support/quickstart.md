@@ -25,7 +25,7 @@ npx vitest run tests/security/credential-leakage.test.ts tests/security/redactio
 - 识别对空白、符号、极短、混合、相关语种和不受支持文字失败关闭；元数据错误时正文仍是唯一权威。
 - 检测进行、无法识别、不受支持和无需翻译四种状态可区分，后三者 Provider 调用为 0。
 - 换轨、换片、正文 hash 变化、禁用、关窗和双窗口迟到写入为 0；seek 不重跑同源识别。
-- 保存请求在 Global 成功回执前不改变 Controller；写入/同步失败回滚旧值，成功后取消旧目标请求并清缓存和 overlay。
+- 保存请求在 Global 成功回执前不改变 Controller；旧键清理与缺失态回滚不写入 `null`，写入/同步失败回滚旧值，成功后取消旧目标请求并清缓存和 overlay。
 - Sidebar 首次恢复已保存值，poll 不覆盖 dirty 草稿，关闭重开恢复 committed 值。
 
 ## 冻结语料与指标

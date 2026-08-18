@@ -103,4 +103,4 @@ LanguageResult + Preference 1 -> 1 TranslationLanguageContext
 TranslationLanguageContext 1 -> 0..N provider attempts/cache entries
 ```
 
-持久化层只拥有 `targetLanguageId`；每个播放器窗口独立拥有检测 attempt、结果、翻译上下文、缓存和覆盖层。
+持久化层只拥有一个有效语言值 `targetLanguageId`；旧源语言键只允许保留 property-list 安全的空字符串墓碑。每个播放器窗口独立拥有检测 attempt、结果、翻译上下文、缓存和覆盖层。

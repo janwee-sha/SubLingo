@@ -58,7 +58,7 @@
 
 **决策**：Controller 将 `setLanguages(target, source)` 收窄为 `setTargetLanguage(target)`。成功提交新目标后复用 `PlaybackSession` 代次：取消 Provider 与退避计时、递增 session epoch、清 translations、terminal failures、provider error、会话缓存和 overlay，但保留当前字幕源并从新目标重新门控。旧 progress/result 继续由 player/session/window/profile 指纹拒绝。
 
-彻底移除 `sourceLanguage`、`sourceLanguageMode`、手动输入、manual origin、确认动作和相关消息字段。Global 在有界迁移中把旧键置空；Main 永远不读取它们。状态明确区分 detecting、unrecognized、unsupported 和 no-translation-needed，只向 UI 公开固定文案和安全语言 ID。
+彻底移除 `sourceLanguage`、`sourceLanguageMode`、手动输入、manual origin、确认动作和相关消息字段。Global 在有界迁移中用 property-list 安全的空字符串墓碑覆盖旧键，避免 JavaScript `null` 使 IINA 整份 preferences 无法写盘；Main 永远不读取它们。状态明确区分 detecting、unrecognized、unsupported 和 no-translation-needed，只向 UI 公开固定文案和安全语言 ID。
 
 **理由**：缓存键虽已包含目标语言，但只换 key 不会取消请求、释放旧缓存或清除已显示译文；旧源语言路径仍会覆盖正文结果。完整切换和清除才能满足 FR-004/008/010/011。
 

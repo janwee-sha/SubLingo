@@ -16,6 +16,12 @@ export class TargetLanguagePreferenceError extends Error {
 export class TargetLanguagePreferences {
   constructor(private readonly store: TargetLanguagePreferenceStore) {}
 
+  clearLegacySourcePreferences(): void {
+    this.store.set("sourceLanguage", "");
+    this.store.set("sourceLanguageMode", "");
+    this.store.sync();
+  }
+
   read(): { targetLanguage: string; source: "saved" | "default" } {
     const value = this.store.get("targetLanguage");
     return isTargetLanguageId(value)
@@ -32,7 +38,7 @@ export class TargetLanguagePreferences {
       this.store.sync();
     } catch {
       try {
-        this.store.set("targetLanguage", previous === undefined ? null : previous);
+        this.store.set("targetLanguage", previous == null ? "" : previous);
         this.store.sync();
       } catch (rollbackError) {
         void rollbackError;
