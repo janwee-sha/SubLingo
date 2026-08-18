@@ -116,7 +116,7 @@
 - [X] T038 按 `specs/007-auto-language-support/quickstart.md` 运行四组聚焦 Vitest 命令，并修正 `tests/unit/`、`tests/contract/`、`tests/integration/` 与 `tests/security/` 中所有失败直至通过
 - [X] T039 通过 `package.json` 依次运行 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build:native`、`npm run test:native` 与 `npm run build`，确认生产代码无新增注释且生产自然语言仅使用英语
 - [X] T040 运行 `scripts/verify-package.sh` 与 `scripts/pack.sh`，审计 `dist/main.js` 和 `build/package/SubLingo-0.3.0.iinaplgz` 已静态包含分类器、无 `node_modules`/模型/WASM/native module/新权限，且 bundle 增量 ≤1 MiB、包增量 ≤500 KiB
-- [ ] T041 由开发者按 `specs/007-auto-language-support/quickstart.md` 的 10 步清单使用同一个 `build/package/SubLingo-0.3.0.iinaplgz` 完成 IINA 1.4.0+ 正式包人工验收，并仅记录允许的包 hash、环境、样本 ID、聚合指标、耗时、调用计数与通过/失败
+- [x] T041 由开发者按 `specs/007-auto-language-support/quickstart.md` 的 10 步清单使用同一个 `build/package/SubLingo-0.3.0.iinaplgz` 完成 IINA 1.4.0+ 正式包人工验收，并仅记录允许的包 hash、环境、样本 ID、聚合指标、耗时、调用计数与通过/失败
 
 ---
 
