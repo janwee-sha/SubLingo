@@ -149,7 +149,7 @@ describe("US1 playback acceptance", () => {
     controller.setSource({ cues, contentHash: "hash", language: "en", format: "srt" });
     expect(controller.status).toBe("disabled");
 
-    controller.setLanguages("zh-Hans", "en");
+    controller.setTargetLanguage("zh-Hans");
     expect(controller.status).toBe("disabled");
 
     controller.setProviderSelection({

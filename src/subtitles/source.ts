@@ -52,8 +52,7 @@ export function loadSubtitleSource(
       isExternal: true,
       format,
       contentHash: sha256Hex(bytes),
-      language: track.lang?.trim() || null,
-      languageOrigin: track.lang?.trim() ? "track" : "unknown",
+      trackLanguage: track.lang?.trim() || null,
       decode: {
         encoding: decoded.encoding,
         bom: decoded.bom,
@@ -85,7 +84,7 @@ export function loadPreparedSubtitleSource(
     origin: "embedded",
     codec: track.codec,
     contentHash: result.sha256,
-    language: track.language?.trim() || null,
+    trackLanguage: track.language?.trim() || null,
     cues: parsed.cues,
   };
 }

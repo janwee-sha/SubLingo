@@ -3,6 +3,8 @@ import { diagnostic } from "../../src/domain/logging.js";
 import { sanitizedProfileView } from "../../src/domain/messages.js";
 import { SubtitlePreparationCoordinator } from "../../src/app/subtitle-preparation.js";
 import { SubtitleExtractorError } from "../../src/adapters/iina/subtitle-extractor.js";
+import { detectSubtitleLanguage } from "../../src/subtitles/language-detection.js";
+import type { SubtitleCue } from "../../src/subtitles/types.js";
 
 describe("credential and content leakage boundaries", () => {
   it("keeps credentials, local paths, loopback tokens, auth headers and bodies out of views/diagnostics", () => {
@@ -76,5 +78,24 @@ describe("credential and content leakage boundaries", () => {
       canReselect: true,
     });
     for (const value of sensitive) expect(output).not.toContain(value);
+  });
+
+  it("keeps detector samples, candidates, scores and exceptions out of results", () => {
+    const sensitive = "PRIVATE_SUBTITLE_SAMPLE /private/media/title.srt";
+    const cues: SubtitleCue[] = Array.from({ length: 20 }, (_, index) => ({
+      id: String(index),
+      index,
+      startMs: index * 1_000,
+      endMs: index * 1_000 + 900,
+      sourceText: `${sensitive} ${index}`,
+      normalizedText: `${sensitive} ${index}`,
+    }));
+    const result = detectSubtitleLanguage(cues, {
+      classifier: () => {
+        throw new Error(`${sensitive} eng=1.0 fra=0.8 provider-secret`);
+      },
+    });
+    expect(result).toEqual({ state: "unknown" });
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE|private|eng|fra|score|secret/);
   });
 });

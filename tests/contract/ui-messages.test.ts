@@ -5,9 +5,14 @@ import {
   SIDEBAR_MESSAGE_NAMES,
   parseProfileSelection,
   parseSecretSet,
+  parseTargetLanguageSave,
+  parseTargetLanguageSaved,
+  parseLanguageOperationError,
+  parseLanguageOperationResult,
   sanitizedProfileView,
 } from "../../src/domain/messages.js";
 import { normalizeProviderError } from "../../src/domain/errors.js";
+import { SESSION_STATUSES, USER_ACTIONS } from "../../src/domain/status.js";
 import "../../ui/provider-status.js";
 
 const providerTestStatusMessage = (
@@ -164,6 +169,58 @@ describe("Sidebar/Main/Global security messages", () => {
     expect(JSON.stringify(PROVIDER_ATTEMPT_EVENT_NAMES)).not.toMatch(
       /secret|credential|authorization/i,
     );
+  });
+
+  it("accepts only target language in language save messages", () => {
+    expect(
+      parseTargetLanguageSave({
+        requestId: "language-save-1",
+        revision: 1,
+        payload: { targetLanguage: "pt-PT" },
+      }),
+    ).toMatchObject({ payload: { targetLanguage: "pt-PT" } });
+    for (const payload of [
+      { targetLanguage: "invalid" },
+      { targetLanguage: "en", sourceLanguage: "ja" },
+      { targetLanguage: "en", sourceLanguageMode: "manual" },
+    ])
+      expect(() =>
+        parseTargetLanguageSave({ requestId: "language-save-1", revision: 1, payload }),
+      ).toThrow();
+    expect(
+      parseTargetLanguageSaved({ requestId: "language-save-1", targetLanguage: "pt-PT" }),
+    ).toEqual({ requestId: "language-save-1", targetLanguage: "pt-PT" });
+    expect(
+      parseLanguageOperationError({
+        requestId: "language-save-1",
+        code: "TARGET_LANGUAGE_SAVE_FAILED",
+        userAction: "NONE",
+      }),
+    ).toMatchObject({ code: "TARGET_LANGUAGE_SAVE_FAILED" });
+    expect(
+      parseLanguageOperationResult({
+        requestId: "language-save-1",
+        ok: true,
+        action: "languages",
+        targetLanguage: "pt-PT",
+        targetLanguageRevision: 2,
+      }),
+    ).toMatchObject({ targetLanguageRevision: 2 });
+  });
+
+  it("publishes only fixed automatic detection states and removes manual confirmation", () => {
+    expect(SESSION_STATUSES).toEqual(
+      expect.arrayContaining([
+        "detectingLanguage",
+        "languageUnrecognized",
+        "languageUnsupported",
+        "noTranslationNeeded",
+      ]),
+    );
+    expect(SESSION_STATUSES).not.toEqual(
+      expect.arrayContaining(["waitingForLanguage", "nativeNoTranslation"]),
+    );
+    expect(USER_ACTIONS).not.toContain("CONFIRM_SOURCE_LANGUAGE");
   });
 
   it("keeps the provider test request and result message fields unchanged", () => {

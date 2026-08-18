@@ -85,6 +85,10 @@ describe("OpenAI-compatible provider", () => {
     const userMessage = (
       calls[0] as { body: { messages: Array<{ content: string }> } }
     ).body.messages.at(-1)?.content;
+    const systemMessage = (calls[0] as { body: { messages: Array<{ content: string }> } }).body
+      .messages[0]?.content;
+    expect(systemMessage).toContain("English [en]");
+    expect(systemMessage).toContain("Chinese (Simplified) [zh-Hans]");
     expect(userMessage).toContain('"id":"c1"');
     expect(userMessage).not.toContain("srt:0:0:1000");
     expect(result.translations).toEqual([{ id: "srt:0:0:1000", text: "一" }]);

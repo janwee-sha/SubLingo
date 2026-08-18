@@ -18,7 +18,7 @@ describe("selected subtitle source", () => {
     );
     expect(loaded.ok).toBe(true);
     if (!loaded.ok) return;
-    expect(loaded.source).toMatchObject({ trackId: 7, format: "srt", language: "en-US" });
+    expect(loaded.source).toMatchObject({ trackId: 7, format: "srt", trackLanguage: "en-US" });
     expect(loaded.source.decode).toMatchObject({ encoding: "utf-8", bom: true });
     expect(loaded.source.contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(loaded.source.cues).toHaveLength(1);

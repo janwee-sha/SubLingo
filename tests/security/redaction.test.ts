@@ -3,6 +3,7 @@ import { diagnostic, safeRequestId } from "../../src/domain/logging.js";
 import { SubtitleExtractorError } from "../../src/adapters/iina/subtitle-extractor.js";
 import { PlaybackController, type TranslationOverlaySink } from "../../src/app/controller.js";
 import type { TranslationProvider } from "../../src/providers/provider.js";
+import { parseTargetLanguageSave } from "../../src/domain/messages.js";
 
 describe("allowlist-only diagnostics", () => {
   it("copies safe metadata and drops bodies, headers, credentials and subtitle text", () => {
@@ -81,5 +82,19 @@ describe("allowlist-only diagnostics", () => {
     expect(state).not.toContain("PRIVATE_TRANSLATION_ASS_DATA");
     expect(state).not.toContain("PRIVATE_SOURCE_SUBTITLE");
     expect(state).not.toContain("/private/media/title.mkv");
+  });
+
+  it("rejects legacy source preferences before they can cross the language RPC", () => {
+    expect(() =>
+      parseTargetLanguageSave({
+        requestId: "save",
+        revision: 1,
+        payload: {
+          targetLanguage: "en",
+          sourceLanguage: "PRIVATE_OLD_SOURCE_LANGUAGE",
+          sourceLanguageMode: "manual",
+        },
+      }),
+    ).toThrow(/INVALID_TARGET_LANGUAGE/);
   });
 });

@@ -1,33 +1,30 @@
 import { describe, expect, it } from "vitest";
-import {
-  normalizeLanguageTag,
-  resolveSourceLanguage,
-  shouldTranslate,
-} from "../../src/domain/language.js";
+import { normalizeLanguageTag, shouldTranslate } from "../../src/domain/language.js";
 
-describe("language gate", () => {
-  it("normalizes common BCP 47 casing and rejects unsafe/unknown tags", () => {
-    expect(normalizeLanguageTag("ZH-hans-cn")).toBe("zh-Hans-CN");
-    expect(normalizeLanguageTag("en_us")).toBe("en-US");
+describe("language identity", () => {
+  it("normalizes legacy aliases and Chinese regional forms", () => {
+    expect(normalizeLanguageTag("iw_IL")).toBe("he-IL");
+    expect(normalizeLanguageTag("in-ID")).toBe("id-ID");
+    expect(normalizeLanguageTag("ji")).toBe("yi");
+    expect(normalizeLanguageTag("zh-CN")).toBe("zh-Hans");
+    expect(normalizeLanguageTag("zh-HK")).toBe("zh-Hant");
+  });
+
+  it("uses generic target, explicit script and explicit region equivalence", () => {
+    expect(shouldTranslate("en-US", "en")).toBe(false);
+    expect(shouldTranslate("pt-BR", "pt")).toBe(false);
+    expect(shouldTranslate("pt-BR", "pt-PT")).toBe(true);
+    expect(shouldTranslate("pt-PT", "pt-PT")).toBe(false);
+    expect(shouldTranslate("zh-CN", "zh-Hans")).toBe(false);
+    expect(shouldTranslate("zh-TW", "zh-Hant")).toBe(false);
+    expect(shouldTranslate("zh-Hans", "zh-Hant")).toBe(true);
+    expect(shouldTranslate("zh-Hant", "zh-Hans")).toBe(true);
+    expect(shouldTranslate("zh", "zh-Hans")).toBe(true);
+  });
+
+  it("fails closed for invalid language identities", () => {
     expect(normalizeLanguageTag("und")).toBeNull();
-    expect(normalizeLanguageTag("not a tag")).toBeNull();
-  });
-
-  it("treats base-language equality as native unless a regional override is explicit", () => {
-    expect(shouldTranslate("en-US", "en-GB", false)).toBe(false);
-    expect(shouldTranslate("en-US", "en-GB", true)).toBe(true);
-    expect(shouldTranslate("en", "zh-Hans", false)).toBe(true);
-  });
-
-  it("uses manual source only in manual mode and reports reliable track origin", () => {
-    expect(
-      resolveSourceLanguage({ mode: "track", trackLanguage: "ja-JP", manualLanguage: "en" }),
-    ).toEqual({ language: "ja-JP", origin: "track" });
-    expect(
-      resolveSourceLanguage({ mode: "manual", trackLanguage: "ja", manualLanguage: "ko-kr" }),
-    ).toEqual({ language: "ko-KR", origin: "manual" });
-    expect(
-      resolveSourceLanguage({ mode: "track", trackLanguage: null, manualLanguage: null }),
-    ).toEqual({ language: null, origin: "unknown" });
+    expect(normalizeLanguageTag("english")).toBeNull();
+    expect(shouldTranslate("invalid", "en")).toBe(false);
   });
 });

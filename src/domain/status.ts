@@ -1,8 +1,10 @@
 export const SESSION_STATUSES = [
   "disabled",
   "waitingForSubtitle",
-  "waitingForLanguage",
-  "nativeNoTranslation",
+  "detectingLanguage",
+  "languageUnrecognized",
+  "languageUnsupported",
+  "noTranslationNeeded",
   "waitingForConfiguration",
   "preparing",
   "running",
@@ -33,7 +35,6 @@ export const USER_ACTIONS = [
   "CHECK_MODEL",
   "CHECK_QUOTA",
   "SELECT_PROFILE",
-  "CONFIRM_SOURCE_LANGUAGE",
   "RESTART_IINA",
   "CHECK_INSTALLATION",
 ] as const;

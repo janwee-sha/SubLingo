@@ -33,7 +33,6 @@ export interface PlaybackControllerOptions {
   provider: TranslationProvider;
   overlay: TranslationOverlaySink;
   targetLanguage?: string;
-  explicitRegionalOverride?: boolean;
   providerSemanticFingerprint?: string;
   profileId?: string;
   profileRevision?: number;
@@ -46,6 +45,7 @@ export class PlaybackController {
   readonly session: PlaybackSession;
   status: SessionStatus = "waitingForSubtitle";
   private source: ControllerSource | null = null;
+  private languageDetection: "detecting" | "unknown" | "unsupported" | "reliable" = "detecting";
   private readonly translations = new Map<string, string>();
   private readonly terminallyFailedCueIds = new Set<string>();
   private lastAttemptError: ProviderAttemptError | null = null;
@@ -73,6 +73,7 @@ export class PlaybackController {
   setSource(source: ControllerSource | null): void {
     this.session.onTrackChanged();
     this.source = source;
+    this.languageDetection = source?.language ? "reliable" : "detecting";
     this.translations.clear();
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
@@ -93,20 +94,26 @@ export class PlaybackController {
     }
   }
 
-  setLanguages(
-    targetLanguage: string,
-    sourceLanguage: string | null,
-    explicitRegionalOverride = false,
-  ): void {
+  setTargetLanguage(targetLanguage: string): void {
     this.options.targetLanguage = targetLanguage;
-    this.options.explicitRegionalOverride = explicitRegionalOverride;
-    if (this.source && sourceLanguage) this.source = { ...this.source, language: sourceLanguage };
     this.session.onTrackChanged();
     this.translations.clear();
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
     this.clearOverlay();
+    this.status = this.nextIdleStatus();
+  }
+
+  setLanguageDetection(result: "unknown" | "unsupported" | { languageId: string }): void {
+    if (!this.source) return;
+    if (result === "unknown" || result === "unsupported") {
+      this.source = { ...this.source, language: null };
+      this.languageDetection = result;
+    } else {
+      this.source = { ...this.source, language: result.languageId };
+      this.languageDetection = "reliable";
+    }
     this.status = this.nextIdleStatus();
   }
 
@@ -146,7 +153,15 @@ export class PlaybackController {
 
   private nextIdleStatus(): SessionStatus {
     if (!this.session.enabled) return "disabled";
-    return this.source ? "preparing" : "waitingForSubtitle";
+    if (!this.source) return "waitingForSubtitle";
+    if (this.languageDetection === "detecting") return "detectingLanguage";
+    if (this.languageDetection === "unknown") return "languageUnrecognized";
+    if (this.languageDetection === "unsupported") return "languageUnsupported";
+    const sourceLanguage = normalizeLanguageTag(this.source.language);
+    const targetLanguage = normalizeLanguageTag(this.options.targetLanguage);
+    if (sourceLanguage && targetLanguage && !shouldTranslate(sourceLanguage, targetLanguage))
+      return "noTranslationNeeded";
+    return "preparing";
   }
 
   tick(positionMs: number | null): void {
@@ -162,8 +177,8 @@ export class PlaybackController {
     const targetLanguage = this.options.targetLanguage
       ? normalizeLanguageTag(this.options.targetLanguage)
       : "target";
-    if (this.options.targetLanguage && !sourceLanguage) {
-      this.status = "waitingForLanguage";
+    if (this.languageDetection !== "reliable" || !sourceLanguage) {
+      this.status = this.nextIdleStatus();
       return;
     }
     if (!targetLanguage) {
@@ -173,13 +188,9 @@ export class PlaybackController {
     if (
       this.options.targetLanguage &&
       sourceLanguage &&
-      !shouldTranslate(
-        sourceLanguage,
-        targetLanguage,
-        this.options.explicitRegionalOverride ?? false,
-      )
+      !shouldTranslate(sourceLanguage, targetLanguage)
     ) {
-      this.status = "nativeNoTranslation";
+      this.status = "noTranslationNeeded";
       return;
     }
     const identity = this.cacheIdentity(

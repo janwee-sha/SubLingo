@@ -3,6 +3,7 @@ import { normalizeProviderError } from "./domain/errors.js";
 import {
   parseProfileSelection,
   parseSecretSet,
+  parseTargetLanguageSave,
   parseTranslationBatchProgress,
   sanitizedProfileView,
 } from "./domain/messages.js";
@@ -20,6 +21,10 @@ import type { ProviderProfileSnapshot, TranslationBatchRequest } from "./provide
 import { HelperProviderTransport as ProviderTransportAdapter } from "./adapters/iina/provider-transport.js";
 import { TransportClient } from "./transport/client.js";
 import { TransportSupervisor } from "./transport/supervisor.js";
+import {
+  TargetLanguagePreferenceError,
+  TargetLanguagePreferences,
+} from "./adapters/iina/target-language-preferences.js";
 
 let idSequence = 0;
 function localUuid(): string {
@@ -31,6 +36,15 @@ function localUuid(): string {
 const profiles = new ProviderProfiles(localUuid);
 const providerCache = new Map<string, Promise<ConfiguredProvider>>();
 const providerConnectionTests = new ProviderConnectionTests(localUuid);
+const targetLanguagePreferences = new TargetLanguagePreferences(iina.preferences);
+
+try {
+  iina.preferences.set("sourceLanguage", null);
+  iina.preferences.set("sourceLanguageMode", null);
+  iina.preferences.sync();
+} catch (error) {
+  void error;
+}
 
 function restoreProfileMetadata(): void {
   const raw = iina.preferences.get("providerProfilesJson");
@@ -246,22 +260,18 @@ async function profileViews(): Promise<unknown[]> {
 iina.global.onMessage("defaults:save", (raw: unknown, playerId?: string) => {
   if (!playerId) return;
   try {
-    const values = payload(raw);
-    for (const key of [
-      "targetLanguage",
-      "sourceLanguage",
-      "sourceLanguageMode",
-      "enabledByDefault",
-    ]) {
-      const value = values[key];
-      if (typeof value === "string" || typeof value === "boolean" || value === null)
-        iina.preferences.set(key, value);
-    }
-    iina.preferences.sync();
-    postToPlayer(playerId, "defaults:saved", { requestId: requestId(raw) });
-  } catch {
+    const message = parseTargetLanguageSave(raw);
+    targetLanguagePreferences.save(message.payload.targetLanguage);
+    postToPlayer(playerId, "defaults:saved", {
+      requestId: message.requestId,
+      targetLanguage: message.payload.targetLanguage,
+    });
+  } catch (error) {
+    const code =
+      error instanceof TargetLanguagePreferenceError ? error.code : "TARGET_LANGUAGE_SAVE_FAILED";
     postToPlayer(playerId, "operation:error", {
-      code: "INVALID_DEFAULTS",
+      requestId: requestId(raw),
+      code,
       userAction: "NONE",
     });
   }
