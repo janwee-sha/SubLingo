@@ -106,4 +106,14 @@ describe("IINA package manifest", () => {
     expect(verify).toContain('find "$PACKAGE_DIR/dist" -type f');
     expect(verify).not.toContain("find \"$PACKAGE_DIR\" -type f \\( -name '*.a'");
   });
+
+  it("audits the bundle for removed subtitle publication paths while allowing extraction input", () => {
+    const verify = rootFile("scripts/verify-package.sh");
+
+    expect(verify).toContain("sub-add");
+    expect(verify).toContain("sub-remove");
+    expect(verify).toContain("secondary-sid");
+    expect(verify).toContain("@tmp/sublingo-[^/]*\\.srt");
+    expect(verify).toContain("@tmp/sublingo-extraction");
+  });
 });

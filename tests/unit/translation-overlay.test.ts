@@ -29,10 +29,7 @@ describe("active translations", () => {
   ]);
 
   it("uses half-open cue ranges and preserves source cue order", () => {
-    expect(selectActiveTranslations(cues, translations, 750)).toEqual([
-      "first",
-      "second\nline",
-    ]);
+    expect(selectActiveTranslations(cues, translations, 750)).toEqual(["first", "second\nline"]);
     expect(selectActiveTranslations(cues, translations, 1_500)).toEqual([]);
     expect(selectActiveTranslations(cues, translations, 2_000)).toEqual(["future"]);
   });
@@ -48,6 +45,14 @@ describe("active translations", () => {
 });
 
 describe("translation overlay text encoding", () => {
+  it("uses the fixed Default reset and 720p top-center style", () => {
+    const data = encodeTranslationOverlayData(["styled"]);
+
+    expect(data).toBe(
+      String.raw`{\rDefault\an8\q0\fs40\fscx100\fscy100\b0\i0\u0\s0\1c&HFFFFFF&\1a&H00&\3c&H000000&\3a&H00&\bord2\shad0\4a&HFF&\blur0}styled`,
+    );
+  });
+
   it("preserves semantic line breaks without raw CR or LF", () => {
     const data = encodeTranslationOverlayData(["first\r\nsecond\rthird", "fourth"]);
 
@@ -67,5 +72,13 @@ describe("translation overlay text encoding", () => {
 
     expect(data).toContain(String.raw`\h 字幕 مرحبا 👩🏽‍💻 é�`);
     expect(data).not.toContain("\0");
+  });
+
+  it("does not truncate or shrink very tall content", () => {
+    const longText = "长".repeat(10_000);
+    const data = encodeTranslationOverlayData([longText]);
+
+    expect(data.endsWith(longText)).toBe(true);
+    expect(data).toContain(String.raw`\fs40`);
   });
 });

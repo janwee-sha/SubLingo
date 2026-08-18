@@ -5,7 +5,7 @@
 ## 前置条件
 
 - macOS 12+，Node.js 24、npm 11。
-- IINA 1.4.0 与当前发布版 1.4.4；正式验收必须安装 `.iinaplgz`，开发链接不能替代。
+- 当前 IINA 1.4.4；正式验收必须安装 `.iinaplgz`，开发链接不能替代。本功能不要求其他 IINA 版本、macOS 版本或 CPU 架构的交叉验收。
 - 使用非敏感合成媒体与字幕，至少覆盖外部 SRT/ASS、内嵌 SubRip/ASS/SSA/mov_text、重叠 cue、CJK、RTL、emoji、ASS 控制字符和超长内容。
 - Provider 使用测试凭据或可控 stub；证据不得保存凭据、媒体路径、字幕、译文或 Provider 请求。
 
@@ -48,7 +48,7 @@ npm run pack
 
 ## 3. 阻断性宿主预检
 
-在 IINA 1.4.0 和 1.4.4 分别安装同一正式包，先用合成译文完成：
+在 IINA 1.4.4 安装正式包，先用合成译文完成：
 
 1. show 首帧、replace 内容、`format=none` remove，再重复 show/clear。
 2. 开启和关闭 IINA 可用的诊断日志级别，在 Log Viewer 与文件日志搜索一次性合成 sentinel。

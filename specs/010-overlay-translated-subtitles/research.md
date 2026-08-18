@@ -58,7 +58,7 @@
 
 ## 宿主门禁
 
-- IINA 仅暴露位置字符串参数，mpv 建议 `osd-overlay` 使用命名参数。正式 `.iinaplgz` 必须在 IINA 1.4.0 与 1.4.4 验证 show、replace、remove；任一失败即停止实现收敛并返工规格或方案。
+- IINA 仅暴露位置字符串参数，mpv 建议 `osd-overlay` 使用命名参数。正式 `.iinaplgz` 必须在当前 IINA 1.4.4 验证 show、replace、remove；失败即停止实现收敛并返工规格或方案。本功能不要求跨版本或跨架构宿主矩阵。
 - IINA 不返回命令错误或实际渲染边界，样式、裁切、500 毫秒时序和鼠标非干扰必须实机验收，mock 不能替代。
 - IINA 的宿主日志路径可能记录 mpv 命令参数。正式包必须用非敏感合成 sentinel 检查 Log Viewer 与文件日志，命中数必须为 0；若命中，方案违反“字幕内容不得泄漏到诊断信息”的宪法门，不能发布。
 - 同一 libmpv client 内 overlay ID 可能与第三方客户端碰撞；稳定的大整数 ID、仅更新/清理自有 ID 和正式宿主共存测试共同降低风险，不承诺任意第三方 overlay 的顺序。

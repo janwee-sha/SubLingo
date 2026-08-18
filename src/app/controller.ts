@@ -388,9 +388,7 @@ export class PlaybackController {
     );
   }
 
-  private syncCurrentOverlay(
-    fingerprint?: ReturnType<PlaybackSession["fingerprint"]>,
-  ): void {
+  private syncCurrentOverlay(fingerprint?: ReturnType<PlaybackSession["fingerprint"]>): void {
     if (fingerprint && !this.session.accepts(fingerprint)) return;
     try {
       if (!this.session.enabled || !this.source) {

@@ -111,7 +111,7 @@ iina.mpv.command("osd-overlay", [
 
 自动化 fake 只证明命令构造和应用状态，不证明 IINA 接受或渲染命令。正式包必须同时满足：
 
-1. IINA 1.4.0 与 1.4.4 均可 show、replace、remove 位置参数形式的 `osd-overlay`。
+1. 当前 IINA 1.4.4 可执行 show、replace、remove 位置参数形式的 `osd-overlay`。
 2. IINA Log Viewer 与文件日志对非敏感合成 sentinel 的命中数为 0。
 3. 原主字幕、第二字幕选择和轨道列表不变，插件引起的轨道通知为 0。
 4. 真实窗口中的样式、换行、允许的超高裁切、500 毫秒显示/清理和指针非干扰符合规格。

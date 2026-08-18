@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   IinaTranslationOverlay,
   TRANSLATION_OVERLAY_ID,
@@ -91,5 +92,23 @@ describe("IINA translation overlay", () => {
     expect(player.primaryId).toBe(5);
     expect(player.secondId).toBe(9);
     expect(player.files.files.size).toBe(0);
+  });
+
+  it("uses a 720p logical canvas without bounds calculation or pointer interception", () => {
+    const player = new FakeIinaPlayer();
+    const overlay = new IinaTranslationOverlay(player);
+    overlay.show(["stable"]);
+
+    expect(player.mpvCommands[0]?.slice(4)).toEqual(["0", "720", "0", "no", "no"]);
+    overlay.show(["stable"]);
+    expect(player.mpvCommands).toHaveLength(1);
+
+    const mainSource = readFileSync(new URL("../../src/main.ts", import.meta.url), "utf8");
+    const adapterSource = readFileSync(
+      new URL("../../src/adapters/iina/subtitle-overlay.ts", import.meta.url),
+      "utf8",
+    );
+    expect(mainSource).not.toMatch(/input\.on(Mouse|Key)|\.input\./);
+    expect(adapterSource).not.toContain("compute_bounds");
   });
 });

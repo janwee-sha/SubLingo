@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  PlaybackController,
-  type TranslationOverlaySink,
-} from "../../src/app/controller.js";
+import { PlaybackController, type TranslationOverlaySink } from "../../src/app/controller.js";
 import { SubtitlePreparationCoordinator } from "../../src/app/subtitle-preparation.js";
 import { utf8Encode } from "../../src/domain/codec.js";
 import { sha256Hex } from "../../src/domain/identity.js";

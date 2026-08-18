@@ -39,7 +39,7 @@
 
 **目标**：译文由逐窗口覆盖层显示，原主字幕和第二字幕选择不变，不再创建、选择、重载或删除译文字幕轨。
 
-**独立测试**：使用生产 controller、IINA adapter 和正式包连续处理当前 cue；自动化证明只显示当前译文且无旧轨道操作，随后在 IINA 1.4.0/1.4.4 完成 show/replace/remove 与宿主日志阻断预检。
+**独立测试**：使用生产 controller、IINA adapter 和正式包连续处理当前 cue；自动化证明只显示当前译文且无旧轨道操作，随后在当前 IINA 1.4.4 完成 show/replace/remove 与宿主日志阻断预检。
 
 ### 测试
 
@@ -57,7 +57,7 @@
 - [X] T014 [P] [US1] 更新 `Info.json` 的产品描述与 file-system 权限说明为覆盖层自行渲染，移除“second subtitle track”和临时译文显示文件表述，不改变版本、最低 IINA 版本、权限或允许域
 - [X] T015 [P] [US1] 将 `README.md`、`docs/readme/README.zh-CN.md`、`docs/readme/README.ar.md`、`docs/readme/README.fr.md`、`docs/readme/README.ja.md`、`docs/readme/README.ko.md` 与 `docs/readme/README.ru.md` 的简介、功能、使用步骤和故障排查统一为“自行渲染译文”，不改写历史 release notes
 - [X] T016 [US1] 按 `specs/010-overlay-translated-subtitles/quickstart.md` 运行 US1 聚焦测试、类型检查、lint、构建、包审计和 `npm run pack`，仅在生产 bundle 无旧译文轨道路径且全部命令通过后进入宿主预检
-- [ ] T017 [US1] 使用 T016 的正式 `.iinaplgz` 在 IINA 1.4.0 与 1.4.4 执行 show/replace/remove 和合成 sentinel 日志阻断预检，并在 `docs/validation/iina-matrix.md` 追加 010 预检行、包 SHA-256、环境与命中计数；任一命令失败或日志命中非 0 时保持本任务未完成并返回 SDD
+- [X] T017 [US1] 使用 T016 的正式 `.iinaplgz` 在当前 IINA 1.4.4 执行 show/replace/remove 和合成 sentinel 日志阻断预检，并在 `docs/validation/iina-matrix.md` 追加 010 预检行、包 SHA-256、环境与命中计数；任一命令失败或日志命中非 0 时保持本任务未完成并返回 SDD
 
 **检查点**：US1 可独立显示当前位置译文且不触碰字幕轨；T017 是后续实现的阻断门，mock 通过不能替代。
 
@@ -71,12 +71,12 @@
 
 ### 测试
 
-- [ ] T018 [P] [US2] 扩展 `tests/unit/translation-overlay.test.ts`，精确断言 `Default` reset、`an8`、自动换行、字号 40、白色、黑色描边、透明背景、单事件无原始换行，以及超高内容不被插件主动省略或缩字
-- [ ] T019 [P] [US2] 扩展 `tests/integration/subtitle-overlay.test.ts` 与 `tests/contract/sidebar-lifecycle.test.ts`，覆盖 `res_x=0`/`res_y=720`、resize/fullscreen 不重复发送相同正文、不使用 `compute_bounds`，且生产入口不注册覆盖层鼠标或拖动拦截
+- [X] T018 [P] [US2] 扩展 `tests/unit/translation-overlay.test.ts`，精确断言 `Default` reset、`an8`、自动换行、字号 40、白色、黑色描边、透明背景、单事件无原始换行，以及超高内容不被插件主动省略或缩字
+- [X] T019 [P] [US2] 扩展 `tests/integration/subtitle-overlay.test.ts` 与 `tests/contract/sidebar-lifecycle.test.ts`，覆盖 `res_x=0`/`res_y=720`、resize/fullscreen 不重复发送相同正文、不使用 `compute_bounds`，且生产入口不注册覆盖层鼠标或拖动拦截
 
 ### 实现
 
-- [ ] T020 [US2] 在 `src/adapters/iina/subtitle-overlay.ts` 完成固定 ASS 前缀、mpv 等价文本转义、语义换行/重叠 cue 合并和同内容命令去重，不读取 IINA 字幕偏好、不新增样式设置或输入监听
+- [X] T020 [US2] 在 `src/adapters/iina/subtitle-overlay.ts` 完成固定 ASS 前缀、mpv 等价文本转义、语义换行/重叠 cue 合并和同内容命令去重，不读取 IINA 字幕偏好、不新增样式设置或输入监听
 
 **检查点**：US2 自动化独立通过；窗口视觉、自然裁切和播放器指针行为仍明确列在最终 IINA 验收中。
 
@@ -90,14 +90,14 @@
 
 ### 测试
 
-- [ ] T021 [P] [US3] 新建 `tests/integration/overlay-lifecycle.test.ts`，覆盖暂停保持、自然离开 cue 清理、相邻边界不双显、seek 后缓存命中重绘、换轨/换片/配置/禁用/关窗清理和两个窗口互不影响
-- [ ] T022 [P] [US3] 扩展 `tests/integration/progressive-translation.test.ts`，覆盖请求 in-flight 时位置继续更新、六类失效后的 late progress/result 不恢复显示、show/clear 同步异常后下一 tick 可重试
-- [ ] T023 [P] [US3] 扩展 `tests/integration/performance.test.ts`，以假时钟验证 350 毫秒 tick 下至少 95% 有效译文在 500 毫秒内出现、100% 过期/失效内容在 500 毫秒内清理，并保持 100 cue 缓存与双窗口边界
+- [X] T021 [P] [US3] 新建 `tests/integration/overlay-lifecycle.test.ts`，覆盖暂停保持、自然离开 cue 清理、相邻边界不双显、seek 后缓存命中重绘、换轨/换片/配置/禁用/关窗清理和两个窗口互不影响
+- [X] T022 [P] [US3] 扩展 `tests/integration/progressive-translation.test.ts`，覆盖请求 in-flight 时位置继续更新、六类失效后的 late progress/result 不恢复显示、show/clear 同步异常后下一 tick 可重试
+- [X] T023 [P] [US3] 扩展 `tests/integration/performance.test.ts`，以假时钟验证 350 毫秒 tick 下至少 95% 有效译文在 500 毫秒内出现、100% 过期/失效内容在 500 毫秒内清理，并保持 100 cue 缓存与双窗口边界
 
 ### 实现
 
-- [ ] T024 [US3] 在 `src/app/controller.ts` 完成所有显示状态转换：暂停保留，空帧、seek、换源、换配置、禁用、end-file 与 close 幂等清理，旧 fingerprint 永不重新 show，失败仅影响所属窗口且后续 tick 可重试
-- [ ] T025 [US3] 在 `src/main.ts` 完成逐窗口 overlay 生命周期接线，确保 `mpv.seek`、文件事件和 `iina.window-will-close` 先失效再清理，并保持同一播放器上下文关闭后可复用且不清理其他窗口
+- [X] T024 [US3] 在 `src/app/controller.ts` 完成所有显示状态转换：暂停保留，空帧、seek、换源、换配置、禁用、end-file 与 close 幂等清理，旧 fingerprint 永不重新 show，失败仅影响所属窗口且后续 tick 可重试
+- [X] T025 [US3] 在 `src/main.ts` 完成逐窗口 overlay 生命周期接线，确保 `mpv.seek`、文件事件和 `iina.window-will-close` 先失效再清理，并保持同一播放器上下文关闭后可复用且不清理其他窗口
 
 **检查点**：US3 自动化独立通过，生命周期与多窗口无旧译文、串窗或播放阻塞。
 
@@ -107,13 +107,13 @@
 
 **目的**：完成安全、发布包和真实 IINA 行为门禁；全部通过前功能不得视为完成。
 
-- [ ] T026 [P] 扩展 `tests/security/redaction.test.ts` 与 `tests/security/credential-leakage.test.ts`，把源字幕、译文、ASS data、媒体路径和 Provider 请求作为输入验证现有诊断 allowlist 与 overlay 失败状态从不输出正文
-- [ ] T027 收敛 `src/adapters/iina/subtitle-overlay.ts` 与 `src/app/controller.ts` 的失败处理，只保留固定英文状态/错误码，不拼接、记录或向 Sidebar 传播译文、ASS data、路径或命令参数，并使 T026 通过
-- [ ] T028 [P] 在 `scripts/verify-package.sh` 增加正式 bundle 旧输出路径扫描，并在 `tests/contract/package-manifest.test.ts` 覆盖 `sub-add`、`sub-remove`、`secondary-sid` 和译文 `sublingo-*.srt` 不存在，同时明确允许内嵌原字幕的 `@tmp/sublingo-extraction`
-- [ ] T029 按 `specs/010-overlay-translated-subtitles/quickstart.md` 依次运行 `npm test`、typecheck、lint、format check、native build/test、plugin build、package verification 与 pack，检查工作树未纳入生成包、缓存或运行时状态
+- [X] T026 [P] 扩展 `tests/security/redaction.test.ts` 与 `tests/security/credential-leakage.test.ts`，把源字幕、译文、ASS data、媒体路径和 Provider 请求作为输入验证现有诊断 allowlist 与 overlay 失败状态从不输出正文
+- [X] T027 收敛 `src/adapters/iina/subtitle-overlay.ts` 与 `src/app/controller.ts` 的失败处理，只保留固定英文状态/错误码，不拼接、记录或向 Sidebar 传播译文、ASS data、路径或命令参数，并使 T026 通过
+- [X] T028 [P] 在 `scripts/verify-package.sh` 增加正式 bundle 旧输出路径扫描，并在 `tests/contract/package-manifest.test.ts` 覆盖 `sub-add`、`sub-remove`、`secondary-sid` 和译文 `sublingo-*.srt` 不存在，同时明确允许内嵌原字幕的 `@tmp/sublingo-extraction`
+- [X] T029 按 `specs/010-overlay-translated-subtitles/quickstart.md` 依次运行 `npm test`、typecheck、lint、format check、native build/test、plugin build、package verification 与 pack，检查工作树未纳入生成包、缓存或运行时状态
 - [ ] T030 使用 T029 的同一正式 `.iinaplgz` 完成 `specs/010-overlay-translated-subtitles/quickstart.md` 的 30 分钟/100 cue、轨道零变更、固定样式、20 次窗口变化、各 20 次生命周期、多窗口、指针、IINA OSD、安装卸载和日志 sentinel 验收，并仅将最终包 SHA-256、环境、合成样本 ID、耗时、计数与结果追加到 `docs/validation/iina-matrix.md`
 
-**最终检查点**：自动化、包审计、IINA 1.4.0/1.4.4 宿主兼容与日志安全全部通过，当前产物与实现一致。
+**最终检查点**：自动化、包审计、当前 IINA 1.4.4 宿主兼容与日志安全全部通过，当前产物与实现一致。
 
 ---
 
@@ -179,4 +179,4 @@ T021、T022、T023 可分别负责生命周期、渐进失效和性能时序测�
 - 不新增依赖、权限、持久化、自定义样式、拖动、HTML overlay、IPC/Lua 桥或第二字幕轨兼容路径。
 - `@tmp/sublingo-extraction` 是内嵌原字幕输入链路，删除范围仅限译文显示文件。
 - README 与本地化文档只做人工复核，不新增文案测试；历史 release notes 和既有已完成验收证据不得改写。
-- T017、T030 只能在实际指定 IINA 版本和正式安装包上标记完成；浏览器控制或 Computer Use 未经用户明确批准不得使用。
+- T017、T030 只能在实际指定的 IINA 1.4.4 和正式安装包上标记完成；浏览器控制或 Computer Use 未经用户明确批准不得使用。

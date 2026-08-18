@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  PlaybackController,
-  type TranslationOverlaySink,
-} from "../../src/app/controller.js";
+import { PlaybackController, type TranslationOverlaySink } from "../../src/app/controller.js";
 import { DeterministicFakeProvider } from "../../src/providers/fake.js";
 import { parseSrt } from "../../src/subtitles/srt.js";
 

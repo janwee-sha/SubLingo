@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  PlaybackController,
-  type TranslationOverlaySink,
-} from "../../src/app/controller.js";
+import { PlaybackController, type TranslationOverlaySink } from "../../src/app/controller.js";
 import type { TranslationProvider } from "../../src/providers/provider.js";
 import type { TranslationProgressHandler } from "../../src/providers/types.js";
 import type { SubtitleCue } from "../../src/subtitles/types.js";
@@ -29,7 +26,35 @@ class RecordingOverlay implements TranslationOverlaySink {
   }
 }
 
-function controller(provider: TranslationProvider, overlay: TranslationOverlaySink): PlaybackController {
+class FlakyOverlay implements TranslationOverlaySink {
+  showAttempts = 0;
+  clearAttempts = 0;
+  failShow = 1;
+  failClear = 1;
+  readonly frames: string[][] = [];
+
+  show(lines: readonly string[]): void {
+    this.showAttempts += 1;
+    if (this.failShow > 0) {
+      this.failShow -= 1;
+      throw new Error("OVERLAY_SHOW_FAILED");
+    }
+    this.frames.push([...lines]);
+  }
+
+  clear(): void {
+    this.clearAttempts += 1;
+    if (this.failClear > 0) {
+      this.failClear -= 1;
+      throw new Error("OVERLAY_CLEAR_FAILED");
+    }
+  }
+}
+
+function controller(
+  provider: TranslationProvider,
+  overlay: TranslationOverlaySink,
+): PlaybackController {
   const value = new PlaybackController({
     playerId: "player-A",
     provider,
@@ -201,6 +226,28 @@ describe("progressive translation output", () => {
     expect(playback.cacheSize).toBe(25);
     expect(overlay.frames).toEqual([["source-1"]]);
     expect(playback.status).toBe("running");
+  });
+
+  it("retries show and clear after synchronous overlay failures on the next tick", async () => {
+    const overlay = new FlakyOverlay();
+    const provider: TranslationProvider = {
+      attempt: async (request, onProgress) => {
+        const translations = request.items.map((item) => ({ id: item.id, text: `T:${item.text}` }));
+        onProgress?.({ translations });
+        return { translations };
+      },
+    };
+    const playback = controller(provider, overlay);
+
+    playback.tick(0);
+    await playback.whenIdle();
+    expect(overlay.frames).toEqual([]);
+    playback.tick(0);
+    expect(overlay.frames).toEqual([["T:source-1"]]);
+
+    playback.tick(80);
+    playback.tick(80);
+    expect(overlay.clearAttempts).toBeGreaterThanOrEqual(2);
   });
 
   it.each([
