@@ -7,6 +7,7 @@ TRANSPORT="$PACKAGE_DIR/dist/native/sublingo-transport"
 EXTRACTOR="$PACKAGE_DIR/dist/native/sublingo-subtitle-extractor"
 HASH_FILE="$PROJECT_DIR/build/native-hashes.json"
 MINIMUM_MACOS=12.0
+EXTRACTION_PATH='@tmp/sublingo-extraction'
 
 for required in "$PACKAGE_DIR/Info.json" "$PACKAGE_DIR/README.md" "$PACKAGE_DIR/LICENSE" "$PACKAGE_DIR/THIRD_PARTY_NOTICES.txt" "$PACKAGE_DIR/dist/main.js" "$PACKAGE_DIR/dist/global.js" "$PACKAGE_DIR/dist/ui/sidebar.html" "$TRANSPORT" "$EXTRACTOR"; do
   if [ ! -f "$required" ]; then
@@ -79,6 +80,15 @@ if find "$PACKAGE_DIR" -maxdepth 1 -type d \( -name '@data' -o -name '@tmp' \) |
 fi
 if LC_ALL=C grep -ER -n 'sk-[A-Za-z0-9_-]{20,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----' "$PACKAGE_DIR/dist" "$PACKAGE_DIR/Info.json"; then
   echo "Secret-like material found in package" >&2
+  exit 1
+fi
+
+if LC_ALL=C grep -ER -n '(sub-add|sub-remove|secondary-sid)' "$PACKAGE_DIR/dist"; then
+  echo "Removed subtitle publication path found in runtime bundle" >&2
+  exit 1
+fi
+if LC_ALL=C grep -ER -n '@tmp/sublingo-[^/]*\.srt' "$PACKAGE_DIR/dist" | grep -v "$EXTRACTION_PATH"; then
+  echo "Translated subtitle display file path found in runtime bundle" >&2
   exit 1
 fi
 

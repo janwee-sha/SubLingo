@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { PlaybackController, type GeneratedTrackSink } from "../../src/app/controller.js";
+import { PlaybackController, type TranslationOverlaySink } from "../../src/app/controller.js";
 import { RecordingProvider } from "../helpers/fake-provider.js";
 import type { SubtitleCue } from "../../src/subtitles/types.js";
 
-class Sink implements GeneratedTrackSink {
-  contents: string[] = [];
-  async swap(content: string): Promise<void> {
-    this.contents.push(content);
+class Sink implements TranslationOverlaySink {
+  frames: string[][] = [];
+  show(lines: readonly string[]): void {
+    this.frames.push([...lines]);
   }
-  cleanup(): void {}
+  clear(): void {}
 }
 
 const longCues = Array.from({ length: 720 }, (_, index): SubtitleCue => ({
@@ -26,7 +26,7 @@ describe("US2 cost/privacy acceptance", () => {
     const controller = new PlaybackController({
       playerId: "A",
       provider,
-      track: new Sink(),
+      overlay: new Sink(),
       targetLanguage: "en-US",
     });
     controller.setSource({ cues: longCues, contentHash: "hash", language: "en-GB", format: "srt" });
@@ -45,7 +45,7 @@ describe("US2 cost/privacy acceptance", () => {
     const controller = new PlaybackController({
       playerId: "A",
       provider,
-      track: new Sink(),
+      overlay: new Sink(),
       targetLanguage: "zh-Hans",
     });
     controller.setSource({ cues: longCues, contentHash: "hash", language: "en", format: "srt" });
@@ -72,7 +72,7 @@ describe("US2 cost/privacy acceptance", () => {
     const controller = new PlaybackController({
       playerId: "A",
       provider,
-      track: new Sink(),
+      overlay: new Sink(),
       targetLanguage: "zh-Hans",
     });
     controller.setSource({ cues: longCues, contentHash: "hash", language: "en", format: "srt" });
@@ -88,7 +88,7 @@ describe("US2 cost/privacy acceptance", () => {
     const reopened = new PlaybackController({
       playerId: "A",
       provider,
-      track: new Sink(),
+      overlay: new Sink(),
       targetLanguage: "zh-Hans",
     });
     reopened.setSource({ cues: longCues, contentHash: "hash", language: "en", format: "srt" });

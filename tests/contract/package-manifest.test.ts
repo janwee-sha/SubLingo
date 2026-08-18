@@ -14,6 +14,25 @@ describe("IINA package manifest", () => {
     expect(manifest.permissions).toEqual(["network-request", "file-system", "show-alert"]);
   });
 
+  it("describes self-rendered translations without temporary display files", () => {
+    const manifest = JSON.parse(rootFile("Info.json")) as {
+      description: string;
+      minIINAVersion: string;
+      permissions: string[];
+      allowedDomains: string[];
+      permissionDescriptions: Record<string, string>;
+    };
+
+    expect(manifest.description).toContain("renders translated subtitles itself");
+    expect(manifest.description).not.toContain("second subtitle track");
+    expect(manifest.minIINAVersion).toBe("1.4.0");
+    expect(manifest.permissions).toEqual(["network-request", "file-system", "show-alert"]);
+    expect(manifest.allowedDomains).toEqual(["127.0.0.1"]);
+    expect(manifest.permissionDescriptions["file-system"]).not.toMatch(
+      /translated subtitle data|translated subtitle file/i,
+    );
+  });
+
   it("locks the exact minimal FFmpeg source and component allowlist", () => {
     const lock = JSON.parse(rootFile("native/ffmpeg.lock.json")) as {
       version: string;
@@ -86,5 +105,15 @@ describe("IINA package manifest", () => {
 
     expect(verify).toContain('find "$PACKAGE_DIR/dist" -type f');
     expect(verify).not.toContain("find \"$PACKAGE_DIR\" -type f \\( -name '*.a'");
+  });
+
+  it("audits the bundle for removed subtitle publication paths while allowing extraction input", () => {
+    const verify = rootFile("scripts/verify-package.sh");
+
+    expect(verify).toContain("sub-add");
+    expect(verify).toContain("sub-remove");
+    expect(verify).toContain("secondary-sid");
+    expect(verify).toContain("@tmp/sublingo-[^/]*\\.srt");
+    expect(verify).toContain("@tmp/sublingo-extraction");
   });
 });

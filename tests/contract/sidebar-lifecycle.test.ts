@@ -37,21 +37,22 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(mainSource).toContain("controller.endFile()");
   });
 
-  it("debounces IINA's transient primary-subtitle changes during generated-track publication", () => {
+  it("settles real primary-subtitle changes without generated-track suppression", () => {
     expect(mainSource).toContain('runtime.event.on("mpv.sid.changed"');
     expect(mainSource).toContain('runtime.event.on("mpv.track-list.changed"');
-    expect(mainSource).toContain("generatedTrack.isPublishing");
-    expect(mainSource).toContain("generatedTrack.ownsTrack(settledId)");
+    expect(mainSource).not.toContain("generatedTrack");
     expect(mainSource).toContain("setTimeout(attemptSourceReload, 250)");
+    expect(mainSource).toContain("sourceReloadAttempt >= 4");
   });
 
-  it("reloads user subtitle changes even while an older generated track exists", () => {
+  it("reloads real subtitle changes without translation-track commands or selection writes", () => {
     const eventStart = mainSource.indexOf('runtime.event.on("mpv.sid.changed"');
     const eventEnd = mainSource.indexOf('runtime.event.on("mpv.seek"', eventStart);
     const eventSource = mainSource.slice(eventStart, eventEnd);
     expect(eventSource).toContain("scheduleSourceReload");
-    expect(eventSource).not.toContain("generatedTrack.hasOwnedTrack");
-    expect(mainSource).toContain("sourceReloadAttempt >= 4");
+    expect(mainSource).not.toContain('"sub-add"');
+    expect(mainSource).not.toContain('"sub-remove"');
+    expect(mainSource).not.toContain('"secondary-sid"');
   });
 
   it("waits for IINA's player window before loading the sidebar webview", () => {

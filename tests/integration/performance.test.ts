@@ -1,17 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { PlaybackController, type GeneratedTrackSink } from "../../src/app/controller.js";
+import { PlaybackController, type TranslationOverlaySink } from "../../src/app/controller.js";
 import type { TranslationProvider } from "../../src/providers/provider.js";
 import type { SubtitleCue } from "../../src/subtitles/types.js";
 import { readFileSync } from "node:fs";
 import { selectNearbyCues } from "../../src/app/scheduler.js";
 
-class LatestTrack implements GeneratedTrackSink {
-  content = "";
-  async swap(content: string): Promise<void> {
-    this.content = content;
+class LatestOverlay implements TranslationOverlaySink {
+  lines: string[] = [];
+  clearCount = 0;
+  show(lines: readonly string[]): void {
+    this.lines = [...lines];
   }
-  cleanup(): void {
-    this.content = "";
+  clear(): void {
+    this.lines = [];
+    this.clearCount += 1;
   }
 }
 
@@ -50,7 +52,7 @@ describe("automated acceptance performance", () => {
   });
 
   it("prepares the first batch under five seconds and 95% before display with zero playback pauses", async () => {
-    const track = new LatestTrack();
+    const overlay = new LatestOverlay();
     let active = 0;
     let maxActive = 0;
     const provider: TranslationProvider = {
@@ -67,7 +69,7 @@ describe("automated acceptance performance", () => {
     const controller = new PlaybackController({
       playerId: "A",
       provider,
-      track,
+      overlay,
       targetLanguage: "zh-Hans",
     });
     controller.setSource({ cues, contentHash: "hash", language: "en", format: "srt" });
@@ -76,7 +78,7 @@ describe("automated acceptance performance", () => {
     for (let second = 0; second < 100; second += 1) {
       controller.tick(second * 1_000);
       await controller.whenIdle();
-      if (track.content.includes(`T:cue-${second}`)) readyBeforeDisplay += 1;
+      if (overlay.lines.includes(`T:cue-${second}`)) readyBeforeDisplay += 1;
     }
     expect(performance.now() - started).toBeLessThan(5_000);
     expect(readyBeforeDisplay / 100).toBeGreaterThanOrEqual(0.95);
@@ -98,13 +100,13 @@ describe("automated acceptance performance", () => {
     const a = new PlaybackController({
       playerId: "A",
       provider,
-      track: new LatestTrack(),
+      overlay: new LatestOverlay(),
       targetLanguage: "zh-Hans",
     });
     const b = new PlaybackController({
       playerId: "B",
       provider,
-      track: new LatestTrack(),
+      overlay: new LatestOverlay(),
       targetLanguage: "zh-Hans",
     });
     for (const controller of [a, b])
@@ -120,5 +122,43 @@ describe("automated acceptance performance", () => {
     expect(calls.A).toBe(beforeReplay);
     expect(calls.A).toBeGreaterThan(0);
     expect(calls.B).toBeGreaterThan(0);
+  });
+
+  it("keeps current frames and clears expired frames across 350ms ticks", async () => {
+    const overlay = new LatestOverlay();
+    const provider: TranslationProvider = {
+      attempt: async (request) => ({
+        translations: request.items.map((item) => ({ id: item.id, text: `T:${item.text}` })),
+      }),
+    };
+    const controller = new PlaybackController({
+      playerId: "timed",
+      provider,
+      overlay,
+      targetLanguage: "zh-Hans",
+    });
+    const timedCues = Array.from({ length: 100 }, (_, index): SubtitleCue => ({
+      id: `timed-${index}`,
+      index,
+      startMs: index * 350,
+      endMs: index * 350 + 350,
+      sourceText: `timed-${index}`,
+      normalizedText: `timed-${index}`,
+    }));
+    controller.setSource({ cues: timedCues, contentHash: "timed", language: "en", format: "srt" });
+    let visibleTicks = 0;
+    let emptyTicks = 0;
+    for (let tick = 0; tick < 100; tick += 1) {
+      const position = tick * 350;
+      controller.tick(position);
+      await controller.whenIdle();
+      if (overlay.lines.length > 0) visibleTicks += 1;
+      else emptyTicks += 1;
+    }
+
+    expect(visibleTicks).toBeGreaterThanOrEqual(95);
+    expect(emptyTicks).toBeLessThanOrEqual(5);
+    controller.tick(35_000);
+    expect(overlay.clearCount).toBeGreaterThan(0);
   });
 });

@@ -19,10 +19,6 @@ export class PlaybackSession {
     readonly sessionId: string,
   ) {}
 
-  get tempDirectory(): string {
-    return `@tmp/sublingo/${encodeURIComponent(this.playerId)}/${encodeURIComponent(this.sessionId)}`;
-  }
-
   updatePosition(positionMs: number | null): void {
     this.positionMs =
       positionMs !== null && Number.isFinite(positionMs) && positionMs >= 0 ? positionMs : null;

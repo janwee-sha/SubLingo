@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PlaybackController } from "../../src/app/controller.js";
+import { PlaybackController, type TranslationOverlaySink } from "../../src/app/controller.js";
 import { SubtitlePreparationCoordinator } from "../../src/app/subtitle-preparation.js";
 import { utf8Encode } from "../../src/domain/codec.js";
 import { sha256Hex } from "../../src/domain/identity.js";
@@ -8,6 +8,19 @@ import { RecordingProvider } from "../helpers/fake-provider.js";
 
 const subtitle = "1\n00:00:01,000 --> 00:00:02,000\nHello\n";
 const jobId = "7a90a4e6-cc4f-4f59-99b7-8ff522f887ae";
+
+class RecordingOverlay implements TranslationOverlaySink {
+  readonly frames: string[][] = [];
+  clears = 0;
+
+  show(lines: readonly string[]): void {
+    this.frames.push([...lines]);
+  }
+
+  clear(): void {
+    this.clears += 1;
+  }
+}
 
 describe("embedded subtitle translation", () => {
   it("prepares the exact supported track and enters the existing finite translation path", async () => {
@@ -54,11 +67,11 @@ describe("embedded subtitle translation", () => {
     expect(released).toEqual([jobId]);
 
     const provider = new RecordingProvider();
-    const publications: string[] = [];
+    const overlay = new RecordingOverlay();
     const controller = new PlaybackController({
       playerId: "player-A",
       provider,
-      track: { swap: (content) => publications.push(content), cleanup: () => undefined },
+      overlay,
       targetLanguage: "zh-Hans",
       requiresProviderSelection: true,
     });
@@ -79,7 +92,7 @@ describe("embedded subtitle translation", () => {
     expect(provider.requests).toHaveLength(1);
     expect(provider.requests[0]).toMatchObject({ profileId: "profile-A", profileRevision: 2 });
     expect(provider.requests[0]?.items).toHaveLength(1);
-    expect(publications.at(-1)).toContain("translated:Hello");
+    expect(overlay.frames.at(-1)).toEqual(["translated:Hello"]);
   });
 
   it("uses the latest playback position after seek and rejects the old profile revision", async () => {
@@ -101,11 +114,11 @@ describe("embedded subtitle translation", () => {
           resolve({ translations: [] });
         }),
     );
-    const publications: string[] = [];
+    const overlay = new RecordingOverlay();
     const controller = new PlaybackController({
       playerId: "player-A",
       provider,
-      track: { swap: (content) => publications.push(content), cleanup: () => undefined },
+      overlay,
       targetLanguage: "zh-Hans",
     });
     controller.setProviderSelection({
@@ -132,7 +145,7 @@ describe("embedded subtitle translation", () => {
     controller.tick(1_000);
     await controller.whenIdle();
     expect(provider.requests[0]).toMatchObject({ profileRevision: 1 });
-    expect(publications).toHaveLength(0);
+    expect(overlay.frames).toHaveLength(0);
   });
 
   it("isolates simultaneous windows and exact same-metadata tracks", async () => {
@@ -195,13 +208,13 @@ describe("embedded subtitle translation", () => {
     expect(second.source?.cues[0]?.sourceText).toBe("Other");
   });
 
-  it("does not call the Provider or publish a track for unsupported and unavailable sources", async () => {
+  it("does not call the Provider or show an overlay for unsupported and unavailable sources", async () => {
     const provider = new RecordingProvider();
-    const publications: string[] = [];
+    const overlay = new RecordingOverlay();
     const controller = new PlaybackController({
       playerId: "player-A",
       provider,
-      track: { swap: (content) => publications.push(content), cleanup: () => undefined },
+      overlay,
       targetLanguage: "zh-Hans",
     });
     controller.setEnabled(true);
@@ -233,7 +246,7 @@ describe("embedded subtitle translation", () => {
     controller.tick(1_000);
     await controller.whenIdle();
     expect(provider.requests).toHaveLength(0);
-    expect(publications).toHaveLength(0);
+    expect(overlay.frames).toHaveLength(0);
     expect(controller.status).toBe("waitingForSubtitle");
   });
 });
