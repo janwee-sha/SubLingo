@@ -42,7 +42,11 @@ SubLingo does not download or start translation models.
 
 Open IINA and go to **Settings → Plugins**. The plugin manager supports both installation methods below.
 
+<div align="center">
+
 ![IINA plugin manager showing Install from GitHub and Install Package](docs/readme/assets/plugin-manager.webp)
+
+</div>
 
 ### Install from GitHub (recommended)
 

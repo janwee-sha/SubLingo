@@ -41,7 +41,11 @@ SubLingo 不会下载或启动翻译模型。
 
 打开 IINA，进入“**设置 → 插件**”。插件管理界面支持以下两种安装方式。
 
+<div align="center">
+
 ![IINA 插件管理界面中的“从 GitHub 安装”和“安装插件”按钮](assets/plugin-manager.webp)
+
+</div>
 
 ### 从 GitHub 安装（推荐）
 
@@ -115,6 +119,10 @@ SubLingo 不提供音频转写、图形字幕 OCR/提取、远程媒体内嵌字
 
 如果 SubLingo 对你有帮助，可以通过[爱发电](https://www.ifdian.net/item/ea1ff37a97ed11f19a9f52540025c377?utm_source=copylink&utm_medium=link)或 [Ko-fi](https://ko-fi.com/ianhsia) 自愿请创作者喝杯咖啡。
 
+<div align="center">
+
 ![请 SubLingo 创作者喝杯咖啡的爱发电二维码](assets/aifadian-sponsor.webp)
+
+</div>
 
 SubLingo 对所有人保持免费且功能完整。打赏不会解锁额外功能、优先翻译或专属版本，也不包含翻译服务 API 额度。你选择的 Provider 可能根据其条款与内容政策独立收费。
