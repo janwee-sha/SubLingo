@@ -23,14 +23,14 @@ describe("player-local PlaybackSession", () => {
     expect(session.windowEpoch).toBe(0);
   });
 
-  it("cancels timers/jobs and creates player-specific temporary identities", () => {
+  it("cancels player-local timers and jobs on close", () => {
     const cancel = vi.fn();
     const a = new PlaybackSession("player-A", "same-session");
     const b = new PlaybackSession("player-B", "same-session");
     a.registerCancellation(cancel);
     a.close();
     expect(cancel).toHaveBeenCalledOnce();
-    expect(a.tempDirectory).not.toBe(b.tempDirectory);
+    expect(a.fingerprint().playerId).not.toBe(b.fingerprint().playerId);
     expect(a.closed).toBe(true);
   });
 });

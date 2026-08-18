@@ -14,11 +14,11 @@
 
 ---
 
-SubLingo traduit le sous-titre texte intégré d'un média local ou le sous-titre externe SRT/ASS actuellement sélectionné dans [IINA](https://iina.io/) et affiche le résultat comme seconde piste. Il ne regarde qu'une courte distance devant la position de lecture et traduit par lots limités. Si une traduction prend du retard ou échoue, la vidéo et les sous-titres d'origine continuent d'être lus.
+SubLingo traduit le sous-titre texte intégré d'un média local ou le sous-titre externe SRT/ASS actuellement sélectionné dans [IINA](https://iina.io/) et affiche lui-même la traduction dans une surcouche indépendante. Il ne regarde qu'une courte distance devant la position de lecture et traduit par lots limités. Si une traduction prend du retard ou échoue, la vidéo et les sous-titres d'origine continuent d'être lus.
 
 ## ✨ Fonctionnalités
 
-- **Sous-titres bilingues en temps réel :** le texte d'origine reste la piste principale et la traduction apparaît comme seconde piste IINA.
+- **Sous-titres bilingues en temps réel :** le texte d'origine reste sélectionné dans IINA, tandis que SubLingo affiche la traduction en haut au centre de la vidéo sans occuper une autre piste.
 - **Sous-titres texte intégrés et externes :** prend en charge Matroska SubRip/ASS/SSA et MOV/MP4 `mov_text` locaux, ainsi que les SRT/ASS externes. L'extracteur est inclus ; aucun `ffmpeg` ou `ffprobe` externe n'est requis.
 - **Service de traduction au choix :** utilisez un endpoint OpenAI-compatible Chat Completions ou un serveur Ollama local/distant.
 - **Priorité à la lecture :** la traduction ne met jamais la vidéo en pause et ne masque pas les sous-titres d'origine.
@@ -65,7 +65,7 @@ Avec l'une ou l'autre méthode, approuvez les autorisations demandées si IINA l
 2. Dans **Languages**, sélectionnez votre langue maternelle. Si IINA ne peut pas identifier la langue du sous-titre, confirmez-la manuellement, puis enregistrez les réglages.
 3. Dans **Translation service**, créez un Profile OpenAI-compatible ou Ollama et saisissez le Model ID exact.
 4. Enregistrez et testez le Profile, puis cliquez sur **Select**. La sélection autorise explicitement SubLingo à envoyer le texte des sous-titres proches à l'endpoint affiché.
-5. Activez **Translate**. Le sous-titre d'origine reste principal et les cue traduits apparaissent comme seconde piste.
+5. Activez **Translate**. Le sous-titre d'origine reste affiché par IINA et les cue traduits apparaissent dans la surcouche de SubLingo, en haut au centre.
 
 Si l'endpoint, le modèle, l'API key ou la route réseau change, enregistrez le Profile modifié et sélectionnez-le à nouveau avant de traduire.
 
@@ -107,7 +107,7 @@ SubLingo n'effectue pas de transcription audio, d'OCR ou d'extraction de sous-ti
 - **Confirm the subtitle language :** saisissez un tag de langue BCP 47, par exemple `en-US`, puis enregistrez les réglages.
 - **Translation service unavailable :** testez le Profile et vérifiez son endpoint, son modèle, son API key, sa route réseau ou le processus Ollama. La vidéo et les sous-titres d'origine continuent normalement.
 - **Credential could not be saved :** installez le paquet Release plutôt qu'une copie de développement incomplète, vérifiez que le répertoire de données du plugin est accessible en écriture, puis quittez complètement et relancez IINA.
-- **Aucune seconde piste traduite :** vérifiez que le Profile est testé et sélectionné, que la langue source diffère de votre langue maternelle et que **Translate** est activé. Vérifiez aussi qu'IINA n'a pas changé manuellement la seconde piste après son chargement par SubLingo.
+- **Aucune traduction affichée :** vérifiez que le Profile est testé et sélectionné, que la langue source diffère de votre langue maternelle, que **Translate** est activé et que la lecture se trouve dans l'intervalle d'un cue déjà traduit.
 - **Le proxy bloque le service :** essayez d'abord la route proxy macOS par défaut. Si elle refuse le service, passez ce Profile à **Connect directly**, enregistrez-le, puis relancez Select/Test.
 
 ## 🧑‍💻 Développement

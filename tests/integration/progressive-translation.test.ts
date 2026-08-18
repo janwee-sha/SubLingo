@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PlaybackController, type GeneratedTrackSink } from "../../src/app/controller.js";
+import {
+  PlaybackController,
+  type TranslationOverlaySink,
+} from "../../src/app/controller.js";
 import type { TranslationProvider } from "../../src/providers/provider.js";
 import type { TranslationProgressHandler } from "../../src/providers/types.js";
 import type { SubtitleCue } from "../../src/subtitles/types.js";
@@ -13,68 +16,24 @@ const denseCues = Array.from({ length: 25 }, (_, index): SubtitleCue => ({
   normalizedText: `source-${index + 1}`,
 }));
 
-class ImmediateTrack implements GeneratedTrackSink {
-  readonly revisions: string[] = [];
-  active = 0;
-  maxActive = 0;
-  cleaned = 0;
+class RecordingOverlay implements TranslationOverlaySink {
+  readonly frames: string[][] = [];
+  clears = 0;
 
-  async swap(content: string): Promise<void> {
-    this.active += 1;
-    this.maxActive = Math.max(this.maxActive, this.active);
-    this.revisions.push(content);
-    this.active -= 1;
+  show(lines: readonly string[]): void {
+    this.frames.push([...lines]);
   }
 
-  cleanup(): void {
-    this.cleaned += 1;
+  clear(): void {
+    this.clears += 1;
   }
 }
 
-class BlockedTrack implements GeneratedTrackSink {
-  readonly revisions: string[] = [];
-  active = 0;
-  maxActive = 0;
-  calls = 0;
-  content = "";
-  cleaned = 0;
-  private releaseFirst!: () => void;
-  private readonly firstGate = new Promise<void>((resolve) => {
-    this.releaseFirst = resolve;
-  });
-  private signalFirst!: () => void;
-  readonly firstStarted = new Promise<void>((resolve) => {
-    this.signalFirst = resolve;
-  });
-
-  async swap(content: string): Promise<void> {
-    this.calls += 1;
-    this.active += 1;
-    this.maxActive = Math.max(this.maxActive, this.active);
-    this.revisions.push(content);
-    if (this.calls === 1) {
-      this.signalFirst();
-      await this.firstGate;
-    }
-    this.content = content;
-    this.active -= 1;
-  }
-
-  release(): void {
-    this.releaseFirst();
-  }
-
-  cleanup(): void {
-    this.cleaned += 1;
-    this.content = "";
-  }
-}
-
-function controller(provider: TranslationProvider, track: GeneratedTrackSink): PlaybackController {
+function controller(provider: TranslationProvider, overlay: TranslationOverlaySink): PlaybackController {
   const value = new PlaybackController({
     playerId: "player-A",
     provider,
-    track,
+    overlay,
     targetLanguage: "zh-Hans",
   });
   value.setSource({ cues: denseCues, contentHash: "dense", language: "en", format: "srt" });
@@ -86,7 +45,7 @@ afterEach(() => {
 });
 
 describe("progressive translation output", () => {
-  it("publishes the first of thirteen wire results before the logical batch completes", async () => {
+  it("shows the first valid progress immediately before the logical batch completes", async () => {
     let releaseRest!: () => void;
     const restGate = new Promise<void>((resolve) => {
       releaseRest = resolve;
@@ -115,49 +74,76 @@ describe("progressive translation output", () => {
         return { translations: aggregate };
       },
     };
-    const track = new ImmediateTrack();
-    const playback = controller(provider, track);
+    const overlay = new RecordingOverlay();
+    const playback = controller(provider, overlay);
 
     playback.tick(0);
     await firstWireFinished;
-    await Promise.resolve();
+    expect(overlay.frames.at(-1)).toEqual(["T:source-1"]);
     const firstCacheSize = playback.cacheSize;
-    const firstRevisionCount = track.revisions.length;
     const firstStatus = playback.status;
     releaseRest();
     await playback.whenIdle();
 
     expect(firstCacheSize).toBe(2);
-    expect(firstRevisionCount).toBeGreaterThan(0);
     expect(firstStatus).toBe("running");
     expect(wireRequests).toBe(13);
     expect(playback.cacheSize).toBe(25);
   });
 
-  it("coalesces rapid progress into one active swap and the latest pending snapshot", async () => {
-    const track = new BlockedTrack();
+  it("does not show future progress before its cue becomes current", async () => {
     const provider: TranslationProvider = {
       attempt: async (request, onProgress) => {
-        const aggregate = request.items.map((item) => ({ id: item.id, text: `T:${item.text}` }));
-        for (const item of request.items.slice(0, 6)) {
-          const translation = { id: item.id, text: `T:${item.text}` };
-          onProgress?.({ translations: [translation] });
-        }
-        return { translations: aggregate };
+        const translations = request.items.map((item) => ({ id: item.id, text: `T:${item.text}` }));
+        onProgress?.({ translations });
+        return { translations };
       },
     };
-    const playback = controller(provider, track);
+    const overlay = new RecordingOverlay();
+    const playback = controller(provider, overlay);
 
     playback.tick(0);
-    await track.firstStarted;
-    expect(track.calls).toBe(1);
-    expect(track.maxActive).toBe(1);
-    track.release();
     await playback.whenIdle();
+    expect(overlay.frames.flat()).not.toContain("T:source-2");
 
-    expect(track.calls).toBe(2);
-    expect(track.maxActive).toBe(1);
-    expect(track.content).toContain("T:source-6");
+    playback.tick(100);
+    expect(overlay.frames.at(-1)).toEqual(["T:source-2"]);
+  });
+
+  it("continues switching and clearing current content while the Provider is in flight", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let progressed!: () => void;
+    const progressReady = new Promise<void>((resolve) => {
+      progressed = resolve;
+    });
+    const provider: TranslationProvider = {
+      attempt: async (request, onProgress) => {
+        const translations = request.items.map((item) => ({
+          id: item.id,
+          text: `T:${item.text}`,
+        }));
+        onProgress?.({ translations: translations.slice(0, 2) });
+        progressed();
+        await gate;
+        return { translations };
+      },
+    };
+    const overlay = new RecordingOverlay();
+    const playback = controller(provider, overlay);
+
+    playback.tick(0);
+    await progressReady;
+    expect(overlay.frames.at(-1)).toEqual(["T:source-1"]);
+    const clearsBeforeExpiry = overlay.clears;
+    playback.tick(80);
+    expect(overlay.clears).toBeGreaterThan(clearsBeforeExpiry);
+    playback.tick(100);
+    expect(overlay.frames.at(-1)).toEqual(["T:source-2"]);
+    release();
+    await playback.whenIdle();
   });
 
   it("keeps successful progress and retries only unresolved cues", async () => {
@@ -182,8 +168,7 @@ describe("progressive translation output", () => {
         return { translations };
       },
     };
-    const track = new ImmediateTrack();
-    const playback = controller(provider, track);
+    const playback = controller(provider, new RecordingOverlay());
 
     playback.tick(0);
     await Promise.resolve();
@@ -199,15 +184,7 @@ describe("progressive translation output", () => {
     expect(playback.cacheSize).toBe(25);
   });
 
-  it("deduplicates progress and terminal results and retains cache on publication failure", async () => {
-    let swaps = 0;
-    const track: GeneratedTrackSink = {
-      swap: async () => {
-        swaps += 1;
-        throw new Error("TRACK_FAILED");
-      },
-      cleanup: () => undefined,
-    };
+  it("deduplicates progress and terminal results while retaining the cache", async () => {
     const provider: TranslationProvider = {
       attempt: async (request, onProgress) => {
         const translations = request.items.map((item) => ({ id: item.id, text: item.text }));
@@ -215,18 +192,19 @@ describe("progressive translation output", () => {
         return { translations };
       },
     };
-    const playback = controller(provider, track);
+    const overlay = new RecordingOverlay();
+    const playback = controller(provider, overlay);
 
     playback.tick(0);
     await playback.whenIdle();
 
     expect(playback.cacheSize).toBe(25);
-    expect(swaps).toBe(1);
-    expect(playback.status).toBe("partialFailure");
+    expect(overlay.frames).toEqual([["source-1"]]);
+    expect(playback.status).toBe("running");
   });
 
   it.each([
-    ["seek", (value: PlaybackController) => value.session.onSeek(5_000)],
+    ["seek", (value: PlaybackController) => value.onSeek(5_000)],
     [
       "track",
       (value: PlaybackController) =>
@@ -253,36 +231,18 @@ describe("progressive translation output", () => {
       },
       cancel: () => undefined,
     };
-    const track = new ImmediateTrack();
-    const playback = controller(provider, track);
+    const overlay = new RecordingOverlay();
+    const playback = controller(provider, overlay);
 
     playback.tick(0);
     await Promise.resolve();
+    const clearsBeforeInvalidation = overlay.clears;
     invalidate(playback);
     lateProgress?.({ translations: [{ id: "cue-1", text: "late" }] });
     await playback.whenIdle();
 
     expect(playback.cacheSize).toBe(0);
-    expect(track.revisions).toEqual([]);
-  });
-
-  it("cleans a track created by a swap that finishes after the session changes", async () => {
-    const track = new BlockedTrack();
-    const provider: TranslationProvider = {
-      attempt: async (request) => ({
-        translations: request.items.map((item) => ({ id: item.id, text: "translated" })),
-      }),
-    };
-    const playback = controller(provider, track);
-
-    playback.tick(0);
-    await track.firstStarted;
-    playback.setSource({ cues: denseCues, contentHash: "next", language: "en", format: "srt" });
-    track.release();
-    await playback.whenIdle();
-
-    expect(track.content).toBe("");
-    expect(track.cleaned).toBeGreaterThan(0);
-    expect(playback.cacheSize).toBe(0);
+    expect(overlay.frames).toEqual([]);
+    expect(overlay.clears).toBeGreaterThan(clearsBeforeInvalidation);
   });
 });

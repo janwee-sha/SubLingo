@@ -2,7 +2,7 @@
   "name": "SubLingo",
   "version": "0.2.0",
   "identifier": "io.sublingo.iina",
-  "description": "Translate the selected local embedded text subtitle or external SRT/ASS subtitle into an IINA second subtitle track.",
+  "description": "Translates the selected local embedded text subtitle or external SRT/ASS subtitle and renders translated subtitles itself in IINA.",
   "author": {
     "name": "SubLingo Contributors"
   },
@@ -16,7 +16,7 @@
   "allowedDomains": ["127.0.0.1"],
   "permissionDescriptions": {
     "network-request": "Connect to the bundled loopback helper, which contacts only the translation service you select.",
-    "file-system": "Read only the selected text subtitle from the current local media or external subtitle, store optional provider keys in a plugin-private local file, and remove temporary extracted and translated subtitle data when the session ends. Remote and graphic embedded subtitles are not read.",
+    "file-system": "Read only the selected text subtitle from the current local media or external subtitle, store optional provider keys in a plugin-private local file, and remove temporary extracted source subtitle data when the session ends. Remote and graphic embedded subtitles are not read.",
     "show-alert": "Confirm permanent deletion of a translation profile and its saved credential."
   },
   "preferenceDefaults": {

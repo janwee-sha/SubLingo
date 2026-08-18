@@ -1,17 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { PlaybackController, type GeneratedTrackSink } from "../../src/app/controller.js";
+import {
+  PlaybackController,
+  type TranslationOverlaySink,
+} from "../../src/app/controller.js";
 import type { TranslationProvider } from "../../src/providers/provider.js";
 import type { SubtitleCue } from "../../src/subtitles/types.js";
 import { readFileSync } from "node:fs";
 import { selectNearbyCues } from "../../src/app/scheduler.js";
 
-class LatestTrack implements GeneratedTrackSink {
-  content = "";
-  async swap(content: string): Promise<void> {
-    this.content = content;
+class LatestOverlay implements TranslationOverlaySink {
+  lines: string[] = [];
+  show(lines: readonly string[]): void {
+    this.lines = [...lines];
   }
-  cleanup(): void {
-    this.content = "";
+  clear(): void {
+    this.lines = [];
   }
 }
 
@@ -50,7 +53,7 @@ describe("automated acceptance performance", () => {
   });
 
   it("prepares the first batch under five seconds and 95% before display with zero playback pauses", async () => {
-    const track = new LatestTrack();
+    const overlay = new LatestOverlay();
     let active = 0;
     let maxActive = 0;
     const provider: TranslationProvider = {
@@ -67,7 +70,7 @@ describe("automated acceptance performance", () => {
     const controller = new PlaybackController({
       playerId: "A",
       provider,
-      track,
+      overlay,
       targetLanguage: "zh-Hans",
     });
     controller.setSource({ cues, contentHash: "hash", language: "en", format: "srt" });
@@ -76,7 +79,7 @@ describe("automated acceptance performance", () => {
     for (let second = 0; second < 100; second += 1) {
       controller.tick(second * 1_000);
       await controller.whenIdle();
-      if (track.content.includes(`T:cue-${second}`)) readyBeforeDisplay += 1;
+      if (overlay.lines.includes(`T:cue-${second}`)) readyBeforeDisplay += 1;
     }
     expect(performance.now() - started).toBeLessThan(5_000);
     expect(readyBeforeDisplay / 100).toBeGreaterThanOrEqual(0.95);
@@ -98,13 +101,13 @@ describe("automated acceptance performance", () => {
     const a = new PlaybackController({
       playerId: "A",
       provider,
-      track: new LatestTrack(),
+      overlay: new LatestOverlay(),
       targetLanguage: "zh-Hans",
     });
     const b = new PlaybackController({
       playerId: "B",
       provider,
-      track: new LatestTrack(),
+      overlay: new LatestOverlay(),
       targetLanguage: "zh-Hans",
     });
     for (const controller of [a, b])

@@ -13,7 +13,7 @@
 
 **目的**：让覆盖层命令、异常、播放器实例和宿主事件能够通过生产接口接受自动化验证。
 
-- [ ] T001 扩展 `tests/helpers/fake-iina.ts`，为每个 Fake 播放器提供相互隔离的 MPV 命令历史、属性读写、同步命令异常注入和事件注册/触发能力，同时保持现有测试兼容
+- [X] T001 扩展 `tests/helpers/fake-iina.ts`，为每个 Fake 播放器提供相互隔离的 MPV 命令历史、属性读写、同步命令异常注入和事件注册/触发能力，同时保持现有测试兼容
 
 ---
 
@@ -23,13 +23,13 @@
 
 ### 测试
 
-- [ ] T002 [P] 在 `tests/unit/translation-overlay.test.ts` 添加失败中的生产单元测试，覆盖 `[startMs, endMs)`、零时长、未来/过期 cue、空译文、重叠 cue 源顺序、语义换行及 ASS `{`、反斜杠控制序列、CRLF、行首空格、NUL 和 Unicode 转义
-- [ ] T003 [P] 用 `tests/integration/subtitle-overlay.test.ts` 替换 `tests/integration/subtitle-track.test.ts`，添加失败中的生产适配器测试，覆盖固定 overlay ID、show/replace/remove 参数、重复 show/clear 去重、异常重试、双播放器隔离，并断言无轨道命令、字幕选择写入或译文临时文件
+- [X] T002 [P] 在 `tests/unit/translation-overlay.test.ts` 添加失败中的生产单元测试，覆盖 `[startMs, endMs)`、零时长、未来/过期 cue、空译文、重叠 cue 源顺序、语义换行及 ASS `{`、反斜杠控制序列、CRLF、行首空格、NUL 和 Unicode 转义
+- [X] T003 [P] 用 `tests/integration/subtitle-overlay.test.ts` 替换 `tests/integration/subtitle-track.test.ts`，添加失败中的生产适配器测试，覆盖固定 overlay ID、show/replace/remove 参数、重复 show/clear 去重、异常重试、双播放器隔离，并断言无轨道命令、字幕选择写入或译文临时文件
 
 ### 实现
 
-- [ ] T004 [P] 实现 `src/subtitles/active-translations.ts` 的当前译文选择函数，只返回当前位置命中的已验证译文并保持源 cue 顺序
-- [ ] T005 [P] 实现 `src/adapters/iina/subtitle-overlay.ts` 的同步 `IinaTranslationOverlay` 与最小 MPV port，按契约生成单一 ASS 事件、复用自有稳定 ID、提交成功后去重并幂等清理
+- [X] T004 [P] 实现 `src/subtitles/active-translations.ts` 的当前译文选择函数，只返回当前位置命中的已验证译文并保持源 cue 顺序
+- [X] T005 [P] 实现 `src/adapters/iina/subtitle-overlay.ts` 的同步 `IinaTranslationOverlay` 与最小 MPV port，按契约生成单一 ASS 事件、复用自有稳定 ID、提交成功后去重并幂等清理
 
 **检查点**：T002–T003 从失败变为通过，基础 API 不包含 SRT、轨道 ID、文件路径、Profile 或 Provider 状态。
 
@@ -43,20 +43,20 @@
 
 ### 测试
 
-- [ ] T006 [P] [US1] 将 `tests/integration/us1-playback.test.ts` 改为 `TranslationOverlaySink` 语义，按 cue 时段推进位置并覆盖当前译文、无占位、覆盖层异常不阻塞、禁用/换源清理和双窗口内容隔离
-- [ ] T007 [P] [US1] 将 `tests/integration/progressive-translation.test.ts` 改为当前位置覆盖层语义，覆盖首个有效 progress 立即显示、未来结果不提前显示、Provider in-flight 期间继续切换/清理、缓存保留和无异步 SRT publication 队列
-- [ ] T008 [P] [US1] 将 `tests/integration/embedded-subtitle.test.ts`、`tests/integration/performance.test.ts` 与 `tests/integration/us2-cost-privacy.test.ts` 的旧 track mock 和 SRT 断言迁移为纯文本 overlay show/clear 断言，保持原提取、性能和隐私覆盖
-- [ ] T009 [P] [US1] 更新 `tests/contract/sidebar-lifecycle.test.ts` 的生产入口契约，证明真实 `sid`/track-list 变化仍触发 source reload，而 `generatedTrack` 发布屏蔽、`sub-add`、`sub-remove` 和 `secondary-sid` 路径已不存在
-- [ ] T010 [P] [US1] 扩展 `tests/contract/package-manifest.test.ts`，通过生产 `Info.json` 验证“自行渲染译文”描述、最小权限集合和不再声明译文临时显示文件
+- [X] T006 [P] [US1] 将 `tests/integration/us1-playback.test.ts` 改为 `TranslationOverlaySink` 语义，按 cue 时段推进位置并覆盖当前译文、无占位、覆盖层异常不阻塞、禁用/换源清理和双窗口内容隔离
+- [X] T007 [P] [US1] 将 `tests/integration/progressive-translation.test.ts` 改为当前位置覆盖层语义，覆盖首个有效 progress 立即显示、未来结果不提前显示、Provider in-flight 期间继续切换/清理、缓存保留和无异步 SRT publication 队列
+- [X] T008 [P] [US1] 将 `tests/integration/embedded-subtitle.test.ts`、`tests/integration/performance.test.ts` 与 `tests/integration/us2-cost-privacy.test.ts` 的旧 track mock 和 SRT 断言迁移为纯文本 overlay show/clear 断言，保持原提取、性能和隐私覆盖
+- [X] T009 [P] [US1] 更新 `tests/contract/sidebar-lifecycle.test.ts` 的生产入口契约，证明真实 `sid`/track-list 变化仍触发 source reload，而 `generatedTrack` 发布屏蔽、`sub-add`、`sub-remove` 和 `secondary-sid` 路径已不存在
+- [X] T010 [P] [US1] 扩展 `tests/contract/package-manifest.test.ts`，通过生产 `Info.json` 验证“自行渲染译文”描述、最小权限集合和不再声明译文临时显示文件
 
 ### 实现
 
-- [ ] T011 [US1] 在 `src/app/controller.ts` 用同步 `TranslationOverlaySink.show(lines)`/`clear()` 替换 `GeneratedTrackSink`，在 Provider early-return 前及已接受进度/结果后同步当前帧，隔离 overlay 异常，并删除 SRT snapshot、pending publication、swap drain 和 publication idle 状态
-- [ ] T012 [P] [US1] 在 `src/main.ts` 为每个 `wirePlayer` 注入独立 `IinaTranslationOverlay`，移除生成轨期间的 source reload 屏蔽和过时生成资产说明，并删除 `src/adapters/iina/subtitle-track.ts`，同时保留真实用户换轨的 250 毫秒 settle/retry
-- [ ] T013 [P] [US1] 从 `src/subtitles/srt.ts` 删除仅用于译文输出的 `renderSrt`、时间格式化和输出转义，从 `src/app/playback-session.ts` 删除无生产用途的 `tempDirectory`，并同步收敛 `tests/unit/srt.test.ts` 与 `tests/unit/playback-session.test.ts`
-- [ ] T014 [P] [US1] 更新 `Info.json` 的产品描述与 file-system 权限说明为覆盖层自行渲染，移除“second subtitle track”和临时译文显示文件表述，不改变版本、最低 IINA 版本、权限或允许域
-- [ ] T015 [P] [US1] 将 `README.md`、`docs/readme/README.zh-CN.md`、`docs/readme/README.ar.md`、`docs/readme/README.fr.md`、`docs/readme/README.ja.md`、`docs/readme/README.ko.md` 与 `docs/readme/README.ru.md` 的简介、功能、使用步骤和故障排查统一为“自行渲染译文”，不改写历史 release notes
-- [ ] T016 [US1] 按 `specs/010-overlay-translated-subtitles/quickstart.md` 运行 US1 聚焦测试、类型检查、lint、构建、包审计和 `npm run pack`，仅在生产 bundle 无旧译文轨道路径且全部命令通过后进入宿主预检
+- [X] T011 [US1] 在 `src/app/controller.ts` 用同步 `TranslationOverlaySink.show(lines)`/`clear()` 替换 `GeneratedTrackSink`，在 Provider early-return 前及已接受进度/结果后同步当前帧，隔离 overlay 异常，并删除 SRT snapshot、pending publication、swap drain 和 publication idle 状态
+- [X] T012 [P] [US1] 在 `src/main.ts` 为每个 `wirePlayer` 注入独立 `IinaTranslationOverlay`，移除生成轨期间的 source reload 屏蔽和过时生成资产说明，并删除 `src/adapters/iina/subtitle-track.ts`，同时保留真实用户换轨的 250 毫秒 settle/retry
+- [X] T013 [P] [US1] 从 `src/subtitles/srt.ts` 删除仅用于译文输出的 `renderSrt`、时间格式化和输出转义，从 `src/app/playback-session.ts` 删除无生产用途的 `tempDirectory`，并同步收敛 `tests/unit/srt.test.ts` 与 `tests/unit/playback-session.test.ts`
+- [X] T014 [P] [US1] 更新 `Info.json` 的产品描述与 file-system 权限说明为覆盖层自行渲染，移除“second subtitle track”和临时译文显示文件表述，不改变版本、最低 IINA 版本、权限或允许域
+- [X] T015 [P] [US1] 将 `README.md`、`docs/readme/README.zh-CN.md`、`docs/readme/README.ar.md`、`docs/readme/README.fr.md`、`docs/readme/README.ja.md`、`docs/readme/README.ko.md` 与 `docs/readme/README.ru.md` 的简介、功能、使用步骤和故障排查统一为“自行渲染译文”，不改写历史 release notes
+- [X] T016 [US1] 按 `specs/010-overlay-translated-subtitles/quickstart.md` 运行 US1 聚焦测试、类型检查、lint、构建、包审计和 `npm run pack`，仅在生产 bundle 无旧译文轨道路径且全部命令通过后进入宿主预检
 - [ ] T017 [US1] 使用 T016 的正式 `.iinaplgz` 在 IINA 1.4.0 与 1.4.4 执行 show/replace/remove 和合成 sentinel 日志阻断预检，并在 `docs/validation/iina-matrix.md` 追加 010 预检行、包 SHA-256、环境与命中计数；任一命令失败或日志命中非 0 时保持本任务未完成并返回 SDD
 
 **检查点**：US1 可独立显示当前位置译文且不触碰字幕轨；T017 是后续实现的阻断门，mock 通过不能替代。

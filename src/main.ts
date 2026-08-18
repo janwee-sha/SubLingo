@@ -12,10 +12,7 @@ import {
   readSelectedSubtitle,
 } from "./adapters/iina/subtitle-source.js";
 import { IinaLocalHttpBridge, IinaProcessLauncher } from "./adapters/iina/provider-transport.js";
-import {
-  GeneratedSubtitleTrackManager,
-  IinaSubtitleTrackPort,
-} from "./adapters/iina/subtitle-track.js";
+import { IinaTranslationOverlay } from "./adapters/iina/subtitle-overlay.js";
 import { SubtitlePreparationCoordinator } from "./app/subtitle-preparation.js";
 import { parseRetrySubtitlePreparation } from "./domain/messages.js";
 import type {
@@ -47,11 +44,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     playerId,
     () => mediaEpoch,
   );
-  const generatedTrack = new GeneratedSubtitleTrackManager(
-    new IinaSubtitleTrackPort(runtime.core.subtitle, runtime.file, runtime.mpv, runtime.utils),
-    playerId,
-    `session-${Date.now()}`,
-  );
+  const translationOverlay = new IinaTranslationOverlay(runtime.mpv);
   const savedTarget = runtime.preferences.get("targetLanguage");
   const savedSource = runtime.preferences.get("sourceLanguage");
   const savedSourceMode = runtime.preferences.get("sourceLanguageMode");
@@ -71,7 +64,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   const controller = new PlaybackController({
     playerId,
     provider,
-    track: generatedTrack,
+    overlay: translationOverlay,
     targetLanguage: typeof savedTarget === "string" ? savedTarget : "zh-Hans",
     requiresProviderSelection: true,
   });
@@ -303,8 +296,6 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
 
   const attemptSourceReload = (): void => {
     sourceSelectionTimer = null;
-    const settledId = runtime.core.subtitle.id;
-    if (generatedTrack.isPublishing || generatedTrack.ownsTrack(settledId)) return;
     const finalAttempt = sourceReloadAttempt >= 4;
     if (loadSource(finalAttempt) || finalAttempt) return;
     sourceReloadAttempt += 1;
@@ -313,7 +304,6 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
 
   const scheduleSourceReload = (invalidateChangedSelection = false): void => {
     const selectedId = runtime.core.subtitle.id;
-    if (generatedTrack.isPublishing || generatedTrack.ownsTrack(selectedId)) return;
     if (invalidateChangedSelection && selectedId !== selectedSourceTrackId)
       clearSource("unreadable");
     if (sourceSelectionTimer !== null) clearTimeout(sourceSelectionTimer);
@@ -551,12 +541,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   });
   runtime.event.on("mpv.sid.changed", () => {
     const selectedId = runtime.core.subtitle.id;
-    if (
-      generatedTrack.isPublishing ||
-      generatedTrack.ownsTrack(selectedId) ||
-      selectedId === selectedSourceTrackId
-    )
-      return;
+    if (selectedId === selectedSourceTrackId) return;
     scheduleSourceReload(true);
   });
   runtime.event.on("mpv.track-list.changed", () => scheduleSourceReload());
@@ -607,14 +592,6 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   return controller;
 }
 
-// A normal IINA player is not created by global.createPlayerInstance(), so it
-// does not need a global round-trip before its main entry can initialize. The
-// global entry receives IINA's real player identifier with every later
-// message; this local session ID is used only for generated subtitle assets.
-//
-// sidebar.loadFile() is unavailable until the player window exists. Register
-// first and then re-check the state to avoid missing a window-loaded event that
-// fires between those two operations.
 let playerWired = false;
 const initializePlayer = (): void => {
   if (playerWired || !iina.core.window.loaded) return;

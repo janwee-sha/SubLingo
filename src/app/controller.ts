@@ -7,7 +7,7 @@ import type {
   TranslationBatchProgress,
   TranslationBatchResult,
 } from "../providers/types.js";
-import { renderSrt } from "../subtitles/srt.js";
+import { selectActiveTranslations } from "../subtitles/active-translations.js";
 import type { SubtitleCue } from "../subtitles/types.js";
 import { batchCues, selectNearbyCues } from "./scheduler.js";
 import { PlaybackSession } from "./playback-session.js";
@@ -23,15 +23,15 @@ export interface ControllerSource {
   format: "srt" | "ass";
 }
 
-export interface GeneratedTrackSink {
-  swap(content: string): Promise<unknown> | unknown;
-  cleanup(): void;
+export interface TranslationOverlaySink {
+  show(lines: readonly string[]): void;
+  clear(): void;
 }
 
 export interface PlaybackControllerOptions {
   playerId: string;
   provider: TranslationProvider;
-  track: GeneratedTrackSink;
+  overlay: TranslationOverlaySink;
   targetLanguage?: string;
   explicitRegionalOverride?: boolean;
   providerSemanticFingerprint?: string;
@@ -53,11 +53,6 @@ export class PlaybackController {
   private readonly cache: SessionTranslationCache;
   private requestSequence = 0;
   private activeAttempt: Pick<TranslationBatchRequest, "batchId" | "requestId"> | null = null;
-  private pendingPublication: {
-    fingerprint: ReturnType<PlaybackSession["fingerprint"]>;
-    content: string;
-  } | null = null;
-  private publication: Promise<void> | null = null;
 
   constructor(private readonly options: PlaybackControllerOptions) {
     this.session = new PlaybackSession(
@@ -76,21 +71,20 @@ export class PlaybackController {
   }
 
   setSource(source: ControllerSource | null): void {
-    const hadSource = this.source !== null;
     this.session.onTrackChanged();
     this.source = source;
     this.translations.clear();
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    if (hadSource) this.invalidatePublication();
+    this.clearOverlay();
     this.status = this.nextIdleStatus();
   }
 
   setEnabled(enabled: boolean): void {
     this.session.setEnabled(enabled);
     if (!enabled) {
-      this.invalidatePublication();
+      this.clearOverlay();
       this.status = "disabled";
     } else {
       this.terminallyFailedCueIds.clear();
@@ -112,7 +106,7 @@ export class PlaybackController {
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    this.invalidatePublication();
+    this.clearOverlay();
     this.status = this.nextIdleStatus();
   }
 
@@ -132,7 +126,7 @@ export class PlaybackController {
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    this.invalidatePublication();
+    this.clearOverlay();
     this.status = this.nextIdleStatus();
   }
 
@@ -146,7 +140,7 @@ export class PlaybackController {
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    this.invalidatePublication();
+    this.clearOverlay();
     this.status = this.session.enabled ? "waitingForConfiguration" : "disabled";
   }
 
@@ -157,6 +151,7 @@ export class PlaybackController {
 
   tick(positionMs: number | null): void {
     this.session.updatePosition(positionMs);
+    this.syncCurrentOverlay();
     if (!this.session.enabled || !this.source || positionMs === null || this.pipeline.inFlight)
       return;
     if (this.options.requiresProviderSelection && !this.options.profileId) {
@@ -235,12 +230,13 @@ export class PlaybackController {
             const accepted = this.acceptResults(remaining, progress, identity);
             if (accepted.size === 0) return;
             remaining = remaining.filter((cue) => !accepted.has(cue.id));
-            this.enqueueCurrentSnapshot(fingerprint);
+            this.syncCurrentOverlay(fingerprint);
+            this.status = "running";
           });
           if (!this.session.accepts(fingerprint) || this.source === null) return;
           const accepted = this.acceptResults(remaining, result, identity);
           remaining = remaining.filter((cue) => !accepted.has(cue.id));
-          if (accepted.size > 0) this.enqueueCurrentSnapshot(fingerprint);
+          if (accepted.size > 0) this.syncCurrentOverlay(fingerprint);
           terminalError = remaining.length
             ? {
                 category: "protocol",
@@ -283,7 +279,6 @@ export class PlaybackController {
       if (!this.session.accepts(fingerprint) || this.source === null) return;
       for (const cue of remaining) this.terminallyFailedCueIds.add(cue.id);
       this.lastAttemptError = remaining.length > 0 ? terminalError : null;
-      await this.whenPublicationIdle();
       if (this.session.accepts(fingerprint)) {
         if (remaining.length > 0)
           this.status = terminalError?.retryable ? "serviceUnavailable" : "partialFailure";
@@ -393,67 +388,42 @@ export class PlaybackController {
     );
   }
 
-  private enqueueCurrentSnapshot(fingerprint: ReturnType<PlaybackSession["fingerprint"]>): void {
-    if (!this.session.accepts(fingerprint) || !this.source) return;
-    const content = renderSrt(this.source.cues, this.translations);
-    if (!content) return;
-    this.pendingPublication = { fingerprint, content };
-    this.startPublication();
-  }
-
-  private startPublication(): void {
-    if (this.publication || !this.pendingPublication) return;
-    this.publication = this.drainPublications().finally(() => {
-      this.publication = null;
-      this.startPublication();
-    });
-  }
-
-  private async drainPublications(): Promise<void> {
-    while (this.pendingPublication) {
-      const snapshot = this.pendingPublication;
-      this.pendingPublication = null;
-      if (!this.session.accepts(snapshot.fingerprint)) continue;
-      try {
-        await this.options.track.swap(snapshot.content);
-      } catch {
-        if (this.session.accepts(snapshot.fingerprint)) this.status = "partialFailure";
-        continue;
+  private syncCurrentOverlay(
+    fingerprint?: ReturnType<PlaybackSession["fingerprint"]>,
+  ): void {
+    if (fingerprint && !this.session.accepts(fingerprint)) return;
+    try {
+      if (!this.session.enabled || !this.source) {
+        this.options.overlay.clear();
+        return;
       }
-      if (!this.session.accepts(snapshot.fingerprint)) {
-        this.options.track.cleanup();
-        continue;
-      }
-      this.status = "running";
+      const lines = selectActiveTranslations(
+        this.source.cues,
+        this.translations,
+        this.session.positionMs,
+      );
+      if (lines.length > 0) this.options.overlay.show(lines);
+      else this.options.overlay.clear();
+    } catch (error) {
+      void error;
     }
   }
 
-  private async whenPublicationIdle(): Promise<void> {
-    for (;;) {
-      this.startPublication();
-      const current = this.publication;
-      if (!current) return;
-      await current;
-      if (!this.publication && !this.pendingPublication) return;
+  private clearOverlay(): void {
+    try {
+      this.options.overlay.clear();
+    } catch (error) {
+      void error;
     }
-  }
-
-  private invalidatePublication(): void {
-    this.pendingPublication = null;
-    this.options.track.cleanup();
   }
 
   async whenIdle(): Promise<void> {
-    for (;;) {
-      await this.pipeline.whenIdle();
-      await this.whenPublicationIdle();
-      if (!this.pipeline.inFlight && !this.publication && !this.pendingPublication) return;
-    }
+    await this.pipeline.whenIdle();
   }
 
   onSeek(positionMs: number | null): void {
     this.session.onSeek(positionMs);
-    this.invalidatePublication();
+    this.clearOverlay();
     this.status = this.nextIdleStatus();
   }
 
@@ -464,7 +434,7 @@ export class PlaybackController {
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    this.invalidatePublication();
+    this.clearOverlay();
     this.status = this.nextIdleStatus();
   }
 
@@ -474,7 +444,7 @@ export class PlaybackController {
     this.terminallyFailedCueIds.clear();
     this.lastAttemptError = null;
     this.cache.clear();
-    this.invalidatePublication();
+    this.clearOverlay();
     this.status = "disabled";
   }
 }

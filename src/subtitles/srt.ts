@@ -11,15 +11,6 @@ function milliseconds(parts: readonly string[]): number | null {
   return (hours * 60 * 60 + minutes * 60 + seconds) * 1_000 + millis;
 }
 
-function formatTimestamp(value: number): string {
-  const safe = Math.max(0, Math.round(value));
-  const hours = Math.floor(safe / 3_600_000);
-  const minutes = Math.floor((safe % 3_600_000) / 60_000);
-  const seconds = Math.floor((safe % 60_000) / 1_000);
-  const millis = safe % 1_000;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")},${String(millis).padStart(3, "0")}`;
-}
-
 export function parseSrt(input: string): SubtitleParseResult {
   const normalized = input
     .replace(/^\ufeff/, "")
@@ -56,25 +47,4 @@ export function parseSrt(input: string): SubtitleParseResult {
   }
   cues.sort((left, right) => left.startMs - right.startMs || left.index - right.index);
   return { cues, warnings };
-}
-
-function escapeSrtText(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-export function renderSrt(
-  cues: readonly SubtitleCue[],
-  translations: ReadonlyMap<string, string>,
-): string {
-  const blocks: string[] = [];
-  for (const cue of [...cues].sort(
-    (left, right) => left.startMs - right.startMs || left.index - right.index,
-  )) {
-    const translation = translations.get(cue.id)?.trim();
-    if (!translation) continue;
-    blocks.push(
-      `${blocks.length + 1}\n${formatTimestamp(cue.startMs)} --> ${formatTimestamp(cue.endMs)}\n${escapeSrtText(translation)}`,
-    );
-  }
-  return blocks.length ? `${blocks.join("\n\n")}\n` : "";
 }

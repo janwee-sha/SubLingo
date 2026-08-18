@@ -15,11 +15,11 @@
 
 ---
 
-SubLingo translates the local embedded text subtitle or external SRT/ASS subtitle currently selected in [IINA](https://iina.io/) and displays the result as a second subtitle track. It looks only a short distance ahead of playback, translates in bounded batches, and keeps the original subtitle and video playing when a translation is delayed or fails.
+SubLingo translates the local embedded text subtitle or external SRT/ASS subtitle currently selected in [IINA](https://iina.io/) and renders the translation itself in an independent overlay. It looks only a short distance ahead of playback, translates in bounded batches, and keeps the original subtitle selection and video playing when a translation is delayed or fails.
 
 ## ✨ Features
 
-- **Live bilingual subtitles:** Keep the original subtitle as the primary track and show translations as IINA's second subtitle.
+- **Live bilingual subtitles:** Keep the original subtitle selected in IINA while SubLingo renders translations at the top center of the video without occupying another subtitle track.
 - **Embedded and external text subtitles:** Works with local Matroska SubRip/ASS/SSA, local MOV/MP4 `mov_text`, and readable external SRT/ASS tracks selected in IINA. The release includes the required extractor; no external `ffmpeg` or `ffprobe` is needed.
 - **Your choice of translation service:** Use an OpenAI-compatible Chat Completions endpoint or a local/remote Ollama server.
 - **Playback-first behavior:** Translation work never pauses the video or hides the original subtitle.
@@ -66,7 +66,7 @@ After either method, approve the requested plugin permissions if prompted, make 
 2. Under **Languages**, select your mother language. Confirm the subtitle language if IINA cannot identify it, then save the language settings.
 3. Under **Translation service**, create an OpenAI-compatible or Ollama profile and enter the exact model ID.
 4. Save and test the profile, then click **Select**. Selecting a profile explicitly authorizes SubLingo to send nearby subtitle text to the displayed endpoint.
-5. Turn on **Translate**. The original subtitle remains primary; translated cues appear as the second subtitle.
+5. Turn on **Translate**. The original subtitle remains selected in IINA; translated cues appear in SubLingo's top-center overlay.
 
 If the endpoint, model, key, or network route changes, save the updated profile and select it again before translating.
 
@@ -109,7 +109,7 @@ SubLingo does not perform audio transcription, OCR or extraction of image-based 
 - **Confirm the subtitle language:** Enter a BCP 47 language tag such as `en-US`, then save the language settings.
 - **Translation service unavailable:** Test the profile and check its endpoint, model, key, network route, or Ollama process. Playback and the original subtitle continue normally.
 - **Credential could not be saved:** Install the release package rather than using an incomplete development copy, make sure the plugin data directory is writable, and fully restart IINA.
-- **No translated second subtitle:** Confirm that the profile is tested and selected, the source and mother languages differ, and **Translate** is enabled. Also make sure IINA has not manually switched the second subtitle after SubLingo loaded it.
+- **No rendered translation:** Confirm that the profile is tested and selected, the source and mother languages differ, and **Translate** is enabled. Playback must also be within the time range of an available translated cue.
 - **A proxy blocks the service:** Try the default macOS proxy route first. If it rejects the service, switch that profile to **Connect directly**, save it, and select/test it again.
 
 ## 🧑‍💻 Development

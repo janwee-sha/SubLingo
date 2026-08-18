@@ -14,11 +14,11 @@
 
 ---
 
-SubLingo 翻译 [IINA](https://iina.io/) 当前选中的本地内嵌文本字幕或外部 SRT/ASS 字幕，并将译文显示为第二字幕。它只在播放位置附近有限前瞻、分批翻译；即使翻译延迟或失败，原字幕与视频也会继续播放。
+SubLingo 翻译 [IINA](https://iina.io/) 当前选中的本地内嵌文本字幕或外部 SRT/ASS 字幕，并自行渲染译文。它只在播放位置附近有限前瞻、分批翻译；即使翻译延迟或失败，原字幕选择与视频播放也不受影响。
 
 ## ✨ 功能
 
-- **实时双语字幕：** 原字幕保持为主字幕，译文显示为 IINA 第二字幕。
+- **实时双语字幕：** 原字幕继续由 IINA 显示，SubLingo 在视频顶部居中自行渲染译文，不占用其他字幕轨。
 - **支持内嵌与外部文本字幕：** 支持本地 Matroska SubRip/ASS/SSA、本地 MOV/MP4 `mov_text`，以及外部 SRT/ASS；正式包自带提取能力，无需安装 `ffmpeg` 或 `ffprobe`。
 - **自选翻译服务：** 支持 OpenAI-compatible Chat Completions endpoint 和本地或远程 Ollama 服务。
 - **播放优先：** 翻译工作不会暂停视频，也不会隐藏原字幕。
@@ -65,7 +65,7 @@ SubLingo 不会下载或启动翻译模型。
 2. 在 **Languages** 中选择母语。如果 IINA 无法识别字幕语言，请手动确认，然后保存语言设置。
 3. 在 **Translation service** 中创建 OpenAI-compatible 或 Ollama Profile，并填写准确的 Model ID。
 4. 保存并测试 Profile，然后点击 **Select**。选择 Profile 即明确授权 SubLingo 向界面显示的 endpoint 发送播放位置附近的字幕文字。
-5. 打开 **Translate**。原字幕仍为主字幕，译文会显示为第二字幕。
+5. 打开 **Translate**。原字幕仍由 IINA 正常显示，译文会出现在 SubLingo 的顶部居中覆盖层中。
 
 如果 endpoint、模型、API key 或网络路由发生变化，请保存更新后的 Profile，并在翻译前重新选择。
 
@@ -108,7 +108,7 @@ SubLingo 不提供音频转写、图形字幕 OCR/提取、远程媒体内嵌字
 - **Confirm the subtitle language：** 输入 BCP 47 语言标签，例如 `en-US`，然后保存语言设置。
 - **Translation service unavailable：** 测试 Profile，并检查 endpoint、模型、API key、网络路由或 Ollama 进程。视频和原字幕会继续正常播放。
 - **Credential could not be saved：** 使用正式 Release 安装包，不要使用内容不完整的开发副本；确认插件数据目录可写，并完全退出后重启 IINA。
-- **没有译文第二字幕：** 确认 Profile 已测试并选中、源语言与母语不同，并且已开启 **Translate**。还要确认 SubLingo 加载第二字幕后，IINA 没有被手动切换到其他第二字幕。
+- **没有显示译文：** 确认 Profile 已测试并选中、源语言与母语不同，并且已开启 **Translate**；播放位置还需要处于已有译文的字幕时段内。
 - **代理阻止服务连接：** 先尝试默认的 macOS 代理路由。如果代理拒绝该服务，将 Profile 改为 **Connect directly**，保存后重新 Select/Test。
 
 ## 🧑‍💻 开发

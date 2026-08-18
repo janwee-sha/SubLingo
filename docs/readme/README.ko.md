@@ -14,11 +14,11 @@
 
 ---
 
-SubLingo는 [IINA](https://iina.io/)에서 현재 선택한 로컬 영상의 내장 텍스트 자막 또는 외부 SRT/ASS 자막을 번역해 보조 자막으로 표시합니다. 재생 위치 가까이만 제한된 묶음으로 번역하며, 지연되거나 실패해도 원본 자막과 영상 재생은 계속됩니다.
+SubLingo는 [IINA](https://iina.io/)에서 현재 선택한 로컬 영상의 내장 텍스트 자막 또는 외부 SRT/ASS 자막을 번역해 독립 오버레이에 직접 표시합니다. 재생 위치 가까이만 제한된 묶음으로 번역하며, 지연되거나 실패해도 원본 자막 선택과 영상 재생은 계속됩니다.
 
 ## ✨ 주요 기능
 
-- **실시간 이중 언어 자막:** 원본 자막은 주 자막으로 유지하고 번역문은 IINA의 보조 자막으로 표시합니다.
+- **실시간 이중 언어 자막:** 원본 자막은 IINA에서 그대로 유지하고 SubLingo가 다른 자막 트랙을 차지하지 않은 채 영상 상단 중앙에 번역문을 표시합니다.
 - **내장 및 외부 텍스트 자막:** 로컬 Matroska SubRip/ASS/SSA, MOV/MP4 `mov_text`, 외부 SRT/ASS를 지원합니다. extractor가 포함되어 외부 `ffmpeg`나 `ffprobe`가 필요하지 않습니다.
 - **번역 서비스 선택:** OpenAI-compatible Chat Completions endpoint 또는 로컬/원격 Ollama 서버를 사용할 수 있습니다.
 - **재생 우선 동작:** 번역 작업 때문에 영상이 일시 정지되거나 원본 자막이 숨겨지지 않습니다.
@@ -65,7 +65,7 @@ GitHub에서 설치한 플러그인은 IINA에서 자동으로 업데이트할 �
 2. **Languages**에서 모국어를 선택합니다. IINA가 자막 언어를 식별하지 못하면 직접 확인한 뒤 언어 설정을 저장합니다.
 3. **Translation service**에서 OpenAI-compatible 또는 Ollama Profile을 만들고 정확한 Model ID를 입력합니다.
 4. Profile을 저장하고 테스트한 다음 **Select**를 클릭합니다. Profile 선택은 화면에 표시된 endpoint로 재생 위치 주변의 자막 텍스트를 전송하도록 SubLingo에 명시적으로 허용하는 동작입니다.
-5. **Translate**를 켭니다. 원본 자막은 주 자막으로 유지되고 번역된 cue는 보조 자막으로 표시됩니다.
+5. **Translate**를 켭니다. 원본 자막은 IINA에서 계속 표시되고 번역된 cue는 SubLingo의 상단 중앙 오버레이에 나타납니다.
 
 Endpoint, 모델, API key 또는 네트워크 경로가 바뀌면 Profile을 다시 저장하고 번역 전에 다시 선택해야 합니다.
 
@@ -107,7 +107,7 @@ SubLingo는 오디오 전사, 이미지 기반 자막 OCR/추출, 원격 미디�
 - **Confirm the subtitle language:** `en-US`와 같은 BCP 47 언어 tag를 입력하고 언어 설정을 저장하세요.
 - **Translation service unavailable:** Profile을 테스트하고 endpoint, 모델, API key, 네트워크 경로 또는 Ollama 프로세스를 확인하세요. 영상과 원본 자막은 계속 정상 재생됩니다.
 - **Credential could not be saved:** 불완전한 개발 사본 대신 Release 패키지를 설치하고 플러그인 데이터 디렉터리가 쓰기 가능한지 확인한 뒤 IINA를 완전히 종료하고 다시 시작하세요.
-- **번역된 보조 자막이 표시되지 않음:** Profile을 테스트하고 선택했는지, 원본 언어와 모국어가 다른지, **Translate**가 켜져 있는지 확인하세요. SubLingo가 자막을 불러온 뒤 IINA에서 보조 자막을 수동으로 변경하지 않았는지도 확인하세요.
+- **번역문이 표시되지 않음:** Profile을 테스트하고 선택했는지, 원본 언어와 모국어가 다른지, **Translate**가 켜져 있는지, 재생 위치가 번역된 cue의 시간 범위 안에 있는지 확인하세요.
 - **프록시가 서비스를 차단함:** 먼저 기본 macOS 프록시 경로를 사용하세요. 프록시가 서비스를 거부하면 해당 Profile을 **Connect directly**로 바꾸고 저장한 뒤 다시 Select/Test하세요.
 
 ## 🧑‍💻 개발
