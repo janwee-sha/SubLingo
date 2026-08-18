@@ -42,7 +42,11 @@ SubLingo does not download or start translation models.
 
 Open IINA and go to **Settings → Plugins**. The plugin manager supports both installation methods below.
 
+<div align="center">
+
 ![IINA plugin manager showing Install from GitHub and Install Package](docs/readme/assets/plugin-manager.webp)
+
+</div>
 
 ### Install from GitHub (recommended)
 
@@ -111,10 +115,6 @@ SubLingo does not perform audio transcription, OCR or extraction of image-based 
 - **Credential could not be saved:** Install the release package rather than using an incomplete development copy, make sure the plugin data directory is writable, and fully restart IINA.
 - **No rendered translation:** Confirm that the profile is tested and selected, the source and mother languages differ, and **Translate** is enabled. Playback must also be within the time range of an available translated cue.
 - **A proxy blocks the service:** Try the default macOS proxy route first. If it rejects the service, switch that profile to **Connect directly**, save it, and select/test it again.
-
-## 🧑‍💻 Development
-
-Build instructions, automated checks, packaging, and IINA acceptance guidance are available in the [development guide](docs/engineering/development.md).
 
 ## ☕ Support SubLingo
 

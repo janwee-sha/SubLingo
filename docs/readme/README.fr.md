@@ -41,7 +41,11 @@ SubLingo ne télécharge ni ne démarre les modèles de traduction.
 
 Ouvrez IINA et accédez à **Préférences → Modules externes**. Le gestionnaire de modules permet les deux méthodes d'installation suivantes.
 
+<div align="center">
+
 ![Gestionnaire de modules IINA avec les boutons Installer depuis GitHub et Installer le paquet](assets/plugin-manager.webp)
+
+</div>
 
 ### Installer depuis GitHub (recommandé)
 
@@ -109,10 +113,6 @@ SubLingo n'effectue pas de transcription audio, d'OCR ou d'extraction de sous-ti
 - **Credential could not be saved :** installez le paquet Release plutôt qu'une copie de développement incomplète, vérifiez que le répertoire de données du plugin est accessible en écriture, puis quittez complètement et relancez IINA.
 - **Aucune traduction affichée :** vérifiez que le Profile est testé et sélectionné, que la langue source diffère de votre langue maternelle, que **Translate** est activé et que la lecture se trouve dans l'intervalle d'un cue déjà traduit.
 - **Le proxy bloque le service :** essayez d'abord la route proxy macOS par défaut. Si elle refuse le service, passez ce Profile à **Connect directly**, enregistrez-le, puis relancez Select/Test.
-
-## 🧑‍💻 Développement
-
-Les instructions de compilation, de vérification automatisée, de création du paquet et de validation dans IINA se trouvent dans le [guide de développement](../engineering/development.md).
 
 ## ☕ Soutenir SubLingo
 

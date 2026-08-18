@@ -41,7 +41,11 @@ SubLingo는 번역 모델을 다운로드하거나 실행하지 않습니다.
 
 IINA를 열고 **환경설정 → 플러그인**으로 이동합니다. 플러그인 관리 화면에서는 다음 두 가지 설치 방법을 사용할 수 있습니다.
 
+<div align="center">
+
 ![GitHub에서 설치 및 패키지 설치 버튼이 표시된 IINA 플러그인 관리 화면](assets/plugin-manager.webp)
+
+</div>
 
 ### GitHub에서 설치(권장)
 
@@ -109,10 +113,6 @@ SubLingo는 오디오 전사, 이미지 기반 자막 OCR/추출, 원격 미디�
 - **Credential could not be saved:** 불완전한 개발 사본 대신 Release 패키지를 설치하고 플러그인 데이터 디렉터리가 쓰기 가능한지 확인한 뒤 IINA를 완전히 종료하고 다시 시작하세요.
 - **번역문이 표시되지 않음:** Profile을 테스트하고 선택했는지, 원본 언어와 모국어가 다른지, **Translate**가 켜져 있는지, 재생 위치가 번역된 cue의 시간 범위 안에 있는지 확인하세요.
 - **프록시가 서비스를 차단함:** 먼저 기본 macOS 프록시 경로를 사용하세요. 프록시가 서비스를 거부하면 해당 Profile을 **Connect directly**로 바꾸고 저장한 뒤 다시 Select/Test하세요.
-
-## 🧑‍💻 개발
-
-빌드, 자동 검사, 패키징 및 IINA 승인 절차는 [개발 가이드](../engineering/development.md)를 참고하세요.
 
 ## ☕ SubLingo 후원하기
 
