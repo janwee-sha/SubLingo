@@ -24,6 +24,7 @@ docs/validation/artifacts/
 docs/providers/
 manual-tests/
 docs/open_issues/
+docs/plans/
 
 # macOS / editors
 .DS_Store
