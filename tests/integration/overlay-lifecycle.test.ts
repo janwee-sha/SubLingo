@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PlaybackController, type TranslationOverlaySink } from "../../src/app/controller.js";
 import { DeterministicFakeProvider } from "../../src/providers/fake.js";
 import type { SubtitleCue } from "../../src/subtitles/types.js";
+import { createTranslationAlignmentFixture } from "../helpers/translation-alignment.js";
 
 class RecordingOverlay implements TranslationOverlaySink {
   readonly frames: string[][] = [];
@@ -104,5 +105,31 @@ describe("translation overlay lifecycle", () => {
     expect(firstOverlay.clears).toBeGreaterThan(0);
     expect(secondOverlay.clears).toBe(secondClears);
     expect(secondOverlay.frames.at(-1)).toEqual(["B:first"]);
+  });
+
+  it("keeps all 20 true overlap pairs separate and source ordered", async () => {
+    const { overlappingCues } = createTranslationAlignmentFixture();
+    const overlay = new RecordingOverlay();
+    const controller = new PlaybackController({
+      playerId: "overlap",
+      provider: new DeterministicFakeProvider("T:"),
+      overlay,
+      targetLanguage: "zh-Hans",
+    });
+    controller.setSource({
+      cues: overlappingCues,
+      contentHash: "overlap",
+      language: "en",
+      format: "srt",
+    });
+
+    for (let pair = 0; pair < 20; pair += 1) {
+      controller.tick(pair * 2_000 + 500);
+      await controller.whenIdle();
+      expect(overlay.frames.at(-1)).toEqual([
+        `T:overlap first ${pair + 1}`,
+        `T:overlap second ${pair + 1}`,
+      ]);
+    }
   });
 });

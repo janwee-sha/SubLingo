@@ -1,13 +1,15 @@
-import type { TranslationBatchResult } from "./types.js";
+import type {
+  FrozenTranslationTarget,
+  TranslationBatchResult,
+  WireTranslationTarget,
+} from "./types.js";
 
 export interface WireItems {
-  items: Array<{ id: string; text: string; context?: string }>;
+  items: WireTranslationTarget[];
   restore(result: TranslationBatchResult): TranslationBatchResult;
 }
 
-export function encodeWireItems(
-  items: ReadonlyArray<{ id: string; text: string; context?: string }>,
-): WireItems {
+export function encodeWireItems(items: readonly FrozenTranslationTarget[]): WireItems {
   const originalIds = new Map<string, string>();
   const wireItems = items.map((item, index) => {
     const wireId = `c${index + 1}`;
@@ -15,7 +17,8 @@ export function encodeWireItems(
     return {
       id: wireId,
       text: item.text,
-      ...(item.context ? { context: item.context } : {}),
+      ...(item.contextPrevious ? { context_previous: item.contextPrevious } : {}),
+      ...(item.contextNext ? { context_next: item.contextNext } : {}),
     };
   });
   return {

@@ -9,10 +9,18 @@ import type {
 
 export type ProviderKind = "openai" | "ollama" | "fake";
 
-export interface TranslationItem {
+export interface FrozenTranslationTarget {
   id: string;
   text: string;
-  context?: string;
+  contextPrevious?: string;
+  contextNext?: string;
+}
+
+export interface WireTranslationTarget {
+  id: string;
+  text: string;
+  context_previous?: string;
+  context_next?: string;
 }
 
 export interface TranslationBatchRequest {
@@ -27,7 +35,7 @@ export interface TranslationBatchRequest {
   endpointFingerprint: EndpointFingerprint;
   sourceLanguage: string;
   targetLanguage: string;
-  items: TranslationItem[];
+  items: FrozenTranslationTarget[];
 }
 
 export interface TranslationBatchResult {

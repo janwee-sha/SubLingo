@@ -4,6 +4,7 @@ import { sanitizedProfileView } from "../../src/domain/messages.js";
 import { SubtitlePreparationCoordinator } from "../../src/app/subtitle-preparation.js";
 import { SubtitleExtractorError } from "../../src/adapters/iina/subtitle-extractor.js";
 import { detectSubtitleLanguage } from "../../src/subtitles/language-detection.js";
+import { buildTranslationTask } from "../../src/providers/translation-task.js";
 import type { SubtitleCue } from "../../src/subtitles/types.js";
 
 describe("credential and content leakage boundaries", () => {
@@ -97,5 +98,34 @@ describe("credential and content leakage boundaries", () => {
     });
     expect(result).toEqual({ state: "unknown" });
     expect(JSON.stringify(result)).not.toMatch(/PRIVATE|private|eng|fra|score|secret/);
+  });
+
+  it("keeps credentials, authorization and endpoints out of the shared translation task", () => {
+    const sensitive = ["provider-secret", "Bearer private", "https://private.example/v1"];
+    const task = buildTranslationTask({
+      sourceLanguage: "en",
+      targetLanguage: "zh-Hans",
+      targets: [
+        {
+          id: "c1",
+          text: "required subtitle data",
+          context_previous: "required previous data",
+          context_next: "required next data",
+        },
+      ],
+    });
+    const output = JSON.stringify(task);
+
+    expect(JSON.parse(task.userMessage)).toEqual({
+      targets: [
+        {
+          id: "c1",
+          text: "required subtitle data",
+          context_previous: "required previous data",
+          context_next: "required next data",
+        },
+      ],
+    });
+    for (const value of sensitive) expect(output).not.toContain(value);
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { OllamaProvider } from "../../src/providers/ollama.js";
 import type { ProviderTransport } from "../../src/providers/transport.js";
+import { buildTranslationTask } from "../../src/providers/translation-task.js";
 import { makeProviderRequest } from "./provider-test-helpers.js";
 
 describe("Ollama native provider", () => {
@@ -67,28 +68,44 @@ describe("Ollama native provider", () => {
     expect(systemMessage).toContain("English [en]");
     expect(systemMessage).toContain("Chinese (Simplified) [zh-Hans]");
     expect(userMessage).toContain('"id":"c1"');
+    expect(JSON.parse(userMessage!)).toEqual({
+      targets: [
+        { id: "c1", text: "one", context_next: "two" },
+        { id: "c2", text: "two", context_previous: "one" },
+      ],
+    });
     expect(userMessage).not.toContain("srt:0:0:1000");
+    expect(systemMessage).toBe(
+      buildTranslationTask({
+        sourceLanguage: "en",
+        targetLanguage: "zh-Hans",
+        targets: [
+          { id: "c1", text: "one", context_next: "two" },
+          { id: "c2", text: "two", context_previous: "one" },
+        ],
+      }).systemMessage,
+    );
     expect(result.translations).toEqual([{ id: "srt:0:0:1000", text: "一" }]);
   });
 
   it("sends larger batches as two-item chats without dropping or duplicating cues", async () => {
-    const calls: Array<{ jobId: string; items: Array<{ id: string; text: string }> }> = [];
+    const calls: Array<{ jobId: string; targets: Array<{ id: string; text: string }> }> = [];
     const provider = new OllamaProvider(
       { endpoint: "http://127.0.0.1:11434", model: "translategemma:12b" },
       {
         request: async (request) => {
           const messages = (request.body as { messages: Array<{ content: string }> }).messages;
           const payload = JSON.parse(messages.at(-1)!.content) as {
-            items: Array<{ id: string; text: string }>;
+            targets: Array<{ id: string; text: string }>;
           };
-          calls.push({ jobId: request.jobId, items: payload.items });
+          calls.push({ jobId: request.jobId, targets: payload.targets });
           return {
             statusCode: 200,
             headers: {},
             bodyText: JSON.stringify({
               message: {
                 content: JSON.stringify({
-                  translations: payload.items.map((item) => ({
+                  translations: payload.targets.map((item) => ({
                     id: item.id,
                     text: `T:${item.text}`,
                   })),
@@ -116,8 +133,8 @@ describe("Ollama native provider", () => {
       "request-part-2",
       "request-part-3",
     ]);
-    expect(calls.map((call) => call.items.length)).toEqual([2, 2, 2]);
-    expect(calls.flatMap((call) => call.items.map((item) => item.text))).toEqual([
+    expect(calls.map((call) => call.targets.length)).toEqual([2, 2, 2]);
+    expect(calls.flatMap((call) => call.targets.map((item) => item.text))).toEqual([
       "one",
       "two",
       "three",
@@ -136,7 +153,7 @@ describe("Ollama native provider", () => {
         request: async (request) => {
           const messages = (request.body as { messages: Array<{ content: string }> }).messages;
           const payload = JSON.parse(messages.at(-1)!.content) as {
-            items: Array<{ id: string; text: string }>;
+            targets: Array<{ id: string; text: string }>;
           };
           return {
             statusCode: 200,
@@ -144,7 +161,7 @@ describe("Ollama native provider", () => {
             bodyText: JSON.stringify({
               message: {
                 content: JSON.stringify({
-                  translations: payload.items.map((item) => ({
+                  translations: payload.targets.map((item) => ({
                     id: item.id,
                     text: `T:${item.text}`,
                   })),

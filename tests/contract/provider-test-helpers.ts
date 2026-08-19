@@ -14,8 +14,8 @@ export function makeProviderRequest(): TranslationBatchRequest {
     sourceLanguage: "en",
     targetLanguage: "zh-Hans",
     items: [
-      { id: "c1", text: "one" },
-      { id: "c2", text: "two" },
+      { id: "c1", text: "one", contextNext: "two" },
+      { id: "c2", text: "two", contextPrevious: "one" },
     ],
   };
 }

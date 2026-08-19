@@ -209,6 +209,76 @@ describe("progressive translation output", () => {
     expect(playback.cacheSize).toBe(25);
   });
 
+  it("keeps original directional context after progress removes neighboring targets", async () => {
+    vi.useFakeTimers();
+    const requests: Array<Array<{ id: string; contextPrevious?: string; contextNext?: string }>> =
+      [];
+    let attempt = 0;
+    const provider: TranslationProvider = {
+      attempt: async (request, onProgress) => {
+        requests.push(structuredClone(request.items));
+        attempt += 1;
+        if (attempt === 1) {
+          onProgress?.({ translations: [{ id: "cue-1", text: "done" }] });
+          throw { category: "network", retryable: true };
+        }
+        return {
+          translations: request.items.map((item) => ({ id: item.id, text: `T:${item.text}` })),
+        };
+      },
+    };
+    const playback = controller(provider, new RecordingOverlay());
+
+    playback.tick(0);
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+    await playback.whenIdle();
+
+    expect(requests[1]?.find((target) => target.id === "cue-2")).toMatchObject({
+      contextPrevious: "source-1",
+      contextNext: "source-3",
+    });
+  });
+
+  it("rejects every duplicate candidate while accepting the unrelated valid subset", async () => {
+    vi.useFakeTimers();
+    const requestIds: string[][] = [];
+    let attempt = 0;
+    const provider: TranslationProvider = {
+      attempt: async (request, onProgress) => {
+        requestIds.push(request.items.map((item) => item.id));
+        attempt += 1;
+        if (attempt === 1) {
+          const progress = {
+            translations: [
+              { id: "cue-1", text: "first candidate" },
+              { id: "cue-1", text: "second candidate" },
+              { id: "cue-2", text: "valid" },
+            ],
+          };
+          onProgress?.(progress);
+          return progress;
+        }
+        return {
+          translations: request.items.map((item) => ({ id: item.id, text: `T:${item.text}` })),
+        };
+      },
+    };
+    const playback = controller(provider, new RecordingOverlay());
+
+    playback.tick(0);
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+    await playback.whenIdle();
+
+    expect(requestIds).toHaveLength(2);
+    expect(requestIds[1]).toContain("cue-1");
+    expect(requestIds[1]).not.toContain("cue-2");
+    expect(playback.cacheSize).toBe(25);
+  });
+
   it("deduplicates progress and terminal results while retaining the cache", async () => {
     const provider: TranslationProvider = {
       attempt: async (request, onProgress) => {

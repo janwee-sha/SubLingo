@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlaybackController, type TranslationOverlaySink } from "../../src/app/controller.js";
 import { DeterministicFakeProvider } from "../../src/providers/fake.js";
+import type { TranslationProvider } from "../../src/providers/provider.js";
 import { parseSrt } from "../../src/subtitles/srt.js";
 
 class RecordingOverlay implements TranslationOverlaySink {
@@ -20,6 +21,10 @@ class RecordingOverlay implements TranslationOverlaySink {
     this.clears += 1;
   }
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("US1 playback acceptance", () => {
   const cues = parseSrt(
@@ -47,6 +52,34 @@ describe("US1 playback acceptance", () => {
     expect(overlay.frames.at(-1)).toEqual(["ZH:World"]);
     expect(overlay.frames.flat()).not.toContain("pending");
     expect(controller.status).toBe("running");
+  });
+
+  it("does not display placeholders or technical errors for unknown, blank, or duplicate output", async () => {
+    vi.useFakeTimers();
+    const provider: TranslationProvider = {
+      attempt: async (request) => ({
+        translations: [
+          { id: "unknown", text: "outside" },
+          { id: request.items[0]!.id, text: " " },
+          { id: request.items[1]!.id, text: "first duplicate" },
+          { id: request.items[1]!.id, text: "second duplicate" },
+        ],
+      }),
+    };
+    const overlay = new RecordingOverlay();
+    const controller = new PlaybackController({ playerId: "invalid", provider, overlay });
+    controller.setSource({ cues, contentHash: "invalid", language: "en", format: "srt" });
+
+    controller.tick(1_000);
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+    await controller.whenIdle();
+
+    expect(overlay.frames).toEqual([]);
+    expect(overlay.frames.flat().join(" ")).not.toMatch(/pending|error|unknown|duplicate/i);
+    expect(controller.cacheSize).toBe(0);
+    expect(controller.status).toBe("serviceUnavailable");
   });
 
   it("isolates overlay exceptions and retries the current frame on the next tick", async () => {

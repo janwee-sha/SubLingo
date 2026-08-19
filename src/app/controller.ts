@@ -11,7 +11,7 @@ import { selectActiveTranslations } from "../subtitles/active-translations.js";
 import type { SubtitleCue } from "../subtitles/types.js";
 import { batchCues, selectNearbyCues } from "./scheduler.js";
 import { PlaybackSession } from "./playback-session.js";
-import { buildProviderRequest } from "./request-builder.js";
+import { buildProviderRequest, freezeTranslationTargets } from "./request-builder.js";
 import { classifyAttemptFailure, retryDelayMs } from "./retry-policy.js";
 import { SessionTranslationCache, type CacheIdentity } from "./session-cache.js";
 import { TranslationPipeline } from "./translation-pipeline.js";
@@ -216,10 +216,11 @@ export class PlaybackController {
     }
     const fingerprint = this.session.fingerprint();
     const requestNumber = ++this.requestSequence;
+    const frozenBatch = freezeTranslationTargets({ windowCues: window, targetCues: batch });
     this.status = "preparing";
     this.lastAttemptError = null;
     this.pipeline.run(async () => {
-      let remaining = [...batch];
+      let remaining = [...frozenBatch];
       let terminalError: ProviderAttemptError | null = null;
       for (let attempt = 0; attempt <= 3 && remaining.length > 0; attempt += 1) {
         if (!this.session.accepts(fingerprint) || this.source === null) return;
@@ -232,7 +233,7 @@ export class PlaybackController {
           endpointFingerprint: this.options.endpointFingerprint ?? "injected",
           sourceLanguage: sourceLanguage ?? this.source.language ?? "und",
           targetLanguage,
-          cues: remaining,
+          targets: remaining,
         });
         this.activeAttempt = { batchId: request.batchId, requestId: request.requestId };
         try {
@@ -299,16 +300,18 @@ export class PlaybackController {
   }
 
   private acceptResults(
-    requested: readonly SubtitleCue[],
+    requested: ReadonlyArray<{ id: string }>,
     result: TranslationBatchResult | TranslationBatchProgress,
     identity: CacheIdentity,
   ): Set<string> {
     const requestedIds = new Set(requested.map((cue) => cue.id));
+    const counts = new Map<string, number>();
+    for (const item of result.translations) counts.set(item.id, (counts.get(item.id) ?? 0) + 1);
     const seen = new Set<string>();
     const valid: Array<{ cueId: string; translation: string }> = [];
     for (const item of result.translations) {
       const text = item.text.trim();
-      if (!requestedIds.has(item.id) || seen.has(item.id) || !text) continue;
+      if (!requestedIds.has(item.id) || counts.get(item.id) !== 1 || !text) continue;
       seen.add(item.id);
       valid.push({ cueId: item.id, translation: text });
       this.translations.set(item.id, text);
