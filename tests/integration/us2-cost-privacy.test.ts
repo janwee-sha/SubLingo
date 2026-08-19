@@ -58,13 +58,67 @@ describe("US2 cost/privacy acceptance", () => {
     expect(
       provider.requests
         .flatMap((request) => request.items)
-        .every((item) => Object.keys(item).every((key) => ["id", "text", "context"].includes(key))),
+        .every((item) =>
+          Object.keys(item).every((key) =>
+            ["id", "text", "contextPrevious", "contextNext"].includes(key),
+          ),
+        ),
     ).toBe(true);
     expect(
       provider.requests
         .flatMap((request) => request.items)
         .every((item) => Number(item.id.slice(1)) * 5_000 <= 9 * 60_000 + 120_000),
     ).toBe(true);
+    expect(
+      provider.requests
+        .flatMap((request) => request.items)
+        .every(
+          (item) =>
+            [...(item.contextPrevious ?? "")].length + [...(item.contextNext ?? "")].length <= 500,
+        ),
+    ).toBe(true);
+  });
+
+  it("keeps request count, batching, lookahead, retries and outbound fields provider-independent", async () => {
+    const providers = [new RecordingProvider(), new RecordingProvider()];
+    for (const [index, provider] of providers.entries()) {
+      const controller = new PlaybackController({
+        playerId: `provider-${index}`,
+        provider,
+        overlay: new Sink(),
+        targetLanguage: "zh-Hans",
+      });
+      controller.setSource({
+        cues: longCues,
+        contentHash: "same",
+        language: "en",
+        format: "srt",
+      });
+      controller.tick(60_000);
+      await controller.whenIdle();
+      controller.tick(60_000);
+      await controller.whenIdle();
+    }
+
+    expect(providers[0]!.requests).toHaveLength(providers[1]!.requests.length);
+    expect(
+      providers.map((provider) => provider.requests.map((request) => request.items.length)),
+    ).toEqual([[25], [25]]);
+    for (const request of providers.flatMap((provider) => provider.requests)) {
+      expect(
+        request.items.every((item) => {
+          const sourceIndex = Number(item.id.slice(1));
+          return sourceIndex * 5_000 >= 60_000 && sourceIndex * 5_000 <= 180_000;
+        }),
+      ).toBe(true);
+      expect(
+        request.items.every((item) =>
+          Object.keys(item).every((key) =>
+            ["id", "text", "contextPrevious", "contextNext"].includes(key),
+          ),
+        ),
+      ).toBe(true);
+    }
   });
 
   it("invalidates rapid-seek/disable work, reuses backward cache, and purges on close/reopen", async () => {

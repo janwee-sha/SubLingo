@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { freezeTranslationTargets } from "../../src/app/request-builder.js";
 import { OllamaProvider } from "../../src/providers/ollama.js";
 import { OpenAICompatibleProvider } from "../../src/providers/openai.js";
 import type { ProviderTransport, ProviderTransportRequest } from "../../src/providers/transport.js";
+import type { TranslationBatchRequest, TranslationBatchResult } from "../../src/providers/types.js";
 import { makeProviderRequest } from "../contract/provider-test-helpers.js";
+import { createTranslationAlignmentFixture } from "../helpers/translation-alignment.js";
 
 class FetchTransport implements ProviderTransport {
   async request(request: ProviderTransportRequest) {
@@ -23,18 +26,54 @@ class FetchTransport implements ProviderTransport {
 
 const live = process.env.SUBLINGO_LIVE_PROVIDER_TEST === "1";
 
-function makeSixCueProviderRequest() {
+function makeLiveAcceptanceRequest(): TranslationBatchRequest {
+  const { continuousCues } = createTranslationAlignmentFixture();
+  const cues = continuousCues.slice(0, 50);
   return {
     ...makeProviderRequest(),
-    items: [
-      { id: "cue-1", text: "Welcome back." },
-      { id: "cue-2", text: "This is a translation test." },
-      { id: "cue-3", text: "The video must keep playing." },
-      { id: "cue-4", text: "Keep every cue in order." },
-      { id: "cue-5", text: "Return concise subtitles." },
-      { id: "cue-6", text: "The final cue is here." },
-    ],
+    items: freezeTranslationTargets({ windowCues: cues, targetCues: cues }),
   };
+}
+
+function expectCleanLiveTranslations(
+  request: TranslationBatchRequest,
+  result: TranslationBatchResult,
+): void {
+  const byId = new Map(request.items.map((target) => [target.id, target]));
+  const counts = {
+    adjacentContext: 0,
+    sourceEcho: 0,
+    romanization: 0,
+    fieldName: 0,
+    languageLabel: 0,
+    explanation: 0,
+  };
+  for (const translation of result.translations) {
+    const target = byId.get(translation.id)!;
+    if (
+      [target.contextPrevious, target.contextNext].some(
+        (context) => context && translation.text.includes(context),
+      )
+    )
+      counts.adjacentContext += 1;
+    if (translation.text.includes(target.text)) counts.sourceEcho += 1;
+    if (/\b(?:pinyin|romanization|romaji)\b/i.test(translation.text)) counts.romanization += 1;
+    if (/\b(?:targets?|context_previous|context_next|text|id)\b/i.test(translation.text))
+      counts.fieldName += 1;
+    if (/\b(?:source language|target language|English|Chinese)\b/i.test(translation.text))
+      counts.languageLabel += 1;
+    if (/(?:^|\n)\s*(?:translation|note|explanation)\s*[:：]/i.test(translation.text))
+      counts.explanation += 1;
+  }
+  expect(result.translations.map((item) => item.id)).toEqual(request.items.map((item) => item.id));
+  expect(counts).toEqual({
+    adjacentContext: 0,
+    sourceEcho: 0,
+    romanization: 0,
+    fieldName: 0,
+    languageLabel: 0,
+    explanation: 0,
+  });
 }
 
 async function withSafeProviderDiagnostics<T>(operation: Promise<T>): Promise<T> {
@@ -77,16 +116,10 @@ describe.skipIf(!live)("authorized live provider smoke tests", () => {
     await expect(withSafeProviderDiagnostics(provider.probe())).resolves.toMatch(
       /^(strict-json-schema|json-object|prompt-json)$/,
     );
-    const result = await withSafeProviderDiagnostics(provider.attempt(makeSixCueProviderRequest()));
-    expect(result.translations.map((item) => item.id)).toEqual([
-      "cue-1",
-      "cue-2",
-      "cue-3",
-      "cue-4",
-      "cue-5",
-      "cue-6",
-    ]);
-  }, 90_000);
+    const request = makeLiveAcceptanceRequest();
+    const result = await withSafeProviderDiagnostics(provider.attempt(request));
+    expectCleanLiveTranslations(request, result);
+  }, 300_000);
 
   it("probes and translates with the configured Ollama service", async () => {
     const endpoint = process.env.SUBLINGO_OLLAMA_ENDPOINT;
@@ -99,14 +132,8 @@ describe.skipIf(!live)("authorized live provider smoke tests", () => {
     );
 
     await expect(withSafeProviderDiagnostics(provider.probe())).resolves.toMatchObject({ model });
-    const result = await withSafeProviderDiagnostics(provider.attempt(makeSixCueProviderRequest()));
-    expect(result.translations.map((item) => item.id)).toEqual([
-      "cue-1",
-      "cue-2",
-      "cue-3",
-      "cue-4",
-      "cue-5",
-      "cue-6",
-    ]);
-  }, 180_000);
+    const request = makeLiveAcceptanceRequest();
+    const result = await withSafeProviderDiagnostics(provider.attempt(request));
+    expectCleanLiveTranslations(request, result);
+  }, 600_000);
 });

@@ -84,6 +84,61 @@ describe("allowlist-only diagnostics", () => {
     expect(state).not.toContain("/private/media/title.mkv");
   });
 
+  it("drops provider request, response, endpoint and subtitle details from failed controller state", async () => {
+    const sensitive = [
+      "PRIVATE_SOURCE_BODY",
+      "PRIVATE_TRANSLATION_BODY",
+      "https://private.example/v1",
+      "Bearer private",
+      "provider raw response",
+    ];
+    const controller = new PlaybackController({
+      playerId: "redaction",
+      provider: {
+        attempt: async () => {
+          throw {
+            category: "authentication",
+            retryable: false,
+            statusCode: 401,
+            endpoint: sensitive[2],
+            authorization: sensitive[3],
+            requestBody: sensitive[0],
+            responseBody: sensitive[4],
+            translation: sensitive[1],
+          };
+        },
+      },
+      overlay: { show: () => undefined, clear: () => undefined },
+      targetLanguage: "zh-Hans",
+    });
+    controller.setSource({
+      cues: [
+        {
+          id: "private-cue",
+          index: 0,
+          startMs: 0,
+          endMs: 1_000,
+          sourceText: sensitive[0]!,
+          normalizedText: sensitive[0]!,
+        },
+      ],
+      contentHash: "private-content",
+      language: "en",
+      format: "srt",
+    });
+
+    controller.tick(0);
+    await controller.whenIdle();
+
+    const state = JSON.stringify({ status: controller.status, error: controller.providerError });
+    expect(controller.providerError).toMatchObject({
+      category: "authentication",
+      retryable: false,
+      userAction: "CHECK_CREDENTIALS",
+    });
+    for (const value of sensitive) expect(state).not.toContain(value);
+  });
+
   it("rejects legacy source preferences before they can cross the language RPC", () => {
     expect(() =>
       parseTargetLanguageSave({

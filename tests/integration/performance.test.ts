@@ -5,6 +5,7 @@ import type { SubtitleCue } from "../../src/subtitles/types.js";
 import { readFileSync } from "node:fs";
 import { selectNearbyCues } from "../../src/app/scheduler.js";
 import { detectSubtitleLanguage } from "../../src/subtitles/language-detection.js";
+import { createTranslationAlignmentFixture } from "../helpers/translation-alignment.js";
 
 class LatestOverlay implements TranslationOverlaySink {
   lines: string[] = [];
@@ -185,5 +186,93 @@ describe("automated acceptance performance", () => {
     expect(emptyTicks).toBeLessThanOrEqual(5);
     controller.tick(35_000);
     expect(overlay.clearCount).toBeGreaterThan(0);
+  });
+
+  it("aligns 100 cues without extra Provider attempts or concurrent window work", async () => {
+    const { continuousCues } = createTranslationAlignmentFixture();
+    let attempts = 0;
+    let active = 0;
+    let maxActive = 0;
+    const provider: TranslationProvider = {
+      attempt: async (request) => {
+        attempts += 1;
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        const result = {
+          translations: request.items.map((item) => ({ id: item.id, text: `T:${item.text}` })),
+        };
+        active -= 1;
+        return result;
+      },
+    };
+    const controller = new PlaybackController({
+      playerId: "alignment-load",
+      provider,
+      overlay: new LatestOverlay(),
+      targetLanguage: "zh-Hans",
+    });
+    controller.setSource({
+      cues: continuousCues,
+      contentHash: "alignment-load",
+      language: "en",
+      format: "srt",
+    });
+
+    const started = performance.now();
+    for (const cue of continuousCues) {
+      controller.tick(cue.startMs);
+      await controller.whenIdle();
+    }
+
+    expect(attempts).toBe(61);
+    expect(maxActive).toBe(1);
+    expect(performance.now() - started).toBeLessThan(5_000);
+    expect(controller.cacheSize).toBe(100);
+  });
+
+  it("keeps a 30-minute equivalent load isolated after a source lifecycle change", async () => {
+    const loadCues = Array.from({ length: 1_800 }, (_, index): SubtitleCue => ({
+      id: `load-${index}`,
+      index,
+      startMs: index * 1_000,
+      endMs: index * 1_000 + 900,
+      sourceText: `first-${index}`,
+      normalizedText: `first-${index}`,
+    }));
+    const overlay = new LatestOverlay();
+    const provider: TranslationProvider = {
+      attempt: async (request) => ({
+        translations: request.items.map((item) => ({ id: item.id, text: `T:${item.text}` })),
+      }),
+    };
+    const controller = new PlaybackController({
+      playerId: "long-load",
+      provider,
+      overlay,
+      targetLanguage: "zh-Hans",
+    });
+    controller.setSource({ cues: loadCues, contentHash: "first", language: "en", format: "srt" });
+    for (let position = 0; position < 30 * 60_000; position += 30_000) {
+      controller.tick(position);
+      await controller.whenIdle();
+    }
+
+    const replacement = loadCues.map((cue) => ({
+      ...cue,
+      sourceText: cue.sourceText.replace("first", "second"),
+      normalizedText: cue.normalizedText.replace("first", "second"),
+    }));
+    controller.setSource({
+      cues: replacement,
+      contentHash: "second",
+      language: "en",
+      format: "srt",
+    });
+    controller.tick(0);
+    await controller.whenIdle();
+
+    expect(overlay.lines).toEqual(["T:second-0"]);
+    expect(overlay.lines.join(" ")).not.toContain("first-");
+    expect(controller.cacheSize).toBe(25);
   });
 });

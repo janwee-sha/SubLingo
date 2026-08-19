@@ -1,9 +1,74 @@
 import { describe, expect, it } from "vitest";
 import { OpenAICompatibleProvider } from "../../src/providers/openai.js";
 import type { ProviderTransport } from "../../src/providers/transport.js";
+import { buildTranslationTask } from "../../src/providers/translation-task.js";
 import { makeProviderRequest } from "./provider-test-helpers.js";
 
 describe("OpenAI-compatible provider", () => {
+  it.each(["strict-json-schema", "json-object", "prompt-json"] as const)(
+    "uses the shared directional target contract in %s mode",
+    async (capability) => {
+      let capturedBody: Record<string, unknown> | undefined;
+      const provider = new OpenAICompatibleProvider(
+        {
+          endpoint: "https://example.test/v1",
+          model: "model",
+          capability,
+          sessionId: "session",
+        },
+        {
+          request: async (request) => {
+            capturedBody = request.body as Record<string, unknown>;
+            const messages = capturedBody.messages as Array<{ content: string }>;
+            const payload = JSON.parse(messages[1]!.content) as {
+              targets: Array<{ id: string; text: string }>;
+            };
+            return {
+              statusCode: 200,
+              headers: {},
+              bodyText: JSON.stringify({
+                choices: [
+                  {
+                    finish_reason: "stop",
+                    message: {
+                      content: JSON.stringify({
+                        translations: payload.targets.map((target) => ({
+                          id: target.id,
+                          text: `T:${target.text}`,
+                        })),
+                      }),
+                    },
+                  },
+                ],
+              }),
+            };
+          },
+        },
+      );
+
+      await provider.attempt(makeProviderRequest());
+
+      const messages = capturedBody!.messages as Array<{ content: string }>;
+      const payload = JSON.parse(messages[1]!.content);
+      const expectedTask = buildTranslationTask({
+        sourceLanguage: "en",
+        targetLanguage: "zh-Hans",
+        targets: [
+          { id: "c1", text: "one", context_next: "two" },
+          { id: "c2", text: "two", context_previous: "one" },
+        ],
+      });
+      expect(payload).toEqual(JSON.parse(expectedTask.userMessage));
+      expect(messages[0]!.content).toBe(expectedTask.systemMessage);
+      expect(JSON.stringify(payload)).not.toContain('"items"');
+      if (capability === "strict-json-schema")
+        expect(
+          (capturedBody!.response_format as { json_schema: { schema: unknown } }).json_schema
+            .schema,
+        ).toEqual(expectedTask.outputSchema);
+    },
+  );
+
   it("probes strict schema then persists the working capability", async () => {
     const modes: string[] = [];
     const transport: ProviderTransport = {
@@ -107,9 +172,9 @@ describe("OpenAI-compatible provider", () => {
         request: async (request) => {
           const messages = (request.body as { messages: Array<{ content: string }> }).messages;
           const payload = JSON.parse(messages.at(-1)!.content) as {
-            items: Array<{ id: string; text: string }>;
+            targets: Array<{ id: string; text: string }>;
           };
-          calls.push(payload.items);
+          calls.push(payload.targets);
           return {
             statusCode: 200,
             headers: {},
@@ -119,7 +184,7 @@ describe("OpenAI-compatible provider", () => {
                   finish_reason: "stop",
                   message: {
                     content: JSON.stringify({
-                      translations: payload.items.map((item) => ({
+                      translations: payload.targets.map((item) => ({
                         id: item.id,
                         text: `T:${item.text}`,
                       })),
@@ -159,7 +224,7 @@ describe("OpenAI-compatible provider", () => {
           sessionHeaders.push(request.headers["X-Session-Id"]);
           const messages = (request.body as { messages: Array<{ content: string }> }).messages;
           const payload = JSON.parse(messages.at(-1)!.content) as {
-            items: Array<{ id: string; text: string }>;
+            targets: Array<{ id: string; text: string }>;
           };
           return {
             statusCode: 200,
@@ -170,7 +235,7 @@ describe("OpenAI-compatible provider", () => {
                   finish_reason: "stop",
                   message: {
                     content: JSON.stringify({
-                      translations: payload.items.map((item) => ({
+                      translations: payload.targets.map((item) => ({
                         id: item.id,
                         text: `T:${item.text}`,
                       })),
@@ -253,7 +318,7 @@ describe("OpenAI-compatible provider", () => {
         request: async (request) => {
           const messages = (request.body as { messages: Array<{ content: string }> }).messages;
           const payload = JSON.parse(messages.at(-1)!.content) as {
-            items: Array<{ id: string; text: string }>;
+            targets: Array<{ id: string; text: string }>;
           };
           return {
             statusCode: 200,
@@ -264,7 +329,7 @@ describe("OpenAI-compatible provider", () => {
                   finish_reason: "stop",
                   message: {
                     content: JSON.stringify({
-                      translations: payload.items.map((item) => ({
+                      translations: payload.targets.map((item) => ({
                         id: item.id,
                         text: `T:${item.text}`,
                       })),

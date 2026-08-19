@@ -4,13 +4,14 @@ import type {
   TranslationBatchRequest,
   TranslationBatchResult,
   TranslationProgressHandler,
+  WireTranslationTarget,
 } from "./types.js";
 import type { ProviderTransport, ProviderTransportResponse } from "./transport.js";
 import { providerHttpError, protocolError } from "./errors.js";
 import { normalizeProviderEndpoint } from "./profiles.js";
 import { validateIdOutput } from "./validation.js";
-import { encodeWireItems, providerOutputSchema } from "./wire-items.js";
-import { getProviderLanguageLabel } from "../domain/target-languages.js";
+import { encodeWireItems } from "./wire-items.js";
+import { buildTranslationTask } from "./translation-task.js";
 
 const MAX_ITEMS_PER_CHAT_REQUEST = 2;
 
@@ -166,14 +167,12 @@ export class OllamaProvider implements ConfiguredProvider {
 
   private async chat(
     jobId: string,
-    items: Array<{ id: string; text: string; context?: string }>,
+    items: WireTranslationTarget[],
     sourceLanguage: string,
     targetLanguage: string,
     timeoutMs: number,
   ): Promise<ProviderTransportResponse> {
-    const sourceLabel = getProviderLanguageLabel(sourceLanguage);
-    const targetLabel = getProviderLanguageLabel(targetLanguage);
-    if (!sourceLabel || !targetLabel) throw protocolError("INVALID_LANGUAGE_ID");
+    const task = buildTranslationTask({ sourceLanguage, targetLanguage, targets: items });
     this.activeJobs.add(jobId);
     try {
       return await this.transport.request({
@@ -186,14 +185,14 @@ export class OllamaProvider implements ConfiguredProvider {
           model: this.config.model,
           stream: false,
           think: false,
-          format: providerOutputSchema(items.map((item) => item.id)),
+          format: task.outputSchema,
           options: { temperature: 0 },
           messages: [
             {
               role: "system",
-              content: `Translate every JSON subtitle item from ${sourceLabel} to ${targetLabel}. Each input ID must appear exactly once in translations. Return JSON only.`,
+              content: task.systemMessage,
             },
-            { role: "user", content: JSON.stringify({ items }) },
+            { role: "user", content: task.userMessage },
           ],
         },
         timeoutMs,
