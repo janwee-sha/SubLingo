@@ -16,6 +16,8 @@ for required in "$PACKAGE_DIR/Info.json" "$PACKAGE_DIR/README.md" "$PACKAGE_DIR/
   fi
 done
 
+node "$PROJECT_DIR/scripts/plugin-update-metadata.mjs" --manifest "$PACKAGE_DIR/Info.json" >/dev/null
+
 for compliance_file in LICENSE THIRD_PARTY_NOTICES.txt; do
   if ! cmp -s "$PROJECT_DIR/$compliance_file" "$PACKAGE_DIR/$compliance_file"; then
     echo "Packaged compliance file differs from repository source: $compliance_file" >&2

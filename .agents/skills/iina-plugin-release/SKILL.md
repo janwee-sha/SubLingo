@@ -21,14 +21,16 @@ description: 统一 SubLingo IINA 插件的版本变更、基于用户指定版�
 
 读取并比较以下项目自身版本：
 
-- `Info.json` 的 `version`。
+- `Info.json` 的 `version`、`ghRepo` 和 `ghVersion`。
 - `package.json` 的顶层 `version`。
 - `package-lock.json` 的顶层 `version` 和 `packages[""]` 的 `version`。
 - `scripts/pack.sh` 中决定 SubLingo 产物文件名及其安全校验路径的项目版本。
 
+`ghRepo` 必须保持为 `janwee-sha/SubLingo`。`ghVersion` 必须按目标稳定版本的 `major * 1,000,000 + minor * 1,000 + patch` 计算，每个版本分量限于 `0..999`，并随版本提升严格递增。
+
 只精确修改这些项目自有字段或字面量。不要全局替换旧版本号，不要修改 `package-lock.json` 中任何第三方包的 `version`、`resolved`、依赖范围或完整性数据，也不要借版本发布顺带升级依赖。打包脚本结构变化时，先识别真正控制 SubLingo 归档名称及安全边界的位置，不要根据相同数字盲改。
 
-修改后解析三个 JSON 文件，确认项目版本全部等于目标版本；检查打包产物名也使用同一版本。用 `git diff --` 审查版本变更，确认锁文件没有无关改动后再继续。
+修改后解析三个 JSON 文件，确认项目版本全部等于目标版本；运行 `node scripts/plugin-update-metadata.mjs --manifest Info.json` 校验更新身份，并检查打包产物名也使用同一版本。用 `git diff --` 审查版本变更，确认锁文件没有无关改动后再继续。
 
 ## 3. 根据规格撰写 release notes
 
@@ -92,6 +94,7 @@ npm run pack
 - 精确字节大小；可附便于阅读的大小。
 - SHA-256。
 - 包内实际版本，不以文件名代替。
+- 包内实际 `ghRepo` 和 `ghVersion`，不以工作区文件代替。
 - native helper 的架构、可执行权限和签名验证结果。
 - 八项自动化门禁的结果，以及尚未完成的人工验收。
 
@@ -121,4 +124,4 @@ GitHub Release 中描述功能变化的内容必须以 `docs/releases/vX.Y.Z.md`
 
 ## 完成条件
 
-仅在用户已明确提供目标版本对应规格、`docs/releases/vX.Y.Z.md` 与规格和交付状态一致、版本一致、八项自动化门禁全部通过、构建与包内 native helper 均通过验收、最终归档内容合规且产物证据已生成时完成打包工作。自动发布还必须确认公开 Release 的功能变化说明与该文件语义一致、Release 为非 prerelease、tag 指向新版本的触发 commit、资产完整且标记 Latest。IINA 图形界面中的正式安装、卸载和实际播放属于独立宿主验收；未执行时保持未覆盖状态，但不阻塞正式 Release。
+仅在用户已明确提供目标版本对应规格、`docs/releases/vX.Y.Z.md` 与规格和交付状态一致、版本和更新身份一致、八项自动化门禁全部通过、构建与包内 native helper 均通过验收、最终归档内容合规且产物证据已生成时完成打包工作。自动发布还必须确认公开 Release 的功能变化说明与该文件语义一致、Release 为非 prerelease、tag 指向新版本的触发 commit、资产完整且标记 Latest。IINA 图形界面中的正式安装、卸载和实际播放属于独立宿主验收；未执行时保持未覆盖状态，但不阻塞正式 Release。

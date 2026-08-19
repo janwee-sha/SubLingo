@@ -53,7 +53,7 @@ Ouvrez IINA et accédez à **Préférences → Modules externes**. Le gestionnai
 2. Saisissez `janwee-sha/SubLingo` dans le champ `user/repo`, puis confirmez l'installation.
 3. Attendez que SubLingo apparaisse dans la liste des modules installés.
 
-Les modules installés depuis GitHub peuvent être mis à jour automatiquement par IINA.
+À partir de SubLingo 0.3.3, IINA peut rechercher et installer les versions ultérieures. Les versions 0.3.2 et antérieures ne contiennent pas les métadonnées de mise à jour ; effectuez donc une mise à niveau manuelle unique vers 0.3.3 depuis GitHub ou avec le paquet téléchargé.
 
 ### Installer un paquet téléchargé
 

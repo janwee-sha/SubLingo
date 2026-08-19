@@ -12,6 +12,8 @@ describe("IINA package manifest", () => {
     expect(manifest.globalEntry).toBe("dist/global.js");
     expect(manifest).not.toHaveProperty("global");
     expect(manifest.permissions).toEqual(["network-request", "file-system", "show-alert"]);
+    expect(manifest.ghRepo).toBe("janwee-sha/SubLingo");
+    expect(manifest.ghVersion).toBe(3003);
   });
 
   it("describes self-rendered translations without temporary display files", () => {
@@ -98,6 +100,7 @@ describe("IINA package manifest", () => {
     expect(verify).toContain("codesign --verify --strict");
     expect(verify).toContain("otool -L");
     expect(verify).toContain("12.0");
+    expect(verify).toContain("plugin-update-metadata.mjs");
   });
 
   it("limits source and object scans to the runtime distribution tree", () => {

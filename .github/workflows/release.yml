@@ -105,6 +105,8 @@ jobs:
           node scripts/audit-release.mjs
           --artifact "${{ steps.metadata.outputs.artifact_path }}"
           --expected-version "${{ steps.metadata.outputs.version }}"
+          --expected-github-repository "${{ steps.metadata.outputs.github_repository }}"
+          --expected-github-version "${{ steps.metadata.outputs.github_version }}"
           --expected-commit "$GITHUB_SHA"
           --build-helper dist/native/sublingo-transport
           --build-extractor dist/native/sublingo-subtitle-extractor

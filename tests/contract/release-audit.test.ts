@@ -138,17 +138,58 @@ describe("release archive audit", () => {
     expect(() =>
       validateArtifactIdentity({
         artifactName: "SubLingo-0.2.0.iinaplgz",
-        packageVersion: "0.1.0",
+        packageInfo: {
+          version: "0.1.0",
+          ghRepo: "janwee-sha/SubLingo",
+          ghVersion: 1000,
+        },
         expectedVersion: "0.1.0",
+        expectedGithubRepository: "janwee-sha/SubLingo",
+        expectedGithubVersion: 1000,
       }),
     ).toThrow(/artifact name/);
     expect(() =>
       validateArtifactIdentity({
         artifactName: "SubLingo-0.1.0.iinaplgz",
-        packageVersion: "0.2.0",
+        packageInfo: {
+          version: "0.2.0",
+          ghRepo: "janwee-sha/SubLingo",
+          ghVersion: 2000,
+        },
         expectedVersion: "0.1.0",
+        expectedGithubRepository: "janwee-sha/SubLingo",
+        expectedGithubVersion: 1000,
       }),
     ).toThrow(/package version/);
+  });
+
+  it("rejects final archive update identity drift", () => {
+    expect(() =>
+      validateArtifactIdentity({
+        artifactName: "SubLingo-0.3.3.iinaplgz",
+        packageInfo: {
+          version: "0.3.3",
+          ghRepo: "another/repository",
+          ghVersion: 3003,
+        },
+        expectedVersion: "0.3.3",
+        expectedGithubRepository: "janwee-sha/SubLingo",
+        expectedGithubVersion: 3003,
+      }),
+    ).toThrow(/repository/i);
+    expect(() =>
+      validateArtifactIdentity({
+        artifactName: "SubLingo-0.3.3.iinaplgz",
+        packageInfo: {
+          version: "0.3.3",
+          ghRepo: "janwee-sha/SubLingo",
+          ghVersion: 3002,
+        },
+        expectedVersion: "0.3.3",
+        expectedGithubRepository: "janwee-sha/SubLingo",
+        expectedGithubVersion: 3003,
+      }),
+    ).toThrow(/ghVersion|update/i);
   });
 
   it.each([
@@ -251,6 +292,10 @@ describe("release archive audit", () => {
       commit: "a".repeat(40),
       artifactName: "SubLingo-0.2.0.iinaplgz",
       packageVersion: "0.2.0",
+      updateIdentity: {
+        githubRepository: "janwee-sha/SubLingo",
+        githubVersion: 2000,
+      },
       byteSize: 42,
       sha256: "b".repeat(64),
       gates,
@@ -282,6 +327,10 @@ describe("release archive audit", () => {
       commit: "a".repeat(40),
       artifactName: "SubLingo-0.2.0.iinaplgz",
       checksumName: "SubLingo-0.2.0.iinaplgz.sha256",
+      updateIdentity: {
+        githubRepository: "janwee-sha/SubLingo",
+        githubVersion: 2000,
+      },
       gates,
       entries: validEntries,
       releaseNotes: {

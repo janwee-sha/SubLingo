@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { validatePluginUpdateMetadata } from "./plugin-update-metadata.mjs";
 import { readReleaseNotes } from "./release-notes.mjs";
 
 const stableSemverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -14,7 +15,6 @@ export function validateReleaseMetadata(input) {
   if (!stableSemverPattern.test(version)) {
     throw new Error(`Info.json version is not stable SemVer: ${version}`);
   }
-
   const sources = [
     ["package.json", input.packageVersion],
     ["package-lock.json", input.lockVersion],
@@ -25,6 +25,11 @@ export function validateReleaseMetadata(input) {
       throw new Error(`Project version mismatch: Info.json=${version}, ${source}=${sourceVersion}`);
     }
   }
+  const updateIdentity = validatePluginUpdateMetadata({
+    version,
+    ghRepo: input.infoGithubRepository,
+    ghVersion: input.infoGithubVersion,
+  });
 
   const licenses = [
     ["package.json", input.packageLicense],
@@ -80,6 +85,7 @@ export function validateReleaseMetadata(input) {
     artifactName,
     artifactPath: `build/package/${artifactName}`,
     license: projectLicense,
+    ...updateIdentity,
     ffmpegSourceAssetName: ffmpeg.sourceDistribution.assetName,
     ffmpegSourceChecksumName: ffmpeg.sourceDistribution.checksumAssetName,
   };
@@ -99,6 +105,8 @@ export function readReleaseMetadata(rootDirectory) {
 
   const metadata = validateReleaseMetadata({
     infoVersion: info.version,
+    infoGithubRepository: info.ghRepo,
+    infoGithubVersion: info.ghVersion,
     packageVersion: packageManifest.version,
     lockVersion: packageLock.version,
     lockRootVersion: packageLock.packages?.[""]?.version,
@@ -146,6 +154,8 @@ function main() {
         `tag=${metadata.tag}`,
         `artifact_name=${metadata.artifactName}`,
         `artifact_path=${metadata.artifactPath}`,
+        `github_repository=${metadata.githubRepository}`,
+        `github_version=${metadata.githubVersion}`,
         `release_notes_path=${metadata.releaseNotesPath}`,
         `release_notes_sha256=${metadata.releaseNotesSha256}`,
         `ffmpeg_source_asset_name=${metadata.ffmpegSourceAssetName}`,

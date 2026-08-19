@@ -5,6 +5,8 @@ import { readReleaseMetadata, validateReleaseMetadata } from "../../scripts/rele
 
 const validInput = {
   infoVersion: "0.1.0",
+  infoGithubRepository: "janwee-sha/SubLingo",
+  infoGithubVersion: 1000,
   packageVersion: "0.1.0",
   lockVersion: "0.1.0",
   lockRootVersion: "0.1.0",
@@ -40,6 +42,8 @@ describe("release metadata", () => {
       artifactName: "SubLingo-0.1.0.iinaplgz",
       artifactPath: "build/package/SubLingo-0.1.0.iinaplgz",
       license: "GPL-3.0-only",
+      githubRepository: "janwee-sha/SubLingo",
+      githubVersion: 1000,
       ffmpegSourceAssetName: "ffmpeg-8.1.2.tar.xz",
       ffmpegSourceChecksumName: "ffmpeg-8.1.2.tar.xz.sha256",
     });
@@ -53,6 +57,15 @@ describe("release metadata", () => {
       );
     },
   );
+
+  it("rejects missing or version-drifted IINA update metadata", () => {
+    expect(() =>
+      validateReleaseMetadata({ ...validInput, infoGithubRepository: undefined }),
+    ).toThrow(/repository/i);
+    expect(() => validateReleaseMetadata({ ...validInput, infoGithubVersion: 999 })).toThrow(
+      /ghVersion|update/i,
+    );
+  });
 
   it.each([
     ["Info.json", "infoVersion"],
@@ -95,6 +108,8 @@ describe("release metadata", () => {
   it("keeps repository license sources consistent", () => {
     const metadata = readReleaseMetadata(fileURLToPath(new URL("../../", import.meta.url)));
     expect(metadata.license).toBe("GPL-3.0-only");
+    expect(metadata.githubRepository).toBe("janwee-sha/SubLingo");
+    expect(metadata.githubVersion).toBe(3003);
     expect(metadata.ffmpegSourceAssetName).toBe("ffmpeg-8.1.2.tar.xz");
   });
 
