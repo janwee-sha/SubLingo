@@ -101,6 +101,12 @@ describe("automatic release workflow", () => {
     );
     expect(workflow).toContain("path: build/release/");
     expect(workflow).toContain("--notes-file build/release/release-notes.md");
+    expect(workflow).toContain(
+      '--expected-github-repository "${{ steps.metadata.outputs.github_repository }}"',
+    );
+    expect(workflow).toContain(
+      '--expected-github-version "${{ steps.metadata.outputs.github_version }}"',
+    );
   });
 
   it("does not generate, commit, or push a release body in the workflow", () => {

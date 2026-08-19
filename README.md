@@ -54,7 +54,7 @@ Open IINA and go to **Settings → Plugins**. The plugin manager supports both i
 2. Enter `janwee-sha/SubLingo` in the `user/repo` field, then confirm the installation.
 3. Wait for SubLingo to appear in the installed plugins list.
 
-Plugins installed from GitHub can be updated automatically by IINA.
+Starting with SubLingo 0.3.3, IINA can check for and install later releases. Version 0.3.2 and earlier do not contain update metadata, so upgrade to 0.3.3 once by installing from GitHub or a downloaded package.
 
 ### Install a downloaded package
 

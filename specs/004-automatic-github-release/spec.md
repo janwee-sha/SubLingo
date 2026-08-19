@@ -103,7 +103,7 @@
 ## 范围边界
 
 - 不修改插件运行时 API、消息结构、配置类型、网络目的地或持久化数据。
-- 不新增 prerelease、人工提升、Developer ID 签名、公证或自动更新机制。
+- 不新增 prerelease、人工提升、Developer ID 签名或公证；IINA 客户端更新发现由 [012](../012-iina-auto-update/spec.md) 负责。
 - Native helper 继续使用现有 ad-hoc 签名策略。
 - CI 通过即构成自动发布门槛；IINA 图形界面实机行为不作为 Release 前置条件。
 

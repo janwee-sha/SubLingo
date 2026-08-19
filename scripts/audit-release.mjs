@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { validatePluginUpdateMetadata } from "./plugin-update-metadata.mjs";
 import { readReleaseNotes } from "./release-notes.mjs";
 
 const gateLabels = [
@@ -172,11 +173,23 @@ export function validateArtifactIdentity(input) {
       `Release artifact name mismatch: expected ${expectedName}, received ${input.artifactName}`,
     );
   }
-  if (input.packageVersion !== input.expectedVersion) {
+  if (input.packageInfo.version !== input.expectedVersion) {
     throw new Error(
-      `Release package version mismatch: expected ${input.expectedVersion}, received ${input.packageVersion}`,
+      `Release package version mismatch: expected ${input.expectedVersion}, received ${input.packageInfo.version}`,
     );
   }
+  const updateIdentity = validatePluginUpdateMetadata(input.packageInfo);
+  if (updateIdentity.githubRepository !== input.expectedGithubRepository) {
+    throw new Error(
+      `Release package update repository mismatch: expected ${input.expectedGithubRepository}, received ${updateIdentity.githubRepository}`,
+    );
+  }
+  if (updateIdentity.githubVersion !== input.expectedGithubVersion) {
+    throw new Error(
+      `Release package ghVersion mismatch: expected ${input.expectedGithubVersion}, received ${updateIdentity.githubVersion}`,
+    );
+  }
+  return updateIdentity;
 }
 
 export function validateHelperFacts(label, facts) {
@@ -272,6 +285,7 @@ export function buildReleaseAudit(input) {
     artifactName: input.artifactName,
     checksumName: `${input.artifactName}.sha256`,
     packageVersion: input.packageVersion,
+    updateIdentity: input.updateIdentity,
     byteSize: input.byteSize,
     sha256: input.sha256,
     gates: input.gates,
@@ -297,6 +311,8 @@ export function formatReleaseAuditSummary(audit) {
     `- Commit: \`${audit.commit}\``,
     `- Artifact: \`${audit.artifactName}\` (${audit.byteSize} bytes)`,
     `- Artifact SHA-256: \`${audit.sha256}\``,
+    `- Update repository: \`${audit.updateIdentity.githubRepository}\``,
+    `- Update version: \`${audit.updateIdentity.githubVersion}\``,
     `- Release notes: \`${audit.releaseNotes.sourcePath}\``,
     `- Release notes SHA-256: \`${audit.releaseNotes.rawSha256}\``,
     "",
@@ -531,10 +547,12 @@ export function auditRelease(options) {
         );
       }
     }
-    validateArtifactIdentity({
+    const updateIdentity = validateArtifactIdentity({
       artifactName: basename(artifactPath),
-      packageVersion: packageInfo.version,
+      packageInfo,
       expectedVersion: options.expectedVersion,
+      expectedGithubRepository: options.expectedGithubRepository,
+      expectedGithubVersion: Number(options.expectedGithubVersion),
     });
 
     const helperPaths = {
@@ -569,6 +587,7 @@ export function auditRelease(options) {
       commit: options.expectedCommit,
       artifactName,
       packageVersion: packageInfo.version,
+      updateIdentity,
       byteSize,
       sha256,
       gates,
@@ -611,6 +630,8 @@ function parseArguments(argumentsList) {
   const names = new Map([
     ["--artifact", "artifact"],
     ["--expected-version", "expectedVersion"],
+    ["--expected-github-repository", "expectedGithubRepository"],
+    ["--expected-github-version", "expectedGithubVersion"],
     ["--expected-commit", "expectedCommit"],
     ["--build-helper", "buildHelper"],
     ["--build-extractor", "buildExtractor"],
@@ -633,6 +654,8 @@ function parseArguments(argumentsList) {
   for (const name of [
     "artifact",
     "expectedVersion",
+    "expectedGithubRepository",
+    "expectedGithubVersion",
     "expectedCommit",
     "buildHelper",
     "buildExtractor",

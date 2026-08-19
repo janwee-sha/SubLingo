@@ -1,6 +1,6 @@
 {
   "name": "sublingo",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "license": "GPL-3.0-only",
   "description": "Real-time bilingual subtitle translation for IINA 1.4+",
@@ -15,7 +15,7 @@
     "build:native": "./scripts/build-native.sh",
     "pack": "./scripts/pack.sh",
     "test": "vitest run",
-    "test:release": "vitest run tests/contract/release-metadata.test.ts tests/contract/release-audit.test.ts tests/contract/release-publish.test.ts tests/contract/release-workflow.test.ts",
+    "test:release": "vitest run tests/contract/plugin-update-metadata.test.ts tests/contract/release-metadata.test.ts tests/contract/release-audit.test.ts tests/contract/release-publish.test.ts tests/contract/release-workflow.test.ts",
     "test:watch": "vitest",
     "test:native": "./scripts/test-native.sh",
     "typecheck": "tsc -p tsconfig.plugin.json --noEmit && tsc -p tsconfig.webview.json --noEmit",
