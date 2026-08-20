@@ -1,6 +1,6 @@
 # 数据模型：Provider HTTP 与 Profile 交互优化
 
-本功能不新增持久化实体。Provider Profile、凭据与版本身份沿用现有存储；列表代次、删除墓碑、操作反馈和名称来源只存在于所属 Main 或 Sidebar 生命周期。
+本功能不新增持久化实体。Provider Profile、凭据与版本身份沿用现有存储；列表代次、删除墓碑、区域请求身份、全局操作消息和名称来源只存在于所属 Main 或 Sidebar 生命周期。
 
 ## ProviderProfile
 
@@ -50,6 +50,8 @@ pending(B) --result(B)--> committed(B)
 - `selectedProfileId`：当前窗口选择，可为空。
 - `credentialDisplayProfileId`：编辑器当前展示凭据状态的 Profile，可为空。
 - `profileTests`：按 Profile 保存当前 revision 的 Test 记录。
+- `latestRequestByRegion`：每个操作区域当前允许产生终态消息的最新请求身份。
+- `activeFeedback`：全局唯一可见操作消息，可为空。
 
 应用列表快照前始终过滤 `deletedProfileIds`。墓碑随 WebView 销毁，不进入 preferences；重新打开时 Global 的持久删除状态成为权威来源。
 
@@ -68,23 +70,29 @@ pending(B) --result(B)--> committed(B)
 - `profileId`、`revision`：仅 Profile 行或编辑操作需要。
 - `busyMessage`：安全的运行中英语文案。
 
-请求状态只保存控件身份，不保存 DOM 节点。Profile 行重绘据此恢复 busy/idle。
+请求状态只保存控件身份，不保存 DOM 节点。每个区域独立维护 latest request；Profile 行重绘据此恢复 busy/idle，即使该请求的消息已因 1 秒到期或其他区域新消息而清除。
 
 ## OperationFeedback
 
-- `regionId`：反馈所属区域。
-- `latestRequestId`：该区域允许更新消息的最新请求。
+- `messageId`：每次消息写入生成的全局单调身份；同一 request 的 busy 与终态也必须不同。
+- `requestId`：产生该消息的请求身份。
+- `regionId`：消息实际显示的所属区域。
+- `actionId`：消息对应的控件操作。
 - `phase`：`busy | success | error | cancelled`。
 - `message`：安全的用户可见英语消息。
+- `expiresAt`：消息写入后 1000 ms 的到期时刻。
+- `placement`：普通区域或删除成功后的原列表位置。
 
 ```text
-idle -> busy(A) -> success(A) | error(A) | cancelled(A)
-busy(A) --同区域新请求 B--> busy(B)
-busy(B) --结果 A--> busy(B)，只释放 A 对应控件
-busy(B) --结果 B--> 终态(B)
+idle --区域 A 写入 busy(A.1)--> active(A.1)
+active(A.1) --任一区域 B 写入新消息(B.1)--> active(B.1)，立即清除 A.1
+active(A.1) --同 request A 写入终态(A.2)--> active(A.2)，重新开始 1000 ms
+active(A.2) --到期(A.1)--> active(A.2)，忽略旧消息身份
+active(A.2) --到期(A.2)--> idle
+active(B.1) --区域 A 的非 latest/未知/重复结果--> active(B.1)
 ```
 
-未知、重复或迟到结果不得改变反馈。不同 `regionId` 互不覆盖。权威业务状态与反馈分离：例如 Main 已确认的新选择仍可通过快照收敛，但迟到 Select 文案不得覆盖同一区域的新请求。
+全局同时最多存在一个 `activeFeedback`。只有通过所属区域 latest request 校验的消息写入才能替换当前消息并清除其他区域；另一区域仍为 latest 的 pending 请求后来产生终态时，该终态视为新的全局消息。未知、重复、同区域非 latest 结果和不匹配的到期回调不得改变当前消息。消息替换或到期只清理文案与删除结果槽，不删除请求、不解除控件 busy、不改变选择、删除或其他权威业务状态。
 
 ## PendingProfileSave
 
@@ -118,8 +126,9 @@ user/saved --Service type changed--> mode 与 value 不变
 - `phase`：固定为 `success`。
 - `message`：删除成功终态。
 - `position`：删除前的列表顺序位置。
+- `messageId`、`expiresAt`：与全局 `activeFeedback` 共用的消息身份和 1000 ms 生命周期。
 
-成功后 Profile 数据与按钮立即消失，结果槽在原位置以 `role="status" aria-live="polite"` 公布。其他窗口收到无本地请求归属的删除事件只收敛权威状态，不创建结果槽。
+成功后 Profile 数据与按钮立即消失，结果槽在原位置以 `role="status" aria-live="polite"` 公布。结果槽是全局当前消息的特殊 placement；到期或任意其他区域写入新消息时移除。其他窗口收到无本地请求归属的删除事件只收敛权威状态，不创建结果槽。
 
 ## PluginVersionIdentity
 
