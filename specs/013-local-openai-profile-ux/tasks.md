@@ -82,9 +82,9 @@
 
 ## 阶段 5：用户故事 3——在发起操作的位置读取结果（优先级：P2）
 
-**目标**：Translate、Save Languages、Profile Save/Update、Select/Test/Delete 与 Subtitle Retry 的 busy 和终态只显示在所属控件正下方，全局同时最多一条，任一区域新消息立即清除其余区域消息，每条消息写入 1 秒后自动消失，且迟到结果或旧计时不得清除新消息。
+**目标**：Translate、Save Languages、Profile Save/Update、Select/Test/Delete 与 Subtitle Retry 的 busy 和终态只显示在所属控件正下方，全局同时最多一条，任一区域新消息立即清除其余区域消息，当前消息保持可见直至下一条被接受的消息替换，且迟到结果不得清除新消息。
 
-**独立测试**：依次和交错触发所有操作区域，验证 request→region/action 归属、同一区域 latest-wins、全局消息 latest-write-wins、1000 ms 自动清理、旧消息身份隔离、消息清理不改变 pending/busy/业务状态、Profile 行重绘和无重复屏幕阅读器播报。
+**独立测试**：依次和交错触发所有操作区域，验证 request→region/action 归属、同一区域 latest-wins、全局消息 latest-write-wins、消息持续显示、替换不改变 pending/busy/业务状态、Profile 行重绘和无重复屏幕阅读器播报。
 
 ### 测试
 
@@ -100,7 +100,7 @@
 - [X] T028 [US3] 在 `ui/sidebar.ts` 用 region/action identity 重构 `beginOperation`、终态处理和 Profile 行渲染，覆盖全部操作入口、迟到结果、行重绘及控件 busy 恢复，移除对共享状态节点和失效 DOM 引用的依赖
 - [X] T029 [US3] 运行 `npx vitest run tests/unit/sidebar-state.test.ts tests/contract/sidebar-form.test.ts tests/contract/sidebar-lifecycle.test.ts`，确认所有操作的反馈位置、归属、可访问公布与竞态符合 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
 
-**检查点**：所有现有操作区均保留就近反馈和独立请求归属，但可见消息全局互斥并在写入 1 秒后安全清理。
+**检查点**：所有现有操作区均保留就近反馈和独立请求归属，可见消息全局互斥并保持到下一条被接受的消息写入。
 
 ---
 
@@ -159,16 +159,16 @@
 - [X] T046 严格按 `specs/013-local-openai-profile-ux/quickstart.md` 依次运行 `npm run test`、`npm run typecheck`、`npm run lint`、`npm run build:native`、`npm run test:native`、`npm run build`、`npm run verify:package` 与 `npm run pack`，仅在八项全部成功后生成 `build/release-gates.json`
 - [X] T047 按 `specs/013-local-openai-profile-ux/quickstart.md` 对最终 `build/package/SubLingo-0.3.4.iinaplgz` 执行 `scripts/audit-release.mjs`，验证版本/更新身份、根白名单、双 helper 架构/权限/签名/最低 macOS/系统依赖、合规材料、FFmpeg 锁、敏感材料与正文摘要，并生成 `build/release-summary.md` 和 `build/release/` 审计产物
 
-### 全局操作消息生命周期（US3）
+### 全局操作消息竞态（US3）
 
-- [X] T049 [P] [US3] 先扩展 `tests/unit/sidebar-state.test.ts`，覆盖五类区域任一新消息清除其余区域、全局最多一条、busy 与终态分别生成消息身份并各自 1000 ms 到期、旧计时不清除新消息、消息清理不删除 pending 或改变业务状态、删除结果槽参与同一竞态，确认测试在实现前失败
-- [X] T050 [P] [US3] 先扩展 `tests/contract/sidebar-lifecycle.test.ts` 与 `tests/contract/sidebar-form.test.ts`，覆盖 Translate、Languages、Profile editor、不同 Profile 行和 Retry 的交错消息、终态重新计时、同区域非 latest/未知/重复结果不清除当前消息、行重绘与可访问状态容器清空，确认测试在实现前失败
-- [X] T051 [US3] 在 `ui/sidebar-state.ts` 分离区域 latest request 与全局 `activeFeedback`，为每次消息写入生成独立身份和 1000 ms 到期信息，使被替换或到期的消息只清理文案或删除结果槽，不清理 pending、busy、选择、Test、Credential 或删除状态
-- [X] T052 [US3] 在 `ui/sidebar.ts` 接入全局消息写入、跨区域即时清空、按消息身份保护的 1000 ms 计时清理、Profile 行重绘和删除结果槽生命周期，确保被接受的消息才参与竞态且生产代码不保存失效 DOM 引用
-- [X] T053 [US3] 运行 `npx vitest run tests/unit/sidebar-state.test.ts tests/contract/sidebar-form.test.ts tests/contract/sidebar-lifecycle.test.ts` 与 `npm run typecheck`，确认全局消息竞态、1 秒生命周期、请求归属、busy 恢复和可访问反馈符合 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
-- [X] T054 [US3] 在 `docs/releases/v0.3.4.md` 将操作反馈改进描述同步为最新操作消息全局互斥且 1 秒后消失，只描述用户可见行为，不记录实现或验收过程
-- [X] T055 [US3] 在 T049–T054 验收后严格执行 `specs/013-local-openai-profile-ux/quickstart.md` 的八项门禁、生成 `build/release-gates.json`、打包并审计最终 `build/package/SubLingo-0.3.4.iinaplgz`，确保发布证据与当前源码及全局消息生命周期一致
-- [ ] T048 使用 T055 重新生成并审计的同一 `build/package/SubLingo-0.3.4.iinaplgz`，由开发者一人在 IINA 1.4.4 完成 `specs/013-local-openai-profile-ux/quickstart.md` 的安装、两种 Service type 的本地/私网/公网 HTTP 与 HTTPS、system/direct、删除竞态、全局消息竞态与 1 秒生命周期、默认名称、精确文案、多窗口、播放和卸载验收，只将允许的版本或 SHA-256、环境、Service type、主机位置类别、scheme、proxy mode 与结论追加到 `docs/validation/iina-matrix.md`
+- [X] T049 [P] [US3] 扩展 `tests/unit/sidebar-state.test.ts`，覆盖五类区域任一新消息清除其余区域、全局最多一条、busy 与终态替换、消息持续显示、替换不删除 pending 或改变业务状态，以及删除结果槽参与同一竞态
+- [X] T050 [P] [US3] 扩展 `tests/contract/sidebar-lifecycle.test.ts` 与 `tests/contract/sidebar-form.test.ts`，覆盖 Translate、Languages、Profile editor、不同 Profile 行和 Retry 的交错消息、同区域非 latest/未知/重复结果不清除当前消息、行重绘与可访问状态容器替换
+- [X] T051 [US3] 在 `ui/sidebar-state.ts` 分离区域 latest request 与全局 `activeFeedback`，使当前消息保持可见直至下一条被接受的消息替换，且替换只清理文案或删除结果槽，不清理 pending、busy、选择、Test、Credential 或删除状态
+- [X] T052 [US3] 在 `ui/sidebar.ts` 接入全局消息写入、跨区域即时清空、持续显示、Profile 行重绘和删除结果槽替换，确保被接受的消息才参与竞态且生产代码不保存失效 DOM 引用或创建自动清除计时器
+- [X] T053 [US3] 运行 `npx vitest run tests/unit/sidebar-state.test.ts tests/contract/sidebar-form.test.ts tests/contract/sidebar-lifecycle.test.ts` 与 `npm run typecheck`，确认全局消息竞态、持续显示、请求归属、busy 恢复和可访问反馈符合 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
+- [X] T054 [US3] 在 `docs/releases/v0.3.4.md` 将操作反馈改进描述同步为最新操作消息全局互斥并保持到下一条反馈，只描述用户可见行为，不记录实现或验收过程
+- [ ] T055 [US3] 在 T049–T054 验收后严格执行 `specs/013-local-openai-profile-ux/quickstart.md` 的八项门禁、生成 `build/release-gates.json`、打包并审计最终 `build/package/SubLingo-0.3.4.iinaplgz`，确保发布证据与当前源码及全局消息竞态一致
+- [ ] T048 使用 T055 重新生成并审计的同一 `build/package/SubLingo-0.3.4.iinaplgz`，由开发者一人在 IINA 1.4.4 完成 `specs/013-local-openai-profile-ux/quickstart.md` 的安装、两种 Service type 的本地/私网/公网 HTTP 与 HTTPS、system/direct、删除竞态、全局消息竞态与持续显示、默认名称、精确文案、多窗口、播放和卸载验收，只将允许的版本或 SHA-256、环境、Service type、主机位置类别、scheme、proxy mode 与结论追加到 `docs/validation/iina-matrix.md`
 
 ---
 
@@ -180,10 +180,10 @@
 - **阶段 2**：不含实现任务；T001 完成后开放故事工作。
 - **US1（阶段 3）**：只依赖 T001；测试 T002–T007 先完成并观察预期失败，再实施 T008–T010，最后执行 T011。
 - **US2（阶段 4）**：只依赖 T001；测试 T012–T015 先行，T017 依赖 T016，T019 依赖 T018，T021 依赖本阶段全部实现。
-- **US3（阶段 5 与全局消息生命周期）**：依赖 US2 的 `ui/sidebar-state.ts` 与删除反馈槽；T022–T024 先行，T028 依赖 T025–T027。T049–T050 先行，T051 后由 T052 集成，T053 验收生产行为，T054 同步发布说明，T055 生成并审计与当前源码一致的候选包。
+- **US3（阶段 5 与全局消息竞态）**：依赖 US2 的 `ui/sidebar-state.ts` 与删除反馈槽；T022–T024 先行，T028 依赖 T025–T027。T049–T050 先行，T051 后由 T052 集成，T053 验收生产行为，T054 同步发布说明，T055 生成并审计与当前源码一致的候选包。
 - **US4（阶段 6）**：依赖 US2 的 `ui/sidebar-state.ts` 工厂；T030–T031 先行，T034 依赖 T032–T033。
 - **US5（阶段 7）**：依赖 US3 的区域反馈及 US4 后的 Sidebar 热点文件状态；T036–T037 先行，T040 依赖 T038–T039。
-- **阶段 8**：依赖计划交付的全部用户故事；T042 先于 T043，T044 可与 T043 在不同文件中并行，T045 后依次执行 T046、T047。T049–T055 完成全局消息生命周期并生成与当前源码一致的归档后，最后才执行 T048。
+- **阶段 8**：依赖计划交付的全部用户故事；T042 先于 T043，T044 可与 T043 在不同文件中并行，T045 后依次执行 T046、T047。T049–T055 完成全局消息竞态并生成与当前源码一致的归档后，最后才执行 T048。
 
 ### 用户故事依赖图
 
@@ -197,13 +197,13 @@ US1 + US2 + US3 + US4 + US5
                           ↓
             版本门禁与初始归档审计
                           ↓
-              US3 全局消息生命周期
+              US3 全局消息竞态
                           ↓
               重跑门禁、归档与实机验收
 ```
 
 - US1 与 US2 在产品行为上可独立完成；若并发实施，必须隔离 worktree，并按 `ui/sidebar.ts` 的既定合并顺序集成。
-- US3、US4 与 US5 复用 US2 建立的 Sidebar 状态工厂，但各自仍有独立目标和验收命令；US3 的 T049–T055 完成全局消息生命周期要求。
+- US3、US4 与 US5 复用 US2 建立的 Sidebar 状态工厂，但各自仍有独立目标和验收命令；US3 的 T049–T055 完成全局消息竞态要求。
 - `ui/sidebar.ts`、`ui/sidebar-state.ts`、`tests/contract/sidebar-lifecycle.test.ts` 依次按 US2 → US3 → US4 → US5 修改，不在共享工作区并发编辑。
 - `Info.json`、npm 元数据、`scripts/pack.sh` 与发布正文只在故事收敛后统一修改和验收。
 
@@ -253,7 +253,7 @@ T036 与 T037 可并行；实现中 T038 与 T039 修改不同文件，可并行
 
 1. US1：开放任意有效 HTTP(S) endpoint，保持安全边界。
 2. US2：删除成功后即时、稳定收敛。
-3. US3：反馈显示在所属操作区域，按区域抵御迟到结果，同时以全局 latest-write-wins 和独立消息身份实现跨区域即时清空及 1 秒生命周期。
+3. US3：反馈显示在所属操作区域，按区域抵御迟到结果，同时以全局 latest-write-wins 实现跨区域即时清空及持续显示。
 4. US4：Service type 驱动默认名称且保护用户输入。
 5. US5：统一选择提示而不改变授权语义。
 6. 阶段 8：统一 0.3.4 身份；在反馈修正验收后重新完成门禁、最终归档审计与单人正式包验收。

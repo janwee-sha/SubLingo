@@ -107,18 +107,16 @@ describe("Sidebar operation feedback ownership", () => {
       "profile-row:retained",
       "subtitle-retry",
     ];
-    for (const [index, regionId] of regions.entries()) {
+    for (const regionId of regions) {
       state.beginOperation(
         { requestId: `request-${regionId}`, regionId, actionId: regionId },
         "Busy",
-        index * 10,
       );
       expect(state.snapshot.activeFeedback).toMatchObject({
         requestId: `request-${regionId}`,
         regionId,
         phase: "busy",
         message: "Busy",
-        expiresAt: index * 10 + 1_000,
       });
     }
     expect(Object.keys(state.snapshot.latestRequestByRegion)).toHaveLength(5);
@@ -131,7 +129,6 @@ describe("Sidebar operation feedback ownership", () => {
         actionId: "save-profile",
       },
       "Saving",
-      100,
     );
     expect(state.finishOperation("request-profile-editor", "success", "Old").accepted).toBe(false);
     expect(state.snapshot.latestRequestByRegion["profile-editor"]).toMatchObject({
@@ -143,18 +140,15 @@ describe("Sidebar operation feedback ownership", () => {
       phase: "busy",
       message: "Saving",
     });
-    expect(state.finishOperation("new-editor-request", "success", "Saved", 250).accepted).toBe(
-      true,
-    );
+    expect(state.finishOperation("new-editor-request", "success", "Saved").accepted).toBe(true);
     expect(state.snapshot.activeFeedback).toMatchObject({
       regionId: "profile-editor",
       phase: "success",
       message: "Saved",
-      expiresAt: 1_250,
     });
   });
 
-  it("gives busy and terminal writes distinct expiry identities", () => {
+  it("lets an accepted terminal result replace busy and ignores unknown or duplicate results", () => {
     const state = createState();
     state.beginOperation(
       {
@@ -165,32 +159,23 @@ describe("Sidebar operation feedback ownership", () => {
         revision: 1,
       },
       "Testing",
-      100,
     );
-    const busyMessageId = state.snapshot.activeFeedback?.messageId;
 
     expect(state.snapshot.requests["test-request"]).toMatchObject({
       actionId: "test",
       profileId: "retained",
     });
     expect(state.finishOperation("unknown", "error", "Unknown").accepted).toBe(false);
-    expect(state.finishOperation("test-request", "success", "Passed", 500).accepted).toBe(true);
-    const terminalMessageId = state.snapshot.activeFeedback?.messageId;
-    expect(terminalMessageId).not.toBe(busyMessageId);
-    expect(state.snapshot.activeFeedback?.expiresAt).toBe(1_500);
-    expect(state.expireFeedback(busyMessageId!)).toBe(false);
-    expect(state.snapshot.activeFeedback?.message).toBe("Passed");
+    expect(state.finishOperation("test-request", "success", "Passed").accepted).toBe(true);
     expect(state.finishOperation("test-request", "error", "Duplicate").accepted).toBe(false);
     expect(state.snapshot.activeFeedback).toMatchObject({
       actionId: "test",
       phase: "success",
       message: "Passed",
     });
-    expect(state.expireFeedback(terminalMessageId!)).toBe(true);
-    expect(state.snapshot.activeFeedback).toBeNull();
   });
 
-  it("expires a busy message without clearing its pending request or busy ownership", () => {
+  it("keeps the latest message and business state until another accepted message replaces it", () => {
     const state = createState();
     state.setProfileContext({
       editingProfileId: "retained",
@@ -206,12 +191,12 @@ describe("Sidebar operation feedback ownership", () => {
         actionId: "languages",
       },
       "Saving languages…",
-      10,
     );
-    const messageId = state.snapshot.activeFeedback!.messageId;
 
-    expect(state.expireFeedback(messageId)).toBe(true);
-    expect(state.snapshot.activeFeedback).toBeNull();
+    expect(state.snapshot.activeFeedback).toMatchObject({
+      requestId: "language-request",
+      message: "Saving languages…",
+    });
     expect(state.snapshot.requests["language-request"]).toBeDefined();
     expect(state.snapshot.latestRequestByRegion["language-settings"]).toEqual({
       requestId: "language-request",
@@ -230,15 +215,13 @@ describe("Sidebar operation feedback ownership", () => {
     state.beginOperation(
       { requestId: "translation", regionId: "translation-toggle", actionId: "translation" },
       "Enabling…",
-      0,
     );
     state.beginOperation(
       { requestId: "languages", regionId: "language-settings", actionId: "languages" },
       "Saving…",
-      10,
     );
 
-    expect(state.finishOperation("translation", "success", "Enabled.", 20).accepted).toBe(true);
+    expect(state.finishOperation("translation", "success", "Enabled.").accepted).toBe(true);
     expect(state.snapshot.activeFeedback).toMatchObject({
       requestId: "translation",
       regionId: "translation-toggle",
@@ -247,7 +230,7 @@ describe("Sidebar operation feedback ownership", () => {
     expect(state.snapshot.requests.languages).toBeDefined();
   });
 
-  it("makes the deletion result slot participate in replacement and expiry", () => {
+  it("keeps the deletion result slot until another accepted message replaces it", () => {
     const state = createState();
     state.beginOperation(
       {
@@ -257,30 +240,28 @@ describe("Sidebar operation feedback ownership", () => {
         profileId: "deleted",
       },
       "Deleting…",
-      0,
     );
     state.deleteSucceeded({
       requestId: "delete-request",
       profileId: "deleted",
       message: "Deleted.",
-      writtenAt: 20,
     });
-    const deletedMessageId = state.snapshot.activeFeedback!.messageId;
 
     expect(state.snapshot.activeFeedback).toMatchObject({
       placement: "deleted-result",
       message: "Deleted.",
-      expiresAt: 1_020,
     });
     expect(state.snapshot.deletedResults).toHaveLength(1);
 
     state.beginOperation(
       { requestId: "retry", regionId: "subtitle-retry", actionId: "retry-preparation" },
       "Retrying…",
-      30,
     );
     expect(state.snapshot.deletedResults).toEqual([]);
-    expect(state.expireFeedback(deletedMessageId)).toBe(false);
+    expect(state.snapshot.activeFeedback).toMatchObject({
+      requestId: "retry",
+      regionId: "subtitle-retry",
+    });
     expect(state.snapshot.deletedProfileIds).toContain("deleted");
   });
 
@@ -294,7 +275,6 @@ describe("Sidebar operation feedback ownership", () => {
         profileId: "deleted",
       },
       "Testing deleted…",
-      0,
     );
     state.beginOperation(
       {
@@ -304,16 +284,15 @@ describe("Sidebar operation feedback ownership", () => {
         profileId: "retained",
       },
       "Testing retained…",
-      10,
     );
 
-    expect(
-      state.finishOperation("deleted-row-test", "success", "First row passed.", 20).accepted,
-    ).toBe(true);
+    expect(state.finishOperation("deleted-row-test", "success", "First row passed.").accepted).toBe(
+      true,
+    );
     expect(state.snapshot.activeFeedback?.regionId).toBe("profile-row:deleted");
-    expect(
-      state.finishOperation("retained-row-test", "error", "Second row failed.", 30).accepted,
-    ).toBe(true);
+    expect(state.finishOperation("retained-row-test", "error", "Second row failed.").accepted).toBe(
+      true,
+    );
     expect(state.snapshot.activeFeedback).toMatchObject({
       regionId: "profile-row:retained",
       phase: "error",

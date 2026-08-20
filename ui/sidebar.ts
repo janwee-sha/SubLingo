@@ -252,17 +252,6 @@ function renderActiveFeedback(): void {
   updateSubtitleRetryControls();
 }
 
-function scheduleFeedbackExpiry(feedback: SidebarFeedback): void {
-  const messageId = feedback.messageId;
-  window.setTimeout(
-    () => {
-      if (!sidebarState.expireFeedback(messageId)) return;
-      renderActiveFeedback();
-    },
-    Math.max(0, feedback.expiresAt - Date.now()),
-  );
-}
-
 function beginOperation(
   regionId: string,
   actionId: string,
@@ -274,7 +263,7 @@ function beginOperation(
   const previousId = sidebarState.snapshot.latestRequestByRegion[regionId]?.requestId;
   const previous = previousId ? sidebarState.snapshot.requests[previousId] : undefined;
   if (previous) setActionBusy(previous.actionId, previous.profileId, false);
-  const feedback = sidebarState.beginOperation(
+  sidebarState.beginOperation(
     {
       requestId,
       regionId,
@@ -287,7 +276,6 @@ function beginOperation(
   pendingOperations.add(requestId);
   setActionBusy(actionId, profileId, true, busyLabel);
   renderActiveFeedback();
-  scheduleFeedbackExpiry(feedback);
   return requestId;
 }
 
@@ -307,7 +295,6 @@ function finishOperation(
     setActionBusy(request.actionId, request.profileId, false);
   if (!finished.accepted) return false;
   renderActiveFeedback();
-  if (finished.feedback) scheduleFeedbackExpiry(finished.feedback);
   return true;
 }
 
@@ -575,7 +562,7 @@ window.iina?.onMessage("profile:selected", (raw: unknown) => {
 window.iina?.onMessage("profile:deleted", (raw: unknown) => {
   const result = raw as { requestId?: string; profileId?: string };
   if (typeof result.requestId !== "string" || typeof result.profileId !== "string") return;
-  const deletion = sidebarState.deleteSucceeded({
+  sidebarState.deleteSucceeded({
     requestId: result.requestId,
     profileId: result.profileId,
     message: "Profile and saved credential deleted.",
@@ -592,7 +579,6 @@ window.iina?.onMessage("profile:deleted", (raw: unknown) => {
   pendingOperations.delete(result.requestId);
   renderedProfilesSignature = "";
   renderProfiles(sidebarState.snapshot.profiles as unknown as ProfileView[]);
-  if (deletion.feedback) scheduleFeedbackExpiry(deletion.feedback);
   window.iina?.postMessage("ui:ready", envelope({}));
 });
 
@@ -763,7 +749,11 @@ function renderProfiles(viewProfiles: ProfileView[]): void {
       );
   }
   for (const result of [...sidebarState.snapshot.deletedResults]
-    .filter((item) => item.messageId === activeFeedback?.messageId)
+    .filter(
+      (item) =>
+        activeFeedback?.placement === "deleted-result" &&
+        item.requestId === activeFeedback.requestId,
+    )
     .sort((left, right) => left.position - right.position)) {
     const slot = document.createElement("p");
     slot.className = "deleted-profile-result";

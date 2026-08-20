@@ -31,7 +31,7 @@ npm run test:native
 - OpenAI-compatible 与 Ollama 对 HTTPS 及回环、私网、公网 HTTP 均通过 Save、恢复、Provider 构造、Test、Select 和翻译路径，system/direct 结果一致；自动化使用生产校验与 fake transport，不依赖真实公网可用性。
 - 空或相对 URL、非 HTTP(S)、userinfo、query、fragment、无效端口和残缺 authority 在请求前拒绝且不改变 revision、选择或凭据。
 - system 只跟随最多三次同源重定向且重验目标，跨 scheme/host/有效端口或带禁止字段的第二跳不发送；direct 不跟随。
-- 删除成功立即收敛，迟到列表和重复事件不恢复条目；失败或取消保留业务状态。所有区域同时最多显示一条操作消息，任一区域的新消息立即清除其余区域消息，每条消息写入 1 秒后自动消失；旧计时、重复、未知或同区域非最新结果不得清除当前消息，消息消失不得改变 pending、busy 或业务状态。
+- 删除成功立即收敛，迟到列表和重复事件不恢复条目；失败或取消保留业务状态。所有区域同时最多显示一条操作消息，任一区域的新消息立即替换其余区域消息；消息不按时间自动消失，重复、未知或同区域非最新结果不得清除当前消息，消息替换不得改变 pending、busy 或业务状态。
 - 默认名称取 Service type 可见文本并保护用户输入和既有名称；两段式 Update 与 Test 使用规格指定的精确文案。
 - Profile View、反馈、错误和日志不含凭据、Authorization、完整 endpoint、字幕或响应正文。
 
@@ -94,8 +94,8 @@ node scripts/audit-release.mjs \
 3. 对两个 Service type 分别回归 HTTPS；选取 HTTP Profile 用 system 与 direct 路线各完成一次请求，确认产品不自动改路由。
 4. 尝试空或相对 URL、非 HTTP(S)、userinfo、query、fragment、非法端口和残缺 IPv6；均在请求前失败且旧 Profile、选择与凭据状态不变。跨来源 redirect 不得发出第二跳。
 5. 对未选择、已选择、正在编辑和已有 Test 状态的 Profile 分别删除；成功送达后 1 秒内条目消失并清理关联状态，迟到同步、重复结果、刷新和重新打开 Sidebar 均不恢复。
-6. 取消一次原生删除确认并制造一次删除失败；条目及原业务状态保留，结果显示在原 Profile 行操作区并在 1 秒后消失。成功时原条目变为同位置的只读成功结果槽，结果槽在 1 秒后或其他区域写入新消息时移除，Profile 不恢复。
-7. 依次及交错执行 Translate、Save Languages、Profile Save/Update、Select、Test、Delete 和 Subtitle Retry；busy 与终态均在对应控件正下方，每条消息写入 1 秒后消失。任一区域出现新消息时，其余区域消息必须立即清空且全局最多一条；消息清空不取消仍在执行的操作或解除控件 busy，同一区域旧结果与旧计时不得覆盖或清除较新消息，屏幕阅读器不重复播报 Profile 行状态。
+6. 取消一次原生删除确认并制造一次删除失败；条目及原业务状态保留，结果显示在原 Profile 行操作区，直至下一条被接受的消息替换。成功时原条目变为同位置的只读成功结果槽，结果槽在其他区域写入下一条被接受的消息时移除，Profile 不恢复。
+7. 依次及交错执行 Translate、Save Languages、Profile Save/Update、Select、Test、Delete 和 Subtitle Retry；busy 与终态均在对应控件正下方，并保持可见直至下一条被接受的消息写入。任一区域出现新消息时，其余区域消息必须立即清空且全局最多一条；消息替换不取消仍在执行的操作或解除控件 busy，同一区域旧结果不得覆盖或清除较新消息，屏幕阅读器不重复播报 Profile 行状态。
 8. 新建两种 Service type，确认默认名分别为可见文本 `OpenAI-compatible` 与 `Ollama`；用户改名、清空、输入相同默认文本和编辑既有 Profile 后切换类型均不被覆盖。
 9. 确认 Update 与 Test 精确文案、两段式凭据保存、revision、Credential/Test/Select 独立语义、凭据隔离及多窗口互不影响。
 10. 完成播放和翻译冒烟后卸载正式包，确认安装项可移除。

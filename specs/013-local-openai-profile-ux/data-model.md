@@ -70,29 +70,26 @@ pending(B) --result(B)--> committed(B)
 - `profileId`、`revision`：仅 Profile 行或编辑操作需要。
 - `busyMessage`：安全的运行中英语文案。
 
-请求状态只保存控件身份，不保存 DOM 节点。每个区域独立维护 latest request；Profile 行重绘据此恢复 busy/idle，即使该请求的消息已因 1 秒到期或其他区域新消息而清除。
+请求状态只保存控件身份，不保存 DOM 节点。每个区域独立维护 latest request；Profile 行重绘据此恢复 busy/idle，即使该请求的消息已被其他区域的新消息替换。
 
 ## OperationFeedback
 
-- `messageId`：每次消息写入生成的全局单调身份；同一 request 的 busy 与终态也必须不同。
 - `requestId`：产生该消息的请求身份。
 - `regionId`：消息实际显示的所属区域。
 - `actionId`：消息对应的控件操作。
 - `phase`：`busy | success | error | cancelled`。
 - `message`：安全的用户可见英语消息。
-- `expiresAt`：消息写入后 1000 ms 的到期时刻。
 - `placement`：普通区域或删除成功后的原列表位置。
 
 ```text
 idle --区域 A 写入 busy(A.1)--> active(A.1)
 active(A.1) --任一区域 B 写入新消息(B.1)--> active(B.1)，立即清除 A.1
-active(A.1) --同 request A 写入终态(A.2)--> active(A.2)，重新开始 1000 ms
-active(A.2) --到期(A.1)--> active(A.2)，忽略旧消息身份
-active(A.2) --到期(A.2)--> idle
+active(A.1) --同 request A 写入终态(A.2)--> active(A.2)
+active(A.2) --无新消息--> active(A.2)，保持可见
 active(B.1) --区域 A 的非 latest/未知/重复结果--> active(B.1)
 ```
 
-全局同时最多存在一个 `activeFeedback`。只有通过所属区域 latest request 校验的消息写入才能替换当前消息并清除其他区域；另一区域仍为 latest 的 pending 请求后来产生终态时，该终态视为新的全局消息。未知、重复、同区域非 latest 结果和不匹配的到期回调不得改变当前消息。消息替换或到期只清理文案与删除结果槽，不删除请求、不解除控件 busy、不改变选择、删除或其他权威业务状态。
+全局同时最多存在一个 `activeFeedback`。只有通过所属区域 latest request 校验的消息写入才能替换当前消息并清除其他区域；另一区域仍为 latest 的 pending 请求后来产生终态时，该终态视为新的全局消息。未知、重复或同区域非 latest 结果不得改变当前消息。消息不按时间自动清除；替换只清理旧文案或删除结果槽，不删除请求、不解除控件 busy、不改变选择、删除或其他权威业务状态。
 
 ## PendingProfileSave
 
@@ -126,9 +123,8 @@ user/saved --Service type changed--> mode 与 value 不变
 - `phase`：固定为 `success`。
 - `message`：删除成功终态。
 - `position`：删除前的列表顺序位置。
-- `messageId`、`expiresAt`：与全局 `activeFeedback` 共用的消息身份和 1000 ms 生命周期。
 
-成功后 Profile 数据与按钮立即消失，结果槽在原位置以 `role="status" aria-live="polite"` 公布。结果槽是全局当前消息的特殊 placement；到期或任意其他区域写入新消息时移除。其他窗口收到无本地请求归属的删除事件只收敛权威状态，不创建结果槽。
+成功后 Profile 数据与按钮立即消失，结果槽在原位置以 `role="status" aria-live="polite"` 公布。结果槽是全局当前消息的特殊 placement；任意区域写入下一条被接受的消息时移除。其他窗口收到无本地请求归属的删除事件只收敛权威状态，不创建结果槽。
 
 ## PluginVersionIdentity
 

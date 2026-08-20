@@ -118,16 +118,13 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(sidebarSource).toContain("if (!finished.accepted) return");
   });
 
-  it("coordinates one globally visible message without coupling it to request busy state", () => {
+  it("coordinates one persistent global message without coupling it to request busy state", () => {
     expect(sidebarStateSource).toContain("latestRequestByRegion");
     expect(sidebarStateSource).toContain("activeFeedback");
-    expect(sidebarStateSource).toContain("messageId");
-    expect(sidebarStateSource).toContain("expiresAt");
-    expect(sidebarStateSource).toContain("expireFeedback");
-    expect(sidebarSource).toContain("scheduleFeedbackExpiry");
     expect(sidebarSource).toContain("renderActiveFeedback");
-    expect(sidebarSource).toContain("window.setTimeout");
-    expect(sidebarSource).toContain("expireFeedback(messageId)");
+    expect(sidebarStateSource).not.toContain("expiresAt");
+    expect(sidebarStateSource).not.toContain("expireFeedback");
+    expect(sidebarSource).not.toContain("scheduleFeedbackExpiry");
     expect(sidebarSource).not.toContain("snapshot.feedback");
   });
 

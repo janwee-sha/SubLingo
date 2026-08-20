@@ -29,7 +29,7 @@ Main 只接受最新 `profiles:list` request ID 的结果；收到删除成功�
 role="status" aria-live="polite" + 成功消息
 ```
 
-结果槽不属于 Profile 集合，不可 Select、Edit、Test 或 Delete，不进入持久化。它属于全局操作消息：写入 1000 ms 后自动移除，任意其他区域写入新消息时立即移除。其他窗口因同一 Profile 被删除而收到无本地请求归属的成功事件时，只收敛业务状态，不创建无来源反馈。
+结果槽不属于 Profile 集合，不可 Select、Edit、Test 或 Delete，不进入持久化。它属于全局操作消息：保持可见直至任意区域写入下一条被接受的消息。其他窗口因同一 Profile 被删除而收到无本地请求归属的成功事件时，只收敛业务状态，不创建无来源反馈。
 
 ## 反馈区域
 
@@ -46,15 +46,14 @@ role="status" aria-live="polite" + 成功消息
 `sidebar-state.ts` 必须先于 `sidebar.ts` 以 classic script 加载并暴露全局工厂；不得把 Sidebar 改为 module script。状态工厂不得访问 DOM，使 Vitest 可直接执行同一生产转换。
 
 - 同一区域只有最新 request 可写入 busy 或终态消息；新请求取代旧请求时，旧控件不得继续表现为该区域当前 busy。
-- 每次写入 busy、success、error 或 cancelled 消息都必须生成独立消息身份，在所属区域显示，并立即清空所有其他区域的消息，使全局同时可见消息最多一条。
-- 每条消息从该次写入起 1000 ms 后自动清空；同一 request 的终态替换 busy 时必须生成新消息身份并重新计时。
-- 到期清理必须匹配当前消息身份。旧消息的计时回调不得清除同 request 的较新终态，也不得清除其他区域后来写入的消息。
-- 消息被其他区域替换或到期时，只清空可见文案或删除结果槽，不删除 pending request、不解除控件 busy、不改变选择、删除、Test、Credential 或其他业务状态。
+- 每次写入 busy、success、error 或 cancelled 消息都必须在所属区域显示，并立即清空所有其他区域的消息，使全局同时可见消息最多一条。
+- 消息不得按时间自动清空；同一 request 的终态替换 busy，随后保持可见直至下一条被接受的消息写入。
+- 消息被其他区域替换时，只清空旧文案或删除结果槽，不删除 pending request、不解除控件 busy、不改变选择、删除、Test、Credential 或其他业务状态。
 - 未知、重复或同一区域非 latest 的结果不得显示消息，也不得清除全局当前消息；不同区域仍为 latest 的 pending 请求后来产生被接受的终态时，该终态作为新消息参与全局竞态。
 - Profile 行重绘必须按 action identity 恢复 busy/idle，并且只在该行拥有全局当前消息时恢复反馈，不保存旧 DOM 引用。
 - 权威业务状态与反馈分离；Main 的选择/删除快照仍可收敛，但无归属的旧结果不产生或清除消息。
 
-本节“消息”只覆盖 Translate、Save Languages、Profile Save/Update 与随后的 Credential 终态、Profile Select/Test/Delete 和 Subtitle Retry 的操作反馈。Session 状态、Profile 元数据、凭据已配置状态与静态说明不参与 1000 ms 生命周期或全局消息竞态。
+本节“消息”只覆盖 Translate、Save Languages、Profile Save/Update 与随后的 Credential 终态、Profile Select/Test/Delete 和 Subtitle Retry 的操作反馈。Session 状态、Profile 元数据、凭据已配置状态与静态说明不参与全局消息竞态。
 
 ## Profile Test
 
@@ -84,4 +83,4 @@ Profile revision 创建与可选 Credential 保存可以沿用同一 request ID�
 
 ## 数据边界
 
-Profile View 继续只暴露 `credentialConfigured`。反馈、消息身份、到期时刻、墓碑、pending 状态和结果槽不得包含凭据值、Authorization、完整 endpoint、字幕、译文或 Provider 原始响应。
+Profile View 继续只暴露 `credentialConfigured`。反馈、墓碑、pending 状态和结果槽不得包含凭据值、Authorization、完整 endpoint、字幕、译文或 Provider 原始响应。
