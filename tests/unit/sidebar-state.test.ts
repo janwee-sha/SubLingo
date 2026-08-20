@@ -98,21 +98,31 @@ describe("Sidebar authoritative profile deletion", () => {
 });
 
 describe("Sidebar operation feedback ownership", () => {
-  it("keeps five regions independent and makes the latest request win within one region", () => {
+  it("keeps regional request ownership while exposing only the latest global message", () => {
     const state = createState();
-    for (const regionId of [
+    const regions = [
       "translation-toggle",
       "language-settings",
       "profile-editor",
       "profile-row:retained",
       "subtitle-retry",
-    ]) {
+    ];
+    for (const [index, regionId] of regions.entries()) {
       state.beginOperation(
         { requestId: `request-${regionId}`, regionId, actionId: regionId },
         "Busy",
+        index * 10,
       );
+      expect(state.snapshot.activeFeedback).toMatchObject({
+        requestId: `request-${regionId}`,
+        regionId,
+        phase: "busy",
+        message: "Busy",
+        expiresAt: index * 10 + 1_000,
+      });
     }
-    expect(Object.keys(state.snapshot.feedback)).toHaveLength(5);
+    expect(Object.keys(state.snapshot.latestRequestByRegion)).toHaveLength(5);
+    expect(state.snapshot.activeFeedback?.regionId).toBe("subtitle-retry");
 
     state.beginOperation(
       {
@@ -121,19 +131,30 @@ describe("Sidebar operation feedback ownership", () => {
         actionId: "save-profile",
       },
       "Saving",
+      100,
     );
     expect(state.finishOperation("request-profile-editor", "success", "Old").accepted).toBe(false);
-    expect(state.snapshot.feedback["profile-editor"]).toMatchObject({
-      latestRequestId: "new-editor-request",
+    expect(state.snapshot.latestRequestByRegion["profile-editor"]).toMatchObject({
+      requestId: "new-editor-request",
+      actionId: "save-profile",
+    });
+    expect(state.snapshot.activeFeedback).toMatchObject({
+      requestId: "new-editor-request",
       phase: "busy",
       message: "Saving",
     });
-    expect(state.finishOperation("new-editor-request", "success", "Saved").accepted).toBe(true);
-    expect(state.snapshot.feedback["profile-editor"]?.message).toBe("Saved");
-    expect(state.snapshot.feedback["language-settings"]?.phase).toBe("busy");
+    expect(state.finishOperation("new-editor-request", "success", "Saved", 250).accepted).toBe(
+      true,
+    );
+    expect(state.snapshot.activeFeedback).toMatchObject({
+      regionId: "profile-editor",
+      phase: "success",
+      message: "Saved",
+      expiresAt: 1_250,
+    });
   });
 
-  it("ignores unknown and duplicate results while exposing action identity across redraws", () => {
+  it("gives busy and terminal writes distinct expiry identities", () => {
     const state = createState();
     state.beginOperation(
       {
@@ -144,19 +165,159 @@ describe("Sidebar operation feedback ownership", () => {
         revision: 1,
       },
       "Testing",
+      100,
     );
+    const busyMessageId = state.snapshot.activeFeedback?.messageId;
 
     expect(state.snapshot.requests["test-request"]).toMatchObject({
       actionId: "test",
       profileId: "retained",
     });
     expect(state.finishOperation("unknown", "error", "Unknown").accepted).toBe(false);
-    expect(state.finishOperation("test-request", "success", "Passed").accepted).toBe(true);
+    expect(state.finishOperation("test-request", "success", "Passed", 500).accepted).toBe(true);
+    const terminalMessageId = state.snapshot.activeFeedback?.messageId;
+    expect(terminalMessageId).not.toBe(busyMessageId);
+    expect(state.snapshot.activeFeedback?.expiresAt).toBe(1_500);
+    expect(state.expireFeedback(busyMessageId!)).toBe(false);
+    expect(state.snapshot.activeFeedback?.message).toBe("Passed");
     expect(state.finishOperation("test-request", "error", "Duplicate").accepted).toBe(false);
-    expect(state.snapshot.feedback["profile-row:retained"]).toMatchObject({
+    expect(state.snapshot.activeFeedback).toMatchObject({
       actionId: "test",
       phase: "success",
       message: "Passed",
+    });
+    expect(state.expireFeedback(terminalMessageId!)).toBe(true);
+    expect(state.snapshot.activeFeedback).toBeNull();
+  });
+
+  it("expires a busy message without clearing its pending request or busy ownership", () => {
+    const state = createState();
+    state.setProfileContext({
+      editingProfileId: "retained",
+      selectedProfileId: "retained",
+      credentialDisplayProfileId: "retained",
+    });
+    state.setProfileTest("retained", { revision: 1, state: "passed" });
+    state.beginProfileSave("profile-save", true);
+    state.beginOperation(
+      {
+        requestId: "language-request",
+        regionId: "language-settings",
+        actionId: "languages",
+      },
+      "Saving languages…",
+      10,
+    );
+    const messageId = state.snapshot.activeFeedback!.messageId;
+
+    expect(state.expireFeedback(messageId)).toBe(true);
+    expect(state.snapshot.activeFeedback).toBeNull();
+    expect(state.snapshot.requests["language-request"]).toBeDefined();
+    expect(state.snapshot.latestRequestByRegion["language-settings"]).toEqual({
+      requestId: "language-request",
+      actionId: "languages",
+    });
+    expect(state.snapshot.editingProfileId).toBe("retained");
+    expect(state.snapshot.selectedProfileId).toBe("retained");
+    expect(state.snapshot.credentialDisplayProfileId).toBe("retained");
+    expect(state.snapshot.profileTests.retained).toEqual({ revision: 1, state: "passed" });
+    expect(state.snapshot.pendingProfileSave?.requestId).toBe("profile-save");
+    expect(state.snapshot.deletedProfileIds).toEqual([]);
+  });
+
+  it("lets a later accepted result from another pending region become the global message", () => {
+    const state = createState();
+    state.beginOperation(
+      { requestId: "translation", regionId: "translation-toggle", actionId: "translation" },
+      "Enabling…",
+      0,
+    );
+    state.beginOperation(
+      { requestId: "languages", regionId: "language-settings", actionId: "languages" },
+      "Saving…",
+      10,
+    );
+
+    expect(state.finishOperation("translation", "success", "Enabled.", 20).accepted).toBe(true);
+    expect(state.snapshot.activeFeedback).toMatchObject({
+      requestId: "translation",
+      regionId: "translation-toggle",
+      message: "Enabled.",
+    });
+    expect(state.snapshot.requests.languages).toBeDefined();
+  });
+
+  it("makes the deletion result slot participate in replacement and expiry", () => {
+    const state = createState();
+    state.beginOperation(
+      {
+        requestId: "delete-request",
+        regionId: "profile-row:deleted",
+        actionId: "delete",
+        profileId: "deleted",
+      },
+      "Deleting…",
+      0,
+    );
+    state.deleteSucceeded({
+      requestId: "delete-request",
+      profileId: "deleted",
+      message: "Deleted.",
+      writtenAt: 20,
+    });
+    const deletedMessageId = state.snapshot.activeFeedback!.messageId;
+
+    expect(state.snapshot.activeFeedback).toMatchObject({
+      placement: "deleted-result",
+      message: "Deleted.",
+      expiresAt: 1_020,
+    });
+    expect(state.snapshot.deletedResults).toHaveLength(1);
+
+    state.beginOperation(
+      { requestId: "retry", regionId: "subtitle-retry", actionId: "retry-preparation" },
+      "Retrying…",
+      30,
+    );
+    expect(state.snapshot.deletedResults).toEqual([]);
+    expect(state.expireFeedback(deletedMessageId)).toBe(false);
+    expect(state.snapshot.deletedProfileIds).toContain("deleted");
+  });
+
+  it("keeps different Profile rows independently eligible to publish accepted results", () => {
+    const state = createState();
+    state.beginOperation(
+      {
+        requestId: "deleted-row-test",
+        regionId: "profile-row:deleted",
+        actionId: "test",
+        profileId: "deleted",
+      },
+      "Testing deleted…",
+      0,
+    );
+    state.beginOperation(
+      {
+        requestId: "retained-row-test",
+        regionId: "profile-row:retained",
+        actionId: "test",
+        profileId: "retained",
+      },
+      "Testing retained…",
+      10,
+    );
+
+    expect(
+      state.finishOperation("deleted-row-test", "success", "First row passed.", 20).accepted,
+    ).toBe(true);
+    expect(state.snapshot.activeFeedback?.regionId).toBe("profile-row:deleted");
+    expect(
+      state.finishOperation("retained-row-test", "error", "Second row failed.", 30).accepted,
+    ).toBe(true);
+    expect(state.snapshot.activeFeedback).toMatchObject({
+      regionId: "profile-row:retained",
+      phase: "error",
+      message: "Second row failed.",
     });
   });
 });

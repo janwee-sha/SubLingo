@@ -143,6 +143,7 @@ let targetLanguageHydrated = false;
 let targetLanguageDirty = false;
 let pendingLanguageSaveRequestId: string | null = null;
 let renderedLanguageCatalogSignature = "";
+let subtitleRetryAvailable = false;
 
 function nextRequestId(): string {
   requestSequence += 1;
@@ -212,12 +213,54 @@ function setActionBusy(
     control.textContent = busy ? busyLabel : idleLabelForAction(actionId, profileId);
 }
 
-function renderRegionFeedback(regionId: string): void {
-  const status = statusForRegion(regionId);
-  const feedback = sidebarState.snapshot.feedback[regionId];
-  if (!status || !feedback) return;
-  status.dataset.state = feedback.phase;
-  status.textContent = feedback.message;
+function updateSubtitleRetryControls(): void {
+  const latest = sidebarState.snapshot.latestRequestByRegion["subtitle-retry"];
+  const pending = latest ? sidebarState.snapshot.requests[latest.requestId] : undefined;
+  const feedback = sidebarState.snapshot.activeFeedback;
+  const active = feedback?.regionId === "subtitle-retry";
+  sourcePreparationControls.hidden = !subtitleRetryAvailable && !pending && !active;
+  retrySubtitleButton.hidden = !subtitleRetryAvailable;
+}
+
+function renderActiveFeedback(): void {
+  for (const status of [
+    translationStatus,
+    languageStatus,
+    profileEditorStatus,
+    subtitleRetryStatus,
+    ...Array.from(
+      profilesElement.querySelectorAll<HTMLParagraphElement>(".profile-operation-status"),
+    ),
+  ]) {
+    delete status.dataset.state;
+    status.textContent = "";
+  }
+  const feedback = sidebarState.snapshot.activeFeedback;
+  if (feedback?.placement !== "deleted-result") {
+    for (const slot of Array.from(profilesElement.querySelectorAll(".deleted-profile-result")))
+      slot.remove();
+    if (!profilesElement.children.length)
+      profilesElement.innerHTML = '<p class="empty">No saved profiles yet.</p>';
+  }
+  if (feedback?.placement === "region") {
+    const status = statusForRegion(feedback.regionId);
+    if (status) {
+      status.dataset.state = feedback.phase;
+      status.textContent = feedback.message;
+    }
+  }
+  updateSubtitleRetryControls();
+}
+
+function scheduleFeedbackExpiry(feedback: SidebarFeedback): void {
+  const messageId = feedback.messageId;
+  window.setTimeout(
+    () => {
+      if (!sidebarState.expireFeedback(messageId)) return;
+      renderActiveFeedback();
+    },
+    Math.max(0, feedback.expiresAt - Date.now()),
+  );
 }
 
 function beginOperation(
@@ -228,10 +271,10 @@ function beginOperation(
   revision?: number,
 ): string {
   const requestId = nextRequestId();
-  const previousId = sidebarState.snapshot.feedback[regionId]?.latestRequestId;
+  const previousId = sidebarState.snapshot.latestRequestByRegion[regionId]?.requestId;
   const previous = previousId ? sidebarState.snapshot.requests[previousId] : undefined;
   if (previous) setActionBusy(previous.actionId, previous.profileId, false);
-  sidebarState.beginOperation(
+  const feedback = sidebarState.beginOperation(
     {
       requestId,
       regionId,
@@ -243,7 +286,8 @@ function beginOperation(
   );
   pendingOperations.add(requestId);
   setActionBusy(actionId, profileId, true, busyLabel);
-  renderRegionFeedback(regionId);
+  renderActiveFeedback();
+  scheduleFeedbackExpiry(feedback);
   return requestId;
 }
 
@@ -257,12 +301,13 @@ function finishOperation(
   const finished = sidebarState.finishOperation(requestId, phase, message);
   pendingOperations.delete(requestId);
   if (!request) return false;
-  const latestId = sidebarState.snapshot.feedback[request.regionId]?.latestRequestId;
+  const latestId = sidebarState.snapshot.latestRequestByRegion[request.regionId]?.requestId;
   const latest = latestId ? sidebarState.snapshot.requests[latestId] : undefined;
   if (!latest || latest.actionId !== request.actionId)
     setActionBusy(request.actionId, request.profileId, false);
   if (!finished.accepted) return false;
-  renderRegionFeedback(request.regionId);
+  renderActiveFeedback();
+  if (finished.feedback) scheduleFeedbackExpiry(finished.feedback);
   return true;
 }
 
@@ -354,8 +399,6 @@ function resetEditor(): void {
   providerKey.placeholder = "Not shown after saving";
   saveProfileButton.textContent = "Save profile";
   newProfileButton.hidden = true;
-  profileEditorStatus.dataset.state = "success";
-  profileEditorStatus.textContent = "Ready to create a new profile.";
 }
 
 enabled.addEventListener("change", () => {
@@ -432,8 +475,6 @@ profilesElement.addEventListener("click", (event) => {
   switch (button.dataset.action) {
     case "edit":
       loadEditor(profile);
-      profileEditorStatus.dataset.state = "success";
-      profileEditorStatus.textContent = `Editing ${profile.displayName}.`;
       break;
     case "select": {
       loadEditor(profile);
@@ -534,7 +575,7 @@ window.iina?.onMessage("profile:selected", (raw: unknown) => {
 window.iina?.onMessage("profile:deleted", (raw: unknown) => {
   const result = raw as { requestId?: string; profileId?: string };
   if (typeof result.requestId !== "string" || typeof result.profileId !== "string") return;
-  sidebarState.deleteSucceeded({
+  const deletion = sidebarState.deleteSucceeded({
     requestId: result.requestId,
     profileId: result.profileId,
     message: "Profile and saved credential deleted.",
@@ -551,6 +592,7 @@ window.iina?.onMessage("profile:deleted", (raw: unknown) => {
   pendingOperations.delete(result.requestId);
   renderedProfilesSignature = "";
   renderProfiles(sidebarState.snapshot.profiles as unknown as ProfileView[]);
+  if (deletion.feedback) scheduleFeedbackExpiry(deletion.feedback);
   window.iina?.postMessage("ui:ready", envelope({}));
 });
 
@@ -665,8 +707,10 @@ window.iina?.onMessage("operation:error", (raw: unknown) => {
 function renderProfiles(viewProfiles: ProfileView[]): void {
   profiles.clear();
   profilesElement.replaceChildren();
+  const activeFeedback = sidebarState.snapshot.activeFeedback;
   if (!viewProfiles.length && sidebarState.snapshot.deletedResults.length === 0) {
     profilesElement.innerHTML = '<p class="empty">No saved profiles yet.</p>';
+    renderActiveFeedback();
     return;
   }
   for (const profile of viewProfiles) {
@@ -706,8 +750,7 @@ function renderProfiles(viewProfiles: ProfileView[]): void {
     article.append(rowStatus);
     profilesElement.append(article);
     const regionId = `profile-row:${profile.profileId}`;
-    renderRegionFeedback(regionId);
-    const latestRequestId = sidebarState.snapshot.feedback[regionId]?.latestRequestId;
+    const latestRequestId = sidebarState.snapshot.latestRequestByRegion[regionId]?.requestId;
     const latestRequest = latestRequestId
       ? sidebarState.snapshot.requests[latestRequestId]
       : undefined;
@@ -716,12 +759,12 @@ function renderProfiles(viewProfiles: ProfileView[]): void {
         latestRequest.actionId,
         latestRequest.profileId,
         true,
-        sidebarState.snapshot.feedback[regionId]?.message ?? "",
+        latestRequest.busyMessage ?? "",
       );
   }
-  for (const result of [...sidebarState.snapshot.deletedResults].sort(
-    (left, right) => left.position - right.position,
-  )) {
+  for (const result of [...sidebarState.snapshot.deletedResults]
+    .filter((item) => item.messageId === activeFeedback?.messageId)
+    .sort((left, right) => left.position - right.position)) {
     const slot = document.createElement("p");
     slot.className = "deleted-profile-result";
     slot.setAttribute("role", "status");
@@ -732,6 +775,7 @@ function renderProfiles(viewProfiles: ProfileView[]): void {
     );
     profilesElement.insertBefore(slot, anchor);
   }
+  renderActiveFeedback();
 }
 
 window.iina?.onMessage("state:update", (raw: unknown) => {
@@ -796,15 +840,14 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
     sourceIssueLabels[view.sourceIssue]
   )
     statusMessage.textContent = sourceIssueLabels[view.sourceIssue]!;
-  const retryFeedback = sidebarState.snapshot.feedback["subtitle-retry"];
   if (view.sourcePreparation && view.sourcePreparation.state !== "ready") {
-    sourcePreparationControls.hidden = !view.sourcePreparation.canRetry && !retryFeedback;
-    retrySubtitleButton.hidden = !view.sourcePreparation.canRetry;
+    subtitleRetryAvailable = view.sourcePreparation.canRetry;
+    updateSubtitleRetryControls();
     statusMessage.textContent = sourcePreparationLabels[view.sourcePreparation.state];
     statusDot.dataset.state = view.sourcePreparation.state;
   } else {
-    sourcePreparationControls.hidden = !retryFeedback;
-    retrySubtitleButton.hidden = true;
+    subtitleRetryAvailable = false;
+    updateSubtitleRetryControls();
   }
   if (view.source) {
     sourceSummary.hidden = false;

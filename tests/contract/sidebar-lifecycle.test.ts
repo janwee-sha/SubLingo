@@ -6,6 +6,10 @@ import { parseRetrySubtitlePreparation } from "../../src/domain/messages.js";
 describe("IINA sidebar lifecycle contract", () => {
   const mainSource = readFileSync(new URL("../../src/main.ts", import.meta.url), "utf8");
   const sidebarSource = readFileSync(new URL("../../ui/sidebar.ts", import.meta.url), "utf8");
+  const sidebarStateSource = readFileSync(
+    new URL("../../ui/sidebar-state.ts", import.meta.url),
+    "utf8",
+  );
   const sidebarHtml = readFileSync(new URL("../../ui/sidebar.html", import.meta.url), "utf8");
 
   it("lets the live webview request state instead of posting from the player timer", () => {
@@ -112,6 +116,30 @@ describe("IINA sidebar lifecycle contract", () => {
       expect(sidebarSource).toContain(region);
     expect(sidebarSource).toContain("sidebarState.finishOperation");
     expect(sidebarSource).toContain("if (!finished.accepted) return");
+  });
+
+  it("coordinates one globally visible message without coupling it to request busy state", () => {
+    expect(sidebarStateSource).toContain("latestRequestByRegion");
+    expect(sidebarStateSource).toContain("activeFeedback");
+    expect(sidebarStateSource).toContain("messageId");
+    expect(sidebarStateSource).toContain("expiresAt");
+    expect(sidebarStateSource).toContain("expireFeedback");
+    expect(sidebarSource).toContain("scheduleFeedbackExpiry");
+    expect(sidebarSource).toContain("renderActiveFeedback");
+    expect(sidebarSource).toContain("window.setTimeout");
+    expect(sidebarSource).toContain("expireFeedback(messageId)");
+    expect(sidebarSource).not.toContain("snapshot.feedback");
+  });
+
+  it("redraws Profile rows from request ownership and only restores the active message", () => {
+    const renderStart = sidebarSource.indexOf("function renderProfiles");
+    const renderEnd = sidebarSource.indexOf('window.iina?.onMessage("state:update"', renderStart);
+    const renderSource = sidebarSource.slice(renderStart, renderEnd);
+
+    expect(renderSource).toContain("latestRequestByRegion");
+    expect(renderSource).toContain("activeFeedback");
+    expect(renderSource).toContain("renderActiveFeedback");
+    expect(renderSource).not.toContain("snapshot.feedback");
   });
 
   it("keeps Update selection invalidation through optional credential completion", () => {

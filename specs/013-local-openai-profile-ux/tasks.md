@@ -161,13 +161,13 @@
 
 ### 全局操作消息生命周期（US3）
 
-- [ ] T049 [P] [US3] 先扩展 `tests/unit/sidebar-state.test.ts`，覆盖五类区域任一新消息清除其余区域、全局最多一条、busy 与终态分别生成消息身份并各自 1000 ms 到期、旧计时不清除新消息、消息清理不删除 pending 或改变业务状态、删除结果槽参与同一竞态，确认测试在实现前失败
-- [ ] T050 [P] [US3] 先扩展 `tests/contract/sidebar-lifecycle.test.ts` 与 `tests/contract/sidebar-form.test.ts`，覆盖 Translate、Languages、Profile editor、不同 Profile 行和 Retry 的交错消息、终态重新计时、同区域非 latest/未知/重复结果不清除当前消息、行重绘与可访问状态容器清空，确认测试在实现前失败
-- [ ] T051 [US3] 在 `ui/sidebar-state.ts` 分离区域 latest request 与全局 `activeFeedback`，为每次消息写入生成独立身份和 1000 ms 到期信息，使被替换或到期的消息只清理文案或删除结果槽，不清理 pending、busy、选择、Test、Credential 或删除状态
-- [ ] T052 [US3] 在 `ui/sidebar.ts` 接入全局消息写入、跨区域即时清空、按消息身份保护的 1000 ms 计时清理、Profile 行重绘和删除结果槽生命周期，确保被接受的消息才参与竞态且生产代码不保存失效 DOM 引用
-- [ ] T053 [US3] 运行 `npx vitest run tests/unit/sidebar-state.test.ts tests/contract/sidebar-form.test.ts tests/contract/sidebar-lifecycle.test.ts` 与 `npm run typecheck`，确认全局消息竞态、1 秒生命周期、请求归属、busy 恢复和可访问反馈符合 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
-- [ ] T054 [US3] 在 `docs/releases/v0.3.4.md` 将操作反馈改进描述同步为最新操作消息全局互斥且 1 秒后消失，只描述用户可见行为，不记录实现或验收过程
-- [ ] T055 [US3] 在 T049–T054 验收后严格执行 `specs/013-local-openai-profile-ux/quickstart.md` 的八项门禁、生成 `build/release-gates.json`、打包并审计最终 `build/package/SubLingo-0.3.4.iinaplgz`，确保发布证据与当前源码及全局消息生命周期一致
+- [X] T049 [P] [US3] 先扩展 `tests/unit/sidebar-state.test.ts`，覆盖五类区域任一新消息清除其余区域、全局最多一条、busy 与终态分别生成消息身份并各自 1000 ms 到期、旧计时不清除新消息、消息清理不删除 pending 或改变业务状态、删除结果槽参与同一竞态，确认测试在实现前失败
+- [X] T050 [P] [US3] 先扩展 `tests/contract/sidebar-lifecycle.test.ts` 与 `tests/contract/sidebar-form.test.ts`，覆盖 Translate、Languages、Profile editor、不同 Profile 行和 Retry 的交错消息、终态重新计时、同区域非 latest/未知/重复结果不清除当前消息、行重绘与可访问状态容器清空，确认测试在实现前失败
+- [X] T051 [US3] 在 `ui/sidebar-state.ts` 分离区域 latest request 与全局 `activeFeedback`，为每次消息写入生成独立身份和 1000 ms 到期信息，使被替换或到期的消息只清理文案或删除结果槽，不清理 pending、busy、选择、Test、Credential 或删除状态
+- [X] T052 [US3] 在 `ui/sidebar.ts` 接入全局消息写入、跨区域即时清空、按消息身份保护的 1000 ms 计时清理、Profile 行重绘和删除结果槽生命周期，确保被接受的消息才参与竞态且生产代码不保存失效 DOM 引用
+- [X] T053 [US3] 运行 `npx vitest run tests/unit/sidebar-state.test.ts tests/contract/sidebar-form.test.ts tests/contract/sidebar-lifecycle.test.ts` 与 `npm run typecheck`，确认全局消息竞态、1 秒生命周期、请求归属、busy 恢复和可访问反馈符合 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
+- [X] T054 [US3] 在 `docs/releases/v0.3.4.md` 将操作反馈改进描述同步为最新操作消息全局互斥且 1 秒后消失，只描述用户可见行为，不记录实现或验收过程
+- [X] T055 [US3] 在 T049–T054 验收后严格执行 `specs/013-local-openai-profile-ux/quickstart.md` 的八项门禁、生成 `build/release-gates.json`、打包并审计最终 `build/package/SubLingo-0.3.4.iinaplgz`，确保发布证据与当前源码及全局消息生命周期一致
 - [ ] T048 使用 T055 重新生成并审计的同一 `build/package/SubLingo-0.3.4.iinaplgz`，由开发者一人在 IINA 1.4.4 完成 `specs/013-local-openai-profile-ux/quickstart.md` 的安装、两种 Service type 的本地/私网/公网 HTTP 与 HTTPS、system/direct、删除竞态、全局消息竞态与 1 秒生命周期、默认名称、精确文案、多窗口、播放和卸载验收，只将允许的版本或 SHA-256、环境、Service type、主机位置类别、scheme、proxy mode 与结论追加到 `docs/validation/iina-matrix.md`
 
 ---

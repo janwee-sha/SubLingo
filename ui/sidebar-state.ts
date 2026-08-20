@@ -12,20 +12,32 @@ interface SidebarOperationRequest {
   actionId: string;
   profileId?: string;
   revision?: number;
+  busyMessage?: string;
+}
+
+interface SidebarRegionRequest {
+  requestId: string;
+  actionId: string;
 }
 
 interface SidebarFeedback {
-  latestRequestId: string;
+  messageId: number;
+  requestId: string;
+  regionId: string;
   actionId: string;
   phase: SidebarFeedbackPhase;
   message: string;
+  expiresAt: number;
+  placement: "region" | "deleted-result";
 }
 
 interface SidebarDeletedResult {
+  messageId: number;
   requestId: string;
   profileId: string;
   message: string;
   position: number;
+  expiresAt: number;
 }
 
 interface ProfileNameState {
@@ -50,7 +62,8 @@ interface SidebarStateSnapshot {
   credentialDisplayProfileId: string | null;
   profileTests: Record<string, unknown>;
   requests: Record<string, SidebarOperationRequest>;
-  feedback: Record<string, SidebarFeedback>;
+  latestRequestByRegion: Record<string, SidebarRegionRequest>;
+  activeFeedback: SidebarFeedback | null;
   deletedResults: SidebarDeletedResult[];
   profileName: ProfileNameState;
   pendingProfileSave: PendingProfileSaveState | null;
@@ -65,15 +78,27 @@ interface SidebarStateCoordinator {
     credentialDisplayProfileId?: string | null;
   }): void;
   setProfileTest(profileId: string, value: unknown): void;
-  beginOperation(request: SidebarOperationRequest, message?: string): void;
+  beginOperation(
+    request: SidebarOperationRequest,
+    message?: string,
+    writtenAt?: number,
+  ): SidebarFeedback;
   finishOperation(
     requestId: string,
     phase: SidebarFeedbackPhase,
     message: string,
-  ): { accepted: boolean; request?: SidebarOperationRequest };
-  deleteSucceeded(input: { requestId: string; profileId: string; message: string }): {
+    writtenAt?: number,
+  ): { accepted: boolean; request?: SidebarOperationRequest; feedback?: SidebarFeedback };
+  deleteSucceeded(input: {
+    requestId: string;
+    profileId: string;
+    message: string;
+    writtenAt?: number;
+  }): {
     createdResultSlot: boolean;
+    feedback?: SidebarFeedback;
   };
+  expireFeedback(messageId: number): boolean;
   resetProfileName(serviceTypeLabel: string): void;
   changeServiceTypeLabel(serviceTypeLabel: string): void;
   inputProfileName(value: string): void;
@@ -106,7 +131,8 @@ function createSubLingoSidebarState(
     credentialDisplayProfileId: null,
     profileTests: {},
     requests: {},
-    feedback: {},
+    latestRequestByRegion: {},
+    activeFeedback: null,
     deletedResults: [],
     profileName: {
       value: "OpenAI-compatible",
@@ -114,6 +140,29 @@ function createSubLingoSidebarState(
       serviceTypeLabel: "OpenAI-compatible",
     },
     pendingProfileSave: null,
+  };
+  let feedbackSequence = 0;
+
+  const writeFeedback = (
+    request: SidebarOperationRequest,
+    phase: SidebarFeedbackPhase,
+    message: string,
+    writtenAt: number,
+    placement: SidebarFeedback["placement"] = "region",
+  ): SidebarFeedback => {
+    feedbackSequence += 1;
+    snapshot.deletedResults = [];
+    snapshot.activeFeedback = {
+      messageId: feedbackSequence,
+      requestId: request.requestId,
+      regionId: request.regionId,
+      actionId: request.actionId,
+      phase,
+      message,
+      expiresAt: writtenAt + 1_000,
+      placement,
+    };
+    return snapshot.activeFeedback;
   };
 
   const applyProfiles = (profiles: SidebarStateProfile[]): SidebarStateProfile[] => {
@@ -138,44 +187,53 @@ function createSubLingoSidebarState(
     snapshot.profileTests[profileId] = value;
   };
 
-  const beginOperation = (request: SidebarOperationRequest, message = ""): void => {
-    snapshot.requests[request.requestId] = { ...request };
-    snapshot.feedback[request.regionId] = {
-      latestRequestId: request.requestId,
+  const beginOperation = (
+    request: SidebarOperationRequest,
+    message = "",
+    writtenAt = Date.now(),
+  ): SidebarFeedback => {
+    const pendingRequest = { ...request, busyMessage: message };
+    snapshot.requests[request.requestId] = pendingRequest;
+    snapshot.latestRequestByRegion[request.regionId] = {
+      requestId: request.requestId,
       actionId: request.actionId,
-      phase: "busy",
-      message,
     };
+    return writeFeedback(pendingRequest, "busy", message, writtenAt);
   };
 
   const finishOperation = (
     requestId: string,
     phase: SidebarFeedbackPhase,
     message: string,
-  ): { accepted: boolean; request?: SidebarOperationRequest } => {
+    writtenAt = Date.now(),
+  ): { accepted: boolean; request?: SidebarOperationRequest; feedback?: SidebarFeedback } => {
     const request = snapshot.requests[requestId];
     if (!request) return { accepted: false };
     delete snapshot.requests[requestId];
-    const current = snapshot.feedback[request.regionId];
-    if (current?.latestRequestId !== requestId) return { accepted: false, request };
-    snapshot.feedback[request.regionId] = {
-      latestRequestId: requestId,
-      actionId: request.actionId,
-      phase,
-      message,
+    const current = snapshot.latestRequestByRegion[request.regionId];
+    if (current?.requestId !== requestId) return { accepted: false, request };
+    return {
+      accepted: true,
+      request,
+      feedback: writeFeedback(request, phase, message, writtenAt),
     };
-    return { accepted: true, request };
   };
 
   const deleteSucceeded = (input: {
     requestId: string;
     profileId: string;
     message: string;
-  }): { createdResultSlot: boolean } => {
+    writtenAt?: number;
+  }): { createdResultSlot: boolean; feedback?: SidebarFeedback } => {
     const request = snapshot.requests[input.requestId];
     const position = snapshot.profiles.findIndex(
       (profile) => profile.profileId === input.profileId,
     );
+    const localDelete =
+      request?.actionId === "delete" &&
+      request.profileId === input.profileId &&
+      position >= 0 &&
+      snapshot.latestRequestByRegion[request.regionId]?.requestId === input.requestId;
     const isNewDeletion = !snapshot.deletedProfileIds.includes(input.profileId);
     if (isNewDeletion) snapshot.deletedProfileIds.push(input.profileId);
     snapshot.profiles = snapshot.profiles.filter(
@@ -189,20 +247,38 @@ function createSubLingoSidebarState(
     for (const [requestId, pending] of Object.entries(snapshot.requests)) {
       if (pending.profileId === input.profileId) delete snapshot.requests[requestId];
     }
-    const localDelete =
-      request?.actionId === "delete" && request.profileId === input.profileId && position >= 0;
-    if (
-      localDelete &&
-      !snapshot.deletedResults.some((item) => item.requestId === input.requestId)
-    ) {
+    for (const regionId of Object.keys(snapshot.latestRequestByRegion)) {
+      if (regionId === `profile-row:${input.profileId}`)
+        delete snapshot.latestRequestByRegion[regionId];
+    }
+    if (localDelete && request) {
+      const feedback = writeFeedback(
+        request,
+        "success",
+        input.message,
+        input.writtenAt ?? Date.now(),
+        "deleted-result",
+      );
       snapshot.deletedResults.push({
+        messageId: feedback.messageId,
         requestId: input.requestId,
         profileId: input.profileId,
         message: input.message,
         position,
+        expiresAt: feedback.expiresAt,
       });
+      return { createdResultSlot: true, feedback };
     }
-    return { createdResultSlot: localDelete };
+    return { createdResultSlot: false };
+  };
+
+  const expireFeedback = (messageId: number): boolean => {
+    if (snapshot.activeFeedback?.messageId !== messageId) return false;
+    snapshot.activeFeedback = null;
+    snapshot.deletedResults = snapshot.deletedResults.filter(
+      (result) => result.messageId !== messageId,
+    );
+    return true;
   };
 
   const resetProfileName = (serviceTypeLabel: string): void => {
@@ -284,6 +360,7 @@ function createSubLingoSidebarState(
     beginOperation,
     finishOperation,
     deleteSucceeded,
+    expireFeedback,
     resetProfileName,
     changeServiceTypeLabel,
     inputProfileName,

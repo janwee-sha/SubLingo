@@ -59,6 +59,11 @@ describe("IINA sidebar bundle contract", () => {
       expect(html).toMatch(new RegExp(`id="${status}"[^>]*role="status"[^>]*aria-live="polite"`));
     expect(html).not.toMatch(/id="profiles"[^>]*aria-live/);
     expect(sidebarSource).toContain('className = "operation-status profile-operation-status"');
+    expect(html).toMatch(
+      /id="profile-editor-status"[^>]*role="status"[^>]*aria-live="polite"[^>]*>\s*<\/p>/,
+    );
+    expect(sidebarSource).not.toContain('profileEditorStatus.textContent = "Ready');
+    expect(sidebarSource).not.toContain("profileEditorStatus.textContent = `Editing");
   });
 
   it("keeps selection consent separate from credential and connection verification", () => {
