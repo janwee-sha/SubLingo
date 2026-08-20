@@ -167,8 +167,8 @@
 - [X] T052 [US3] 在 `ui/sidebar.ts` 接入全局消息写入、跨区域即时清空、持续显示、Profile 行重绘和删除结果槽替换，确保被接受的消息才参与竞态且生产代码不保存失效 DOM 引用或创建自动清除计时器
 - [X] T053 [US3] 运行 `npx vitest run tests/unit/sidebar-state.test.ts tests/contract/sidebar-form.test.ts tests/contract/sidebar-lifecycle.test.ts` 与 `npm run typecheck`，确认全局消息竞态、持续显示、请求归属、busy 恢复和可访问反馈符合 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
 - [X] T054 [US3] 在 `docs/releases/v0.3.4.md` 将操作反馈改进描述同步为最新操作消息全局互斥并保持到下一条反馈，只描述用户可见行为，不记录实现或验收过程
-- [ ] T055 [US3] 在 T049–T054 验收后严格执行 `specs/013-local-openai-profile-ux/quickstart.md` 的八项门禁、生成 `build/release-gates.json`、打包并审计最终 `build/package/SubLingo-0.3.4.iinaplgz`，确保发布证据与当前源码及全局消息竞态一致
-- [ ] T048 使用 T055 重新生成并审计的同一 `build/package/SubLingo-0.3.4.iinaplgz`，由开发者一人在 IINA 1.4.4 完成 `specs/013-local-openai-profile-ux/quickstart.md` 的安装、两种 Service type 的本地/私网/公网 HTTP 与 HTTPS、system/direct、删除竞态、全局消息竞态与持续显示、默认名称、精确文案、多窗口、播放和卸载验收，只将允许的版本或 SHA-256、环境、Service type、主机位置类别、scheme、proxy mode 与结论追加到 `docs/validation/iina-matrix.md`
+- [X] T055 [US3] 在 T049–T054 验收后严格执行 `specs/013-local-openai-profile-ux/quickstart.md` 的八项门禁、生成 `build/release-gates.json`、打包并审计最终 `build/package/SubLingo-0.3.4.iinaplgz`，确保发布证据与当前源码及全局消息竞态一致
+- [X] T048 使用 T055 重新生成并审计的同一 `build/package/SubLingo-0.3.4.iinaplgz`，由开发者一人在 IINA 1.4.4 完成 `specs/013-local-openai-profile-ux/quickstart.md` 的安装、两种 Service type 的本地/私网/公网 HTTP 与 HTTPS、system/direct、删除竞态、全局消息竞态与持续显示、默认名称、精确文案、多窗口、播放和卸载验收，只将允许的版本或 SHA-256、环境、Service type、主机位置类别、scheme、proxy mode 与结论追加到 `docs/validation/iina-matrix.md`
 
 ---
 
