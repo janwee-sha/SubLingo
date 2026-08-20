@@ -12,8 +12,10 @@ describe("IINA sidebar bundle contract", () => {
     expect(packageJson.targets?.sidebar?.publicUrl).toBe("./");
     expect(html).toContain('<script src="./provider-status.ts"></script>');
     expect(html).toContain('<script src="./sidebar.ts"></script>');
+    expect(html).toContain('<script src="./sidebar-state.ts"></script>');
     expect(html).not.toContain('type="module"');
     expect(html.indexOf("./provider-status.ts")).toBeLessThan(html.indexOf("./sidebar.ts"));
+    expect(html.indexOf("./sidebar-state.ts")).toBeLessThan(html.indexOf("./sidebar.ts"));
   });
 
   it("offers both supported providers and always exposes a required model ID", () => {
@@ -22,12 +24,46 @@ describe("IINA sidebar bundle contract", () => {
     expect(html).toMatch(/id="provider-model"[\s\S]*?required/);
   });
 
+  it("uses the visible Service type as the savable default without a generic fallback", () => {
+    expect(html).toContain('id="profile-name" type="text" value="OpenAI-compatible"');
+    expect(sidebarSource).toContain("selectedServiceTypeLabel");
+    expect(sidebarSource).toContain("inputProfileName");
+    expect(sidebarSource).toContain("changeServiceTypeLabel");
+    expect(sidebarSource).not.toContain('profileName.value.trim() || "Provider"');
+  });
+
   it("offers profile editing and request-correlated feedback", () => {
-    expect(html).toContain('id="operation-status"');
+    expect(html).not.toContain('id="operation-status"');
     expect(html).toContain('id="new-profile"');
     expect(html).toContain('id="request-url"');
     expect(html).toContain('id="provider-proxy-mode"');
     expect(html).toContain('<option value="direct">');
+  });
+
+  it("places an independent accessible status directly after each non-row operation control", () => {
+    for (const [control, status] of [
+      ['id="enabled"', 'id="translation-status"'],
+      ['id="save-languages"', 'id="language-status"'],
+      ['class="form-actions"', 'id="profile-editor-status"'],
+      ['id="retry-subtitle"', 'id="subtitle-retry-status"'],
+    ]) {
+      expect(html.indexOf(control)).toBeGreaterThan(-1);
+      expect(html.indexOf(status)).toBeGreaterThan(html.indexOf(control));
+    }
+    for (const status of [
+      "translation-status",
+      "language-status",
+      "profile-editor-status",
+      "subtitle-retry-status",
+    ])
+      expect(html).toMatch(new RegExp(`id="${status}"[^>]*role="status"[^>]*aria-live="polite"`));
+    expect(html).not.toMatch(/id="profiles"[^>]*aria-live/);
+    expect(sidebarSource).toContain('className = "operation-status profile-operation-status"');
+    expect(html).toMatch(
+      /id="profile-editor-status"[^>]*role="status"[^>]*aria-live="polite"[^>]*>\s*<\/p>/,
+    );
+    expect(sidebarSource).not.toContain('profileEditorStatus.textContent = "Ready');
+    expect(sidebarSource).not.toContain("profileEditorStatus.textContent = `Editing");
   });
 
   it("keeps selection consent separate from credential and connection verification", () => {

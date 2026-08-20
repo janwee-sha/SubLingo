@@ -18,7 +18,7 @@ interface CredentialStatus {
 }
 
 function providerTestStatusMessage(result: ProviderTestStatus): string {
-  if (result.ok) return "Connection test passed. Select this profile to authorize translation.";
+  if (result.ok) return "Connection test passed. Select this profile for translation.";
   switch (result.userAction) {
     case "CHECK_CREDENTIALS":
       return "Authentication failed. Re-enter the API key and test again.";

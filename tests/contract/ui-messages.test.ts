@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   GLOBAL_MESSAGE_NAMES,
@@ -35,6 +36,7 @@ const credentialStatusMessage = (
 ).sublingoCredentialStatusMessage;
 
 describe("Sidebar/Main/Global security messages", () => {
+  const sidebarSource = readFileSync(new URL("../../ui/sidebar.ts", import.meta.url), "utf8");
   const profile = {
     profileId: "00000000-0000-4000-8000-000000000001",
     revision: 2,
@@ -118,6 +120,9 @@ describe("Sidebar/Main/Global security messages", () => {
   });
 
   it("turns safe provider classifications into actionable sidebar guidance", () => {
+    expect(providerTestStatusMessage({ ok: true })).toBe(
+      "Connection test passed. Select this profile for translation.",
+    );
     expect(
       providerTestStatusMessage({
         ok: false,
@@ -142,6 +147,13 @@ describe("Sidebar/Main/Global security messages", () => {
         userAction: "CHECK_NETWORK",
       }),
     ).toMatch(/HTTP 503.*network route/i);
+  });
+
+  it("uses exact translation-selection guidance without authorization wording", () => {
+    expect(sidebarSource).toContain("Profile updated. Select it again for translation.");
+    expect(`${sidebarSource}\n${providerTestStatusMessage({ ok: true })}`).not.toContain(
+      "to authorize translation",
+    );
   });
 
   it("distinguishes helper and private-file credential failures", () => {

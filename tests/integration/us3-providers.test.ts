@@ -1,10 +1,127 @@
 import { describe, expect, it } from "vitest";
 import { ProviderBroker } from "../../src/providers/broker.js";
 import { ProviderProfiles } from "../../src/providers/profiles.js";
+import { OpenAICompatibleProvider } from "../../src/providers/openai.js";
+import { OllamaProvider } from "../../src/providers/ollama.js";
 import type { TranslationProvider } from "../../src/providers/provider.js";
+import type { ProviderTransport } from "../../src/providers/transport.js";
+import {
+  acceptProfileListResult,
+  beginProfileListRequest,
+  createProfileListSyncState,
+  removeDeletedProfile,
+} from "../../src/adapters/iina/profile-list-sync.js";
+import "../../ui/sidebar-state.js";
 import { makeProviderRequest } from "../contract/provider-test-helpers.js";
 
 describe("US3 provider broker integration", () => {
+  it("keeps a deleted profile removed across late lists, duplicate success and Sidebar reopen", () => {
+    const deleted = { profileId: "deleted", revision: 1 };
+    const retained = { profileId: "retained", revision: 1 };
+    let mainState = createProfileListSyncState([deleted, retained]);
+    const stale = beginProfileListRequest(mainState, "window-A");
+    mainState = stale.state;
+    const sidebar = globalThis.createSubLingoSidebarState(mainState.profiles);
+    sidebar.beginOperation({
+      requestId: "delete-request",
+      regionId: "profile-row:deleted",
+      actionId: "delete",
+      profileId: "deleted",
+    });
+
+    mainState = removeDeletedProfile(mainState, "deleted");
+    const refresh = beginProfileListRequest(mainState, "window-A");
+    mainState = refresh.state;
+    sidebar.deleteSucceeded({ requestId: "delete-request", profileId: "deleted", message: "Done" });
+    sidebar.deleteSucceeded({ requestId: "delete-request", profileId: "deleted", message: "Done" });
+
+    mainState = acceptProfileListResult(mainState, stale.requestId, [deleted, retained]);
+    expect(mainState.profiles).toEqual([retained]);
+    sidebar.applyProfiles([deleted, retained]);
+    expect(sidebar.snapshot.profiles).toEqual([retained]);
+
+    mainState = acceptProfileListResult(mainState, refresh.requestId, [retained]);
+    const reopened = globalThis.createSubLingoSidebarState(mainState.profiles);
+    expect(reopened.snapshot.profiles).toEqual([retained]);
+  });
+
+  it.each(["openai", "ollama"] as const)(
+    "runs remote HTTP %s Save, Test, Select and translation without Test selecting it",
+    async (kind) => {
+      const profiles = new ProviderProfiles(() => `remote-${kind}`);
+      const saved = profiles.save({
+        displayName: kind,
+        kind,
+        endpoint:
+          kind === "openai"
+            ? "http://openai.example.test:8080/v1"
+            : "http://ollama.example.test:11434",
+        model: "model",
+      });
+      const transport: ProviderTransport = {
+        request: async (request) => {
+          if (request.url.endsWith("/api/version"))
+            return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
+          if (request.url.endsWith("/api/tags"))
+            return {
+              statusCode: 200,
+              headers: {},
+              bodyText: '{"models":[{"name":"model"}]}',
+            };
+          const messages = (request.body as { messages: Array<{ content: string }> }).messages;
+          const targets = (
+            JSON.parse(messages.at(-1)!.content) as {
+              targets: Array<{ id: string; text: string }>;
+            }
+          ).targets;
+          const content = JSON.stringify({
+            translations: targets.map((target) => ({ id: target.id, text: `T:${target.text}` })),
+          });
+          return kind === "openai"
+            ? {
+                statusCode: 200,
+                headers: {},
+                bodyText: JSON.stringify({
+                  choices: [{ finish_reason: "stop", message: { content } }],
+                }),
+              }
+            : {
+                statusCode: 200,
+                headers: {},
+                bodyText: JSON.stringify({ message: { content } }),
+              };
+        },
+      };
+      const createProvider = () =>
+        kind === "openai"
+          ? new OpenAICompatibleProvider(
+              {
+                endpoint: saved.endpoint,
+                model: "model",
+                capability: "json-object",
+                sessionId: "session",
+              },
+              transport,
+            )
+          : new OllamaProvider({ endpoint: saved.endpoint, model: "model" }, transport);
+      const tested = createProvider();
+
+      await expect(tested.testConnection("remote-test")).resolves.toBeDefined();
+      expect(profiles.selection("window")).toBeNull();
+
+      const broker = new ProviderBroker(profiles, createProvider);
+      broker.select("window", saved.profileId, saved.revision, saved.endpointFingerprint);
+      await expect(
+        broker.attempt("window", {
+          ...makeProviderRequest(),
+          profileId: saved.profileId,
+          profileRevision: saved.revision,
+          endpointFingerprint: saved.endpointFingerprint,
+        }),
+      ).resolves.toMatchObject({ translations: [{ id: "c1" }, { id: "c2" }] });
+    },
+  );
+
   it("routes each provider kind and connection failure to the authoritative window", async () => {
     const profiles = new ProviderProfiles(() => "00000000-0000-4000-8000-000000000001");
     const calls: string[] = [];

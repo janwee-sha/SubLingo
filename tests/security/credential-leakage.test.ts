@@ -22,7 +22,7 @@ describe("credential and content leakage boundaries", () => {
       revision: 1,
       displayName: "p",
       kind: "openai",
-      endpoint: "https://example.test",
+      endpoint: "http://provider.example.test:8080/v1",
       endpointFingerprint: "f",
       credential: { apiKey: sensitive[0]! },
     });

@@ -38,7 +38,7 @@ npm run pack
 - `npm run test:native`：运行 transport 与 subtitle extractor 的 Swift 合同、安全和真实小样本测试。
 - `npm run build`：构建插件运行时代码和 Sidebar。
 - `npm run verify:package`：检查待打包内容。
-- `npm run pack`：生成 `build/package/SubLingo-0.2.0.iinaplgz`。
+- `npm run pack`：生成 `build/package/SubLingo-X.Y.Z.iinaplgz`。
 
 ## 发布准备
 
@@ -64,7 +64,7 @@ npm run pack
 
 ```sh
 /Applications/IINA.app/Contents/MacOS/iina-plugin unlink .
-open build/package/SubLingo-0.2.0.iinaplgz
+open build/package/SubLingo-X.Y.Z.iinaplgz
 ```
 
 重启 IINA，在“设置 → 插件”中启用 SubLingo，并从播放器侧边栏打开插件。正式 `.iinaplgz` 安装项必须可以从插件管理面板卸载；不要同时保留同一版本的正式安装项和开发链接。
@@ -82,7 +82,7 @@ open build/package/SubLingo-0.2.0.iinaplgz
 - OpenAI-compatible 和 Ollama 请求由受限 Swift helper 发出；插件运行时只连接 helper 的 `127.0.0.1` 临时端口。
 - OpenAI-compatible 凭据由 helper 写入插件私有数据目录的 `credentials.json`；目录权限为 `0700`，文件权限为 `0600`。凭据不得进入 preferences、日志、诊断、进程参数或安装包。
 - 翻译结果仅缓存在当前视频会话中。换片、播放结束或关窗时清理，不写入持久缓存。
-- 远程 Provider 只允许 HTTPS；loopback Ollama 可以使用 HTTP。每个 Profile 可选择 macOS 系统代理或明确直连。
+- OpenAI-compatible 与 Ollama 均可使用完整 HTTP(S) endpoint。每个 Profile 可选择 macOS 系统代理或明确直连。
 - 原字幕和视频播放不得因翻译延迟或失败而暂停。
 
 详细设计和契约见当前 SDD 产物：

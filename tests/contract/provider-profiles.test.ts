@@ -63,7 +63,7 @@ describe("immutable provider profile revisions", () => {
     const first = profiles.save({
       displayName: "Local",
       kind: "ollama",
-      endpoint: "127.0.0.1:11434",
+      endpoint: "http://127.0.0.1:11434",
       model: "qwen",
     });
     expect(first.endpoint).toBe("http://127.0.0.1:11434");
@@ -85,30 +85,73 @@ describe("immutable provider profile revisions", () => {
     profiles.release("window-B", first.profileId, 1);
   });
 
-  it("rejects remote HTTP, URL credentials and stale/forged selection fingerprints", () => {
+  it.each([
+    ["openai", "https://api.example.test/v1", "https://api.example.test/v1"],
+    ["openai", "http://127.0.0.1:8080/v1", "http://127.0.0.1:8080/v1"],
+    ["openai", "http://192.168.50.4:8080/v1", "http://192.168.50.4:8080/v1"],
+    ["openai", "http://api.example.test:8080/v1", "http://api.example.test:8080/v1"],
+    ["ollama", "https://ollama.example.test/", "https://ollama.example.test"],
+    ["ollama", "http://localhost:11434/", "http://localhost:11434"],
+    ["ollama", "http://10.0.0.8:11434/", "http://10.0.0.8:11434"],
+    ["ollama", "http://ollama.example.test:11434/", "http://ollama.example.test:11434"],
+  ] as const)("accepts complete HTTP(S) endpoint %s %s", (kind, endpoint, normalized) => {
+    const profiles = new ProviderProfiles(() => `${kind}-${endpoint}`);
+    const saved = profiles.save({ displayName: kind, kind, endpoint, model: "model" });
+
+    expect(saved.endpoint).toBe(normalized);
+    expect(profiles.get(saved.profileId, saved.revision)).toEqual(saved);
+    expect(
+      profiles.select("window", saved.profileId, saved.revision, saved.endpointFingerprint),
+    ).toMatchObject({ endpointFingerprint: saved.endpointFingerprint });
+  });
+
+  it.each([
+    "",
+    "provider.example/v1",
+    "ftp://provider.example/v1",
+    "https://user:pass@provider.example/v1",
+    "https://provider.example/v1?private=true",
+    "https://provider.example/v1#private",
+    "https:///v1",
+    "https://[::1/v1",
+    "https://provider.example:0/v1",
+    "https://provider.example:65536/v1",
+    "https://provider.example:invalid/v1",
+  ])("rejects malformed endpoint without creating a revision: %s", (endpoint) => {
     const profiles = new ProviderProfiles(() => "00000000-0000-4000-8000-000000000001");
     expect(() =>
       profiles.save({
         displayName: "bad",
         kind: "openai",
-        endpoint: "http://remote.example",
+        endpoint,
         model: "m",
       }),
     ).toThrow();
-    expect(() =>
-      profiles.save({
-        displayName: "bad",
-        kind: "openai",
-        endpoint: "https://user:pass@example.test",
-        model: "m",
-      }),
-    ).toThrow();
+    expect(profiles.listLatest()).toEqual([]);
+  });
+
+  it("preserves an existing selection after a rejected update and rejects forged fingerprints", () => {
+    const profiles = new ProviderProfiles(() => "00000000-0000-4000-8000-000000000001");
     const valid = profiles.save({
       displayName: "Remote",
       kind: "openai",
       endpoint: "https://api.example.test/v1",
       model: "m",
     });
+    profiles.select("window", valid.profileId, valid.revision, valid.endpointFingerprint);
+    expect(() =>
+      profiles.save({
+        profileId: valid.profileId,
+        expectedRevision: valid.revision,
+        editingWindowId: "window",
+        displayName: "bad",
+        kind: "openai",
+        endpoint: "https://user:pass@example.test",
+        model: "m",
+      }),
+    ).toThrow(/INVALID_ENDPOINT/);
+    expect(profiles.selection("window")).toMatchObject({ revision: valid.revision });
+    expect(profiles.get(valid.profileId, 2)).toBeNull();
     expect(() => profiles.select("window", valid.profileId, 1, "forged")).toThrow(
       /SELECTION_MISMATCH/,
     );

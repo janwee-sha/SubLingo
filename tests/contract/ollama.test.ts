@@ -333,17 +333,66 @@ describe("Ollama native provider", () => {
     expect(cancelled).toEqual(["test-a-version"]);
   });
 
-  it("rejects non-loopback HTTP endpoints", () => {
-    expect(
-      () =>
-        new OllamaProvider(
-          { endpoint: "http://remote.example:11434", model: "qwen" },
-          {
-            request: async () => {
-              throw new Error();
-            },
+  it.each(["system", "direct"] as const)(
+    "uses a complete remote HTTP endpoint for probe, Test and translation in %s mode",
+    async (proxyMode) => {
+      const calls: Array<{ url: string; proxyMode: string }> = [];
+      const provider = new OllamaProvider(
+        {
+          endpoint: "http://ollama.example.test:11434/custom/",
+          model: "qwen",
+          proxyMode,
+        },
+        {
+          request: async (request) => {
+            calls.push({ url: request.url, proxyMode: request.proxyMode });
+            if (request.url.endsWith("/api/version"))
+              return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
+            if (request.url.endsWith("/api/tags"))
+              return {
+                statusCode: 200,
+                headers: {},
+                bodyText: '{"models":[{"name":"qwen"}]}',
+              };
+            const messages = (request.body as { messages: Array<{ content: string }> }).messages;
+            const payload = JSON.parse(messages.at(-1)!.content) as {
+              targets: Array<{ id: string; text: string }>;
+            };
+            return {
+              statusCode: 200,
+              headers: {},
+              bodyText: JSON.stringify({
+                message: {
+                  content: JSON.stringify({
+                    translations: payload.targets.map((target) => ({
+                      id: target.id,
+                      text: `T:${target.text}`,
+                    })),
+                  }),
+                },
+              }),
+            };
           },
-        ),
-    ).toThrow();
-  });
+        },
+      );
+
+      await expect(provider.probe()).resolves.toMatchObject({ model: "qwen" });
+      await expect(provider.testConnection(`test-${proxyMode}`)).resolves.toMatchObject({
+        model: "qwen",
+      });
+      await expect(provider.attempt(makeProviderRequest())).resolves.toMatchObject({
+        translations: [{ id: "c1" }, { id: "c2" }],
+      });
+      expect(calls.map((call) => call.url)).toEqual([
+        "http://ollama.example.test:11434/custom/api/version",
+        "http://ollama.example.test:11434/custom/api/tags",
+        "http://ollama.example.test:11434/custom/api/chat",
+        "http://ollama.example.test:11434/custom/api/version",
+        "http://ollama.example.test:11434/custom/api/tags",
+        "http://ollama.example.test:11434/custom/api/chat",
+        "http://ollama.example.test:11434/custom/api/chat",
+      ]);
+      expect(calls.every((call) => call.proxyMode === proxyMode)).toBe(true);
+    },
+  );
 });

@@ -608,4 +608,66 @@ describe("OpenAI-compatible provider", () => {
       });
     }
   });
+
+  it.each(["system", "direct"] as const)(
+    "uses a remote HTTP API root for Test and translation in %s mode",
+    async (proxyMode) => {
+      const calls: Array<{ url: string; proxyMode: string; authorization?: string }> = [];
+      const provider = new OpenAICompatibleProvider(
+        {
+          endpoint: "http://api.example.test:8080/custom/root/",
+          model: "model",
+          apiKey: "key",
+          capability: "json-object",
+          proxyMode,
+          sessionId: "session",
+        },
+        {
+          request: async (request) => {
+            calls.push({
+              url: request.url,
+              proxyMode: request.proxyMode,
+              authorization: request.headers.Authorization,
+            });
+            const messages = (request.body as { messages: Array<{ content: string }> }).messages;
+            const payload = JSON.parse(messages.at(-1)!.content) as {
+              targets: Array<{ id: string; text: string }>;
+            };
+            return {
+              statusCode: 200,
+              headers: {},
+              bodyText: JSON.stringify({
+                choices: [
+                  {
+                    finish_reason: "stop",
+                    message: {
+                      content: JSON.stringify({
+                        translations: payload.targets.map((target) => ({
+                          id: target.id,
+                          text: `T:${target.text}`,
+                        })),
+                      }),
+                    },
+                  },
+                ],
+              }),
+            };
+          },
+        },
+      );
+
+      await expect(provider.testConnection(`test-${proxyMode}`)).resolves.toBe("json-object");
+      await expect(provider.attempt(makeProviderRequest())).resolves.toMatchObject({
+        translations: [{ id: "c1" }, { id: "c2" }],
+      });
+      expect(calls).toHaveLength(2);
+      expect(calls).toEqual(
+        calls.map(() => ({
+          url: "http://api.example.test:8080/custom/root/chat/completions",
+          proxyMode,
+          authorization: "Bearer key",
+        })),
+      );
+    },
+  );
 });

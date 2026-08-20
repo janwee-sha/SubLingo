@@ -145,6 +145,14 @@ button.secondary {
   border-radius: 9px;
   background: Canvas;
 }
+.deleted-profile-result {
+  padding: 0.7rem;
+  border: 1px solid color-mix(in srgb, #218653 42%, var(--border));
+  border-radius: 9px;
+  color: #218653;
+  background: Canvas;
+  font-size: 0.78rem;
+}
 .profile > div:first-child {
   display: grid;
   gap: 0.15rem;
@@ -189,6 +197,24 @@ button.secondary {
 }
 .operation-status[data-state="error"] {
   color: #d83b3e;
+}
+.operation-status[data-state="cancelled"] {
+  color: var(--muted);
+}
+.operation-status[data-state="busy"] {
+  color: var(--muted);
+}
+.profile-operation-status:empty,
+.operation-status:empty {
+  min-height: 0;
+}
+.profile-operation-status {
+  overflow-wrap: anywhere;
+}
+.translation-toggle {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
 }
 .profile-actions .danger {
   color: #d83b3e;

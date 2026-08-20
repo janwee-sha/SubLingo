@@ -32,11 +32,6 @@ interface ProfileView {
   credentialConfigured: boolean;
 }
 
-interface PendingOperation {
-  button: HTMLButtonElement | null;
-  idleLabel: string;
-}
-
 type ProfileTestState = "not tested" | "passed" | "failed";
 
 type SourcePreparationState =
@@ -103,7 +98,10 @@ const sourcePreparationControls = document.querySelector<HTMLElement>(
   "#source-preparation-controls",
 )!;
 const retrySubtitleButton = document.querySelector<HTMLButtonElement>("#retry-subtitle")!;
-const operationStatus = document.querySelector<HTMLParagraphElement>("#operation-status")!;
+const translationStatus = document.querySelector<HTMLParagraphElement>("#translation-status")!;
+const languageStatus = document.querySelector<HTMLParagraphElement>("#language-status")!;
+const profileEditorStatus = document.querySelector<HTMLParagraphElement>("#profile-editor-status")!;
+const subtitleRetryStatus = document.querySelector<HTMLParagraphElement>("#subtitle-retry-status")!;
 const enabled = document.querySelector<HTMLInputElement>("#enabled")!;
 const targetLanguage = document.querySelector<HTMLSelectElement>("#target-language")!;
 const sourceSummary = document.querySelector<HTMLElement>("#source-summary")!;
@@ -128,9 +126,11 @@ const providerDrafts: Record<
   ollama: { endpoint: "http://127.0.0.1:11434", model: "", proxyMode: "system" },
 };
 const profiles = new Map<string, ProfileView>();
+const sidebarState = window.createSubLingoSidebarState();
+const profileUpdatedSelectionMessage = "Profile updated. Select it again for translation.";
 const profileTestStates = new Map<string, { revision: number; state: ProfileTestState }>();
 const pendingProfileTests = new Map<string, { profileId: string; revision: number }>();
-const pendingOperations = new Map<string, PendingOperation>();
+const pendingOperations = new Set<string>();
 let activeProviderKind: ProviderKind = "openai";
 let editingProfile: ProfileView | null = null;
 let selectedProfileId: string | null = null;
@@ -143,6 +143,7 @@ let targetLanguageHydrated = false;
 let targetLanguageDirty = false;
 let pendingLanguageSaveRequestId: string | null = null;
 let renderedLanguageCatalogSignature = "";
+let subtitleRetryAvailable = false;
 
 function nextRequestId(): string {
   requestSequence += 1;
@@ -157,31 +158,144 @@ function envelope(
   return { requestId, revision, payload };
 }
 
-function beginOperation(button: HTMLButtonElement | null, busyLabel: string): string {
-  const requestId = nextRequestId();
-  const idleLabel = button?.textContent ?? "";
-  if (button) {
-    button.disabled = true;
-    button.setAttribute("aria-busy", "true");
-    button.textContent = busyLabel;
+function statusForRegion(regionId: string): HTMLParagraphElement | null {
+  if (regionId === "translation-toggle") return translationStatus;
+  if (regionId === "language-settings") return languageStatus;
+  if (regionId === "profile-editor") return profileEditorStatus;
+  if (regionId === "subtitle-retry") return subtitleRetryStatus;
+  if (!regionId.startsWith("profile-row:")) return null;
+  const profileId = regionId.slice("profile-row:".length);
+  return (
+    Array.from(
+      profilesElement.querySelectorAll<HTMLParagraphElement>(".profile-operation-status"),
+    ).find((status) => status.dataset.profileId === profileId) ?? null
+  );
+}
+
+function controlForAction(
+  actionId: string,
+  profileId?: string,
+): HTMLButtonElement | HTMLInputElement | null {
+  if (actionId === "translation") return enabled;
+  if (actionId === "languages") return saveLanguagesButton;
+  if (actionId === "save-profile") return saveProfileButton;
+  if (actionId === "retry-preparation") return retrySubtitleButton;
+  if (!profileId) return null;
+  return (
+    Array.from(profilesElement.querySelectorAll<HTMLButtonElement>("button[data-action]")).find(
+      (button) => button.dataset.action === actionId && button.dataset.profileId === profileId,
+    ) ?? null
+  );
+}
+
+function idleLabelForAction(actionId: string, profileId?: string): string {
+  if (actionId === "languages") return "Save Languages";
+  if (actionId === "save-profile") return editingProfile ? "Update profile" : "Save profile";
+  if (actionId === "retry-preparation") return "Retry";
+  if (actionId === "select") return selectedProfileId === profileId ? "Selected" : "Select";
+  if (actionId === "test") return "Test";
+  if (actionId === "delete") return "Delete";
+  return "";
+}
+
+function setActionBusy(
+  actionId: string,
+  profileId: string | undefined,
+  busy: boolean,
+  busyLabel = "",
+): void {
+  const control = controlForAction(actionId, profileId);
+  if (!control) return;
+  control.disabled = busy || (actionId === "select" && selectedProfileId === profileId);
+  if (busy) control.setAttribute("aria-busy", "true");
+  else control.removeAttribute("aria-busy");
+  if (control instanceof HTMLButtonElement)
+    control.textContent = busy ? busyLabel : idleLabelForAction(actionId, profileId);
+}
+
+function updateSubtitleRetryControls(): void {
+  const latest = sidebarState.snapshot.latestRequestByRegion["subtitle-retry"];
+  const pending = latest ? sidebarState.snapshot.requests[latest.requestId] : undefined;
+  const feedback = sidebarState.snapshot.activeFeedback;
+  const active = feedback?.regionId === "subtitle-retry";
+  sourcePreparationControls.hidden = !subtitleRetryAvailable && !pending && !active;
+  retrySubtitleButton.hidden = !subtitleRetryAvailable;
+}
+
+function renderActiveFeedback(): void {
+  for (const status of [
+    translationStatus,
+    languageStatus,
+    profileEditorStatus,
+    subtitleRetryStatus,
+    ...Array.from(
+      profilesElement.querySelectorAll<HTMLParagraphElement>(".profile-operation-status"),
+    ),
+  ]) {
+    delete status.dataset.state;
+    status.textContent = "";
   }
-  pendingOperations.set(requestId, { button, idleLabel });
-  operationStatus.dataset.state = "busy";
-  operationStatus.textContent = busyLabel;
+  const feedback = sidebarState.snapshot.activeFeedback;
+  if (feedback?.placement !== "deleted-result") {
+    for (const slot of Array.from(profilesElement.querySelectorAll(".deleted-profile-result")))
+      slot.remove();
+    if (!profilesElement.children.length)
+      profilesElement.innerHTML = '<p class="empty">No saved profiles yet.</p>';
+  }
+  if (feedback?.placement === "region") {
+    const status = statusForRegion(feedback.regionId);
+    if (status) {
+      status.dataset.state = feedback.phase;
+      status.textContent = feedback.message;
+    }
+  }
+  updateSubtitleRetryControls();
+}
+
+function beginOperation(
+  regionId: string,
+  actionId: string,
+  busyLabel: string,
+  profileId?: string,
+  revision?: number,
+): string {
+  const requestId = nextRequestId();
+  const previousId = sidebarState.snapshot.latestRequestByRegion[regionId]?.requestId;
+  const previous = previousId ? sidebarState.snapshot.requests[previousId] : undefined;
+  if (previous) setActionBusy(previous.actionId, previous.profileId, false);
+  sidebarState.beginOperation(
+    {
+      requestId,
+      regionId,
+      actionId,
+      ...(profileId ? { profileId } : {}),
+      ...(revision === undefined ? {} : { revision }),
+    },
+    busyLabel,
+  );
+  pendingOperations.add(requestId);
+  setActionBusy(actionId, profileId, true, busyLabel);
+  renderActiveFeedback();
   return requestId;
 }
 
-function finishOperation(requestId: unknown, message: string, ok = true): void {
-  if (typeof requestId !== "string") return;
-  const pending = pendingOperations.get(requestId);
-  if (pending?.button) {
-    pending.button.disabled = false;
-    pending.button.removeAttribute("aria-busy");
-    pending.button.textContent = pending.idleLabel;
-  }
+function finishOperation(
+  requestId: unknown,
+  message: string,
+  phase: Exclude<SidebarFeedbackPhase, "busy"> = "success",
+): boolean {
+  if (typeof requestId !== "string" || !pendingOperations.has(requestId)) return false;
+  const request = sidebarState.snapshot.requests[requestId];
+  const finished = sidebarState.finishOperation(requestId, phase, message);
   pendingOperations.delete(requestId);
-  operationStatus.dataset.state = ok ? "success" : "error";
-  operationStatus.textContent = message;
+  if (!request) return false;
+  const latestId = sidebarState.snapshot.latestRequestByRegion[request.regionId]?.requestId;
+  const latest = latestId ? sidebarState.snapshot.requests[latestId] : undefined;
+  if (!latest || latest.actionId !== request.actionId)
+    setActionBusy(request.actionId, request.profileId, false);
+  if (!finished.accepted) return false;
+  renderActiveFeedback();
+  return true;
 }
 
 function saveActiveDraft(): void {
@@ -204,17 +318,23 @@ function updateRequestUrl(): void {
         : "Enter the Ollama server root.";
 }
 
+function selectedServiceTypeLabel(): string {
+  return providerKind.selectedOptions.item(0)?.textContent?.trim() ?? "";
+}
+
 function applyProviderKind(): void {
   const kind = providerKind.value as ProviderKind;
   activeProviderKind = kind;
   providerEndpoint.value = providerDrafts[kind].endpoint;
   providerModel.value = providerDrafts[kind].model;
   providerProxyMode.value = providerDrafts[kind].proxyMode;
+  sidebarState.changeServiceTypeLabel(selectedServiceTypeLabel());
+  profileName.value = sidebarState.snapshot.profileName.value;
   document.querySelector<HTMLElement>("#credential-row")!.hidden = kind === "ollama";
   document.querySelector<HTMLElement>("#endpoint-hint")!.textContent =
     kind === "openai"
-      ? "Enter an API root. Every value is treated as a root and receives /chat/completions."
-      : "Ollama server root; local HTTP loopback is allowed.";
+      ? "Enter a complete HTTP(S) API root. Every value receives /chat/completions."
+      : "Enter a complete HTTP(S) Ollama server root.";
   document.querySelector<HTMLElement>("#model-hint")!.textContent =
     kind === "openai"
       ? "Enter the exact model identifier exposed by this service."
@@ -228,11 +348,19 @@ providerKind.addEventListener("change", () => {
   applyProviderKind();
 });
 providerEndpoint.addEventListener("input", updateRequestUrl);
+profileName.addEventListener("input", () => {
+  sidebarState.inputProfileName(profileName.value);
+});
 
 function loadEditor(profile: ProfileView): void {
   editingProfile = profile;
-  profileName.value = profile.displayName;
+  sidebarState.setProfileContext({
+    editingProfileId: profile.profileId,
+    credentialDisplayProfileId: profile.profileId,
+  });
   providerKind.value = profile.kind;
+  sidebarState.loadProfileName(profile.displayName, selectedServiceTypeLabel());
+  profileName.value = sidebarState.snapshot.profileName.value;
   activeProviderKind = profile.kind;
   providerDrafts[profile.kind] = {
     endpoint: profile.endpoint,
@@ -250,19 +378,20 @@ function loadEditor(profile: ProfileView): void {
 
 function resetEditor(): void {
   editingProfile = null;
-  profileName.value = "My translator";
+  sidebarState.setProfileContext({ editingProfileId: null, credentialDisplayProfileId: null });
+  sidebarState.resetProfileName(selectedServiceTypeLabel());
+  profileName.value = sidebarState.snapshot.profileName.value;
   providerProxyMode.value = "system";
   providerKey.value = "";
   providerKey.placeholder = "Not shown after saving";
   saveProfileButton.textContent = "Save profile";
   newProfileButton.hidden = true;
-  operationStatus.dataset.state = "success";
-  operationStatus.textContent = "Ready to create a new profile.";
 }
 
 enabled.addEventListener("change", () => {
   const requestId = beginOperation(
-    null,
+    "translation-toggle",
+    "translation",
     enabled.checked ? "Enabling translation…" : "Disabling translation…",
   );
   window.iina?.postMessage(
@@ -273,7 +402,7 @@ enabled.addEventListener("change", () => {
 
 saveLanguagesButton.addEventListener("click", () => {
   if (pendingLanguageSaveRequestId) return;
-  const requestId = beginOperation(saveLanguagesButton, "Saving languages…");
+  const requestId = beginOperation("language-settings", "languages", "Saving languages…");
   pendingLanguageSaveRequestId = requestId;
   window.iina?.postMessage(
     "defaults:save",
@@ -286,16 +415,20 @@ targetLanguage.addEventListener("change", () => {
 });
 
 retrySubtitleButton.addEventListener("click", () => {
-  const requestId = beginOperation(retrySubtitleButton, "Retrying…");
+  const requestId = beginOperation("subtitle-retry", "retry-preparation", "Retrying…");
   window.iina?.postMessage("subtitle:retry-preparation", envelope({}, requestId));
 });
 
 saveProfileButton.addEventListener("click", () => {
   const requestId = beginOperation(
-    saveProfileButton,
+    "profile-editor",
+    "save-profile",
     editingProfile ? "Updating profile…" : "Saving profile…",
+    editingProfile?.profileId,
+    editingProfile?.revision,
   );
   pendingProfileSave = { requestId, secret: providerKey.value || null };
+  sidebarState.beginProfileSave(requestId, Boolean(pendingProfileSave.secret));
   window.iina?.postMessage(
     "profile:save",
     envelope(
@@ -303,7 +436,7 @@ saveProfileButton.addEventListener("click", () => {
         ...(editingProfile
           ? { profileId: editingProfile.profileId, expectedRevision: editingProfile.revision }
           : {}),
-        displayName: profileName.value.trim() || "Provider",
+        displayName: profileName.value.trim(),
         kind: providerKind.value,
         endpoint: providerEndpoint.value.trim(),
         proxyMode: providerProxyMode.value,
@@ -329,17 +462,27 @@ profilesElement.addEventListener("click", (event) => {
   switch (button.dataset.action) {
     case "edit":
       loadEditor(profile);
-      operationStatus.dataset.state = "success";
-      operationStatus.textContent = `Editing ${profile.displayName}.`;
       break;
     case "select": {
       loadEditor(profile);
-      const requestId = beginOperation(button, "Selecting…");
+      const requestId = beginOperation(
+        `profile-row:${profile.profileId}`,
+        "select",
+        "Selecting…",
+        profile.profileId,
+        profile.revision,
+      );
       window.iina?.postMessage("profile:select", envelope(selection, requestId));
       break;
     }
     case "test": {
-      const requestId = beginOperation(button, "Testing…");
+      const requestId = beginOperation(
+        `profile-row:${profile.profileId}`,
+        "test",
+        "Testing…",
+        profile.profileId,
+        profile.revision,
+      );
       pendingProfileTests.set(requestId, {
         profileId: profile.profileId,
         revision: profile.revision,
@@ -348,7 +491,13 @@ profilesElement.addEventListener("click", (event) => {
       break;
     }
     case "delete": {
-      const requestId = beginOperation(button, "Confirming…");
+      const requestId = beginOperation(
+        `profile-row:${profile.profileId}`,
+        "delete",
+        "Confirming…",
+        profile.profileId,
+        profile.revision,
+      );
       window.iina?.postMessage(
         "profile:delete-request",
         envelope(
@@ -373,6 +522,12 @@ window.iina?.onMessage("profile:revision-created", (raw: unknown) => {
   };
   if (!result.profile || !pendingProfileSave || result.requestId !== pendingProfileSave.requestId)
     return;
+  const transition = sidebarState.profileRevisionCreated(result.requestId, {
+    profileId: result.profile.profileId,
+    revision: result.profile.revision,
+    selectionInvalidated: result.selectionInvalidated === true,
+  });
+  if (!transition.accepted) return;
   profileTestStates.delete(result.profile.profileId);
   loadEditor(result.profile);
   if (pendingProfileSave.secret) {
@@ -388,12 +543,10 @@ window.iina?.onMessage("profile:revision-created", (raw: unknown) => {
       ),
     );
   } else {
-    finishOperation(
-      result.requestId,
-      result.selectionInvalidated
-        ? "Profile updated. Select it again to authorize translation."
-        : "Profile saved.",
-    );
+    const message =
+      sidebarState.completeProfileSave(result.requestId, "Profile saved.") ??
+      profileUpdatedSelectionMessage;
+    finishOperation(result.requestId, message);
     pendingProfileSave = null;
   }
   window.iina?.postMessage("ui:ready", envelope({}));
@@ -402,15 +555,30 @@ window.iina?.onMessage("profile:revision-created", (raw: unknown) => {
 window.iina?.onMessage("profile:selected", (raw: unknown) => {
   const result = raw as { requestId?: string; selection?: { profileId?: string } };
   selectedProfileId = result.selection?.profileId ?? selectedProfileId;
+  sidebarState.setProfileContext({ selectedProfileId });
   finishOperation(result.requestId, "Profile selected for translation.");
 });
 
 window.iina?.onMessage("profile:deleted", (raw: unknown) => {
   const result = raw as { requestId?: string; profileId?: string };
+  if (typeof result.requestId !== "string" || typeof result.profileId !== "string") return;
+  sidebarState.deleteSucceeded({
+    requestId: result.requestId,
+    profileId: result.profileId,
+    message: "Profile and saved credential deleted.",
+  });
   if (editingProfile?.profileId === result.profileId) resetEditor();
-  if (selectedProfileId === result.profileId) selectedProfileId = null;
-  if (result.profileId) profileTestStates.delete(result.profileId);
-  finishOperation(result.requestId, "Profile and saved credential deleted.");
+  if (selectedProfileId === result.profileId) {
+    selectedProfileId = null;
+    sidebarState.setProfileContext({ selectedProfileId: null });
+  }
+  profileTestStates.delete(result.profileId);
+  for (const [requestId, tested] of pendingProfileTests) {
+    if (tested.profileId === result.profileId) pendingProfileTests.delete(requestId);
+  }
+  pendingOperations.delete(result.requestId);
+  renderedProfilesSignature = "";
+  renderProfiles(sidebarState.snapshot.profiles as unknown as ProfileView[]);
   window.iina?.postMessage("ui:ready", envelope({}));
 });
 
@@ -421,19 +589,22 @@ window.iina?.onMessage("provider:test-result", (raw: unknown) => {
     category?: string;
     userAction?: string;
   };
-  finishOperation(
+  const accepted = finishOperation(
     result.requestId,
     window.sublingoProviderTestStatusMessage(result),
-    result.ok === true,
+    result.ok === true ? "success" : "error",
   );
   if (typeof result.requestId === "string") {
     const tested = pendingProfileTests.get(result.requestId);
     pendingProfileTests.delete(result.requestId);
-    if (tested)
-      profileTestStates.set(tested.profileId, {
+    if (accepted && tested) {
+      const testState: { revision: number; state: ProfileTestState } = {
         revision: tested.revision,
         state: result.ok === true ? "passed" : "failed",
-      });
+      };
+      profileTestStates.set(tested.profileId, testState);
+      sidebarState.setProfileTest(tested.profileId, testState);
+    }
   }
   const currentProfiles = [...profiles.values()];
   renderedProfilesSignature = "";
@@ -451,11 +622,12 @@ window.iina?.onMessage("credential:state", (raw: unknown) => {
   const message = window.sublingoCredentialStatusMessage(result);
   credentialState.textContent = message;
   if (pendingProfileSave && result.requestId === pendingProfileSave.requestId) {
-    finishOperation(
+    const saveMessage = sidebarState.completeProfileSave(
       result.requestId,
       ready ? "Profile and local credential saved." : message,
       ready,
     );
+    finishOperation(result.requestId, saveMessage ?? message, ready ? "success" : "error");
     pendingProfileSave = null;
   }
   if (ready) window.iina?.postMessage("ui:ready", envelope({}));
@@ -499,7 +671,11 @@ window.iina?.onMessage("operation:result", (raw: unknown) => {
             ? "Subtitle preparation restarted."
             : "Retry is no longer available for this subtitle."
           : "Operation completed.";
-  finishOperation(result.requestId, message, result.ok === true || result.cancelled === true);
+  finishOperation(
+    result.requestId,
+    message,
+    result.cancelled ? "cancelled" : result.ok === true ? "success" : "error",
+  );
 });
 
 window.iina?.onMessage("operation:error", (raw: unknown) => {
@@ -508,16 +684,19 @@ window.iina?.onMessage("operation:error", (raw: unknown) => {
   finishOperation(
     result.requestId,
     "The operation could not be completed. Review the service settings and try again.",
-    false,
+    "error",
   );
   if (pendingProfileSave?.requestId === result.requestId) pendingProfileSave = null;
+  if (typeof result.requestId === "string") sidebarState.cancelProfileSave(result.requestId);
 });
 
 function renderProfiles(viewProfiles: ProfileView[]): void {
   profiles.clear();
   profilesElement.replaceChildren();
-  if (!viewProfiles.length) {
+  const activeFeedback = sidebarState.snapshot.activeFeedback;
+  if (!viewProfiles.length && sidebarState.snapshot.deletedResults.length === 0) {
     profilesElement.innerHTML = '<p class="empty">No saved profiles yet.</p>';
+    renderActiveFeedback();
     return;
   }
   for (const profile of viewProfiles) {
@@ -549,8 +728,44 @@ function renderProfiles(viewProfiles: ProfileView[]): void {
       if (action === "select" && selectedProfileId === profile.profileId) button.disabled = true;
       actions.append(button);
     }
+    const rowStatus = document.createElement("p");
+    rowStatus.className = "operation-status profile-operation-status";
+    rowStatus.dataset.profileId = profile.profileId;
+    rowStatus.setAttribute("role", "status");
+    rowStatus.setAttribute("aria-live", "polite");
+    article.append(rowStatus);
     profilesElement.append(article);
+    const regionId = `profile-row:${profile.profileId}`;
+    const latestRequestId = sidebarState.snapshot.latestRequestByRegion[regionId]?.requestId;
+    const latestRequest = latestRequestId
+      ? sidebarState.snapshot.requests[latestRequestId]
+      : undefined;
+    if (latestRequest)
+      setActionBusy(
+        latestRequest.actionId,
+        latestRequest.profileId,
+        true,
+        latestRequest.busyMessage ?? "",
+      );
   }
+  for (const result of [...sidebarState.snapshot.deletedResults]
+    .filter(
+      (item) =>
+        activeFeedback?.placement === "deleted-result" &&
+        item.requestId === activeFeedback.requestId,
+    )
+    .sort((left, right) => left.position - right.position)) {
+    const slot = document.createElement("p");
+    slot.className = "deleted-profile-result";
+    slot.setAttribute("role", "status");
+    slot.setAttribute("aria-live", "polite");
+    slot.textContent = result.message;
+    const anchor = profilesElement.children.item(
+      Math.min(result.position, profilesElement.children.length),
+    );
+    profilesElement.insertBefore(slot, anchor);
+  }
+  renderActiveFeedback();
 }
 
 window.iina?.onMessage("state:update", (raw: unknown) => {
@@ -616,13 +831,13 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
   )
     statusMessage.textContent = sourceIssueLabels[view.sourceIssue]!;
   if (view.sourcePreparation && view.sourcePreparation.state !== "ready") {
-    sourcePreparationControls.hidden = !view.sourcePreparation.canRetry;
-    retrySubtitleButton.hidden = !view.sourcePreparation.canRetry;
+    subtitleRetryAvailable = view.sourcePreparation.canRetry;
+    updateSubtitleRetryControls();
     statusMessage.textContent = sourcePreparationLabels[view.sourcePreparation.state];
     statusDot.dataset.state = view.sourcePreparation.state;
   } else {
-    sourcePreparationControls.hidden = true;
-    retrySubtitleButton.hidden = true;
+    subtitleRetryAvailable = false;
+    updateSubtitleRetryControls();
   }
   if (view.source) {
     sourceSummary.hidden = false;
@@ -639,10 +854,16 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
   if (view.boundedWork)
     document.querySelector<HTMLElement>("#work-bound")!.textContent = view.boundedWork;
   selectedProfileId = view.selection?.profileId ?? null;
+  sidebarState.setProfileContext({ selectedProfileId });
   if (view.profiles) {
+    const visibleProfiles = sidebarState.applyProfiles(
+      view.profiles as unknown as SidebarStateProfile[],
+    ) as unknown as ProfileView[];
     const signature = JSON.stringify({
       selectedProfileId,
-      profiles: view.profiles.map((profile) => [
+      deletedProfileIds: sidebarState.snapshot.deletedProfileIds,
+      deletedResults: sidebarState.snapshot.deletedResults,
+      profiles: visibleProfiles.map((profile) => [
         profile.profileId,
         profile.revision,
         profile.displayName,
@@ -658,7 +879,7 @@ window.iina?.onMessage("state:update", (raw: unknown) => {
     });
     if (signature !== renderedProfilesSignature) {
       renderedProfilesSignature = signature;
-      renderProfiles(view.profiles);
+      renderProfiles(visibleProfiles);
     }
     if (editingProfile) {
       const latest = profiles.get(editingProfile.profileId);
