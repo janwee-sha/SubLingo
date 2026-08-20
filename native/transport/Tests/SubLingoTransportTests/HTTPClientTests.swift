@@ -296,9 +296,8 @@ func runHTTPClientTests() async throws {
 
     try UpstreamPolicy.validate(URL(string: "https://provider.example/v1")!)
     try UpstreamPolicy.validate(URL(string: "http://127.0.0.1:11434/api/chat")!)
-    try expectFailure("remote plaintext HTTP must be rejected") {
-        try UpstreamPolicy.validate(URL(string: "http://provider.example/v1")!)
-    }
+    try UpstreamPolicy.validate(URL(string: "http://provider.example/v1")!)
+    try UpstreamPolicy.validate(URL(string: "http://192.168.50.4:8080/v1")!)
     try expectFailure("URL credentials must be rejected") {
         try UpstreamPolicy.validate(URL(string: "https://user:pass@provider.example/v1")!)
     }
@@ -417,6 +416,23 @@ func runHTTPClientTests() async throws {
         completionHandler: { crossOriginDecision = $0 }
     )
     try check(crossOriginDecision == nil, "cross-origin redirects must remain rejected")
+    for blockedTarget in [
+        "http://provider.example/v1",
+        "https://provider.example:444/v1",
+        "https://user:pass@provider.example/v1",
+        "https://provider.example/v1#fragment",
+    ] {
+        let delegate = RedirectDelegate(originalURL: original)
+        var decision: URLRequest?
+        delegate.urlSession(
+            redirectSession,
+            task: redirectTask,
+            willPerformHTTPRedirection: redirectResponse,
+            newRequest: URLRequest(url: URL(string: blockedTarget)!),
+            completionHandler: { decision = $0 }
+        )
+        try check(decision == nil, "redirect targets must be structurally valid and same-origin")
+    }
     redirectSession.invalidateAndCancel()
 
     let directServer = try DirectCaptureServer()

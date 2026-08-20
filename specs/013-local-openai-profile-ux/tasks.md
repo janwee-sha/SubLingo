@@ -16,7 +16,7 @@
 
 **目的**：确认当前实现与测试基线，避免把既有失败误归因于本功能。
 
-- [ ] T001 按 `specs/013-local-openai-profile-ux/quickstart.md` 的“聚焦自动化”命令运行现有基线，记录 `tests/contract/provider-profiles.test.ts`、`tests/contract/openai.test.ts`、`tests/contract/ollama.test.ts`、`tests/contract/sidebar-form.test.ts`、`tests/contract/sidebar-lifecycle.test.ts`、`tests/contract/ui-messages.test.ts`、`tests/integration/us3-providers.test.ts`、`tests/security/credential-leakage.test.ts`、`tests/security/redaction.test.ts` 与 `native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift` 的既有结果
+- [X] T001 按 `specs/013-local-openai-profile-ux/quickstart.md` 的“聚焦自动化”命令运行现有基线，记录 `tests/contract/provider-profiles.test.ts`、`tests/contract/openai.test.ts`、`tests/contract/ollama.test.ts`、`tests/contract/sidebar-form.test.ts`、`tests/contract/sidebar-lifecycle.test.ts`、`tests/contract/ui-messages.test.ts`、`tests/integration/us3-providers.test.ts`、`tests/security/credential-leakage.test.ts`、`tests/security/redaction.test.ts` 与 `native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift` 的既有结果
 
 ---
 
@@ -36,19 +36,19 @@
 
 ### 测试
 
-- [ ] T002 [P] [US1] 先在 `tests/contract/provider-profiles.test.ts` 增加两个 Service type 的 HTTPS、回环/私网/公网 HTTP 接受矩阵和共享恶意 URL corpus，覆盖 Save、metadata 恢复、revision/fingerprint 稳定性、拒绝时不创建 revision/不清理选择，并移除 Ollama 无 scheme 简写的旧预期，确认测试在实现前失败
-- [ ] T003 [P] [US1] 先在 `tests/contract/openai.test.ts` 增加远程 HTTP 在 system/direct 下的构造、Test 与翻译请求测试，确认字面 API root 仍追加 `/chat/completions`、Authorization 只发往选定 origin，测试在实现前失败
-- [ ] T004 [P] [US1] 先在 `tests/contract/ollama.test.ts` 增加远程 HTTP 在 system/direct 下的 probe、Test 与翻译路径测试，确认完整 URL 和既有尾斜杠规范化，测试在实现前失败
-- [ ] T005 [P] [US1] 先在 `tests/integration/us3-providers.test.ts` 增加 OpenAI-compatible 与 Ollama 的远程 HTTP Save→Test→Select→翻译集成场景及 HTTPS 回归，确认 Test 不自动 Select，测试在实现前失败
-- [ ] T006 [P] [US1] 先在 `native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift` 增加远程 HTTP 初始目标许可、system 最多三次同源重定向、redirect target 重新校验、跨 scheme/host/有效端口与 userinfo/fragment 阻断、direct 不跟随的契约测试，确认测试在实现前失败
-- [ ] T007 [P] [US1] 先在 `tests/security/credential-leakage.test.ts` 与 `tests/security/redaction.test.ts` 增加远程 HTTP 下 Profile View、错误、反馈与日志不泄露凭据、Authorization、完整 endpoint、字幕或 Provider 原始响应的回归，确认新增断言在实现前失败或覆盖到生产路径
+- [X] T002 [P] [US1] 先在 `tests/contract/provider-profiles.test.ts` 增加两个 Service type 的 HTTPS、回环/私网/公网 HTTP 接受矩阵和共享恶意 URL corpus，覆盖 Save、metadata 恢复、revision/fingerprint 稳定性、拒绝时不创建 revision/不清理选择，并移除 Ollama 无 scheme 简写的旧预期，确认测试在实现前失败
+- [X] T003 [P] [US1] 先在 `tests/contract/openai.test.ts` 增加远程 HTTP 在 system/direct 下的构造、Test 与翻译请求测试，确认字面 API root 仍追加 `/chat/completions`、Authorization 只发往选定 origin，测试在实现前失败
+- [X] T004 [P] [US1] 先在 `tests/contract/ollama.test.ts` 增加远程 HTTP 在 system/direct 下的 probe、Test 与翻译路径测试，确认完整 URL 和既有尾斜杠规范化，测试在实现前失败
+- [X] T005 [P] [US1] 先在 `tests/integration/us3-providers.test.ts` 增加 OpenAI-compatible 与 Ollama 的远程 HTTP Save→Test→Select→翻译集成场景及 HTTPS 回归，确认 Test 不自动 Select，测试在实现前失败
+- [X] T006 [P] [US1] 先在 `native/transport/Tests/SubLingoTransportTests/HTTPClientTests.swift` 增加远程 HTTP 初始目标许可、system 最多三次同源重定向、redirect target 重新校验、跨 scheme/host/有效端口与 userinfo/fragment 阻断、direct 不跟随的契约测试，确认测试在实现前失败
+- [X] T007 [P] [US1] 先在 `tests/security/credential-leakage.test.ts` 与 `tests/security/redaction.test.ts` 增加远程 HTTP 下 Profile View、错误、反馈与日志不泄露凭据、Authorization、完整 endpoint、字幕或 Provider 原始响应的回归，确认新增断言在实现前失败或覆盖到生产路径
 
 ### 实现
 
-- [ ] T008 [US1] 在 `src/providers/profiles.ts` 将 endpoint 解析与规范化改为 JavaScriptCore 可执行的完整 HTTP(S) URL 规则，删除协议/主机网络位置限制及 Ollama 无 scheme 兼容，同时继续拒绝 userinfo、query、fragment、空 host、残缺 IPv6 与非法端口并保留各 Provider 路径语义
-- [ ] T009 [P] [US1] 在 `native/transport/Sources/SubLingoTransport/HTTPClient.swift` 允许任意非空 host 的 HTTP(S) 初始目标，并让每个 system redirect target 先重新通过结构校验再比较同源；保持三跳上限与 direct 不跟随
-- [ ] T010 [P] [US1] 在 `ui/sidebar.ts` 更新 Service type endpoint 提示，使 OpenAI-compatible 与 Ollama 均表达完整 HTTP(S) URL 规则且不新增风险提示、HTTPS 要求、主机白名单或额外确认
-- [ ] T011 [US1] 运行 `npx vitest run tests/contract/provider-profiles.test.ts tests/contract/openai.test.ts tests/contract/ollama.test.ts tests/integration/us3-providers.test.ts tests/security/credential-leakage.test.ts tests/security/redaction.test.ts` 与 `npm run test:native`，确认 `src/providers/profiles.ts`、两个 Provider 构造器及 native 最终出站层共同满足 `specs/013-local-openai-profile-ux/contracts/endpoint-http.md`
+- [X] T008 [US1] 在 `src/providers/profiles.ts` 将 endpoint 解析与规范化改为 JavaScriptCore 可执行的完整 HTTP(S) URL 规则，删除协议/主机网络位置限制及 Ollama 无 scheme 兼容，同时继续拒绝 userinfo、query、fragment、空 host、残缺 IPv6 与非法端口并保留各 Provider 路径语义
+- [X] T009 [P] [US1] 在 `native/transport/Sources/SubLingoTransport/HTTPClient.swift` 允许任意非空 host 的 HTTP(S) 初始目标，并让每个 system redirect target 先重新通过结构校验再比较同源；保持三跳上限与 direct 不跟随
+- [X] T010 [P] [US1] 在 `ui/sidebar.ts` 更新 Service type endpoint 提示，使 OpenAI-compatible 与 Ollama 均表达完整 HTTP(S) URL 规则且不新增风险提示、HTTPS 要求、主机白名单或额外确认
+- [X] T011 [US1] 运行 `npx vitest run tests/contract/provider-profiles.test.ts tests/contract/openai.test.ts tests/contract/ollama.test.ts tests/integration/us3-providers.test.ts tests/security/credential-leakage.test.ts tests/security/redaction.test.ts` 与 `npm run test:native`，确认 `src/providers/profiles.ts`、两个 Provider 构造器及 native 最终出站层共同满足 `specs/013-local-openai-profile-ux/contracts/endpoint-http.md`
 
 **检查点**：两个现有 Service type 的任意有效 HTTP(S) Profile 均可独立完成 Save、Test、Select 与翻译，且非明文传输边界保持不变。
 
@@ -62,19 +62,19 @@
 
 ### 测试
 
-- [ ] T012 [P] [US2] 先创建 `tests/unit/profile-list-sync.test.ts`，覆盖 Main 列表 request sequence、仅提交最新 request ID、删除时先过滤当前快照再刷新以及 A/B 反序结果，确认测试在实现前失败
-- [ ] T013 [P] [US2] 先创建 `tests/unit/sidebar-state.test.ts` 的删除状态组，覆盖 WebView 墓碑、即时过滤、编辑/选择/凭据展示/Test/pending 清理、重复成功幂等、迟到快照过滤和无本地请求时不创建结果槽，确认测试在实现前失败
-- [ ] T014 [P] [US2] 先在 `tests/contract/sidebar-lifecycle.test.ts` 增加 `profile:deleted` 成功、取消与失败的跨运行时消息测试，覆盖权威成功时序、同一 request ID、状态保留及其他窗口隔离，确认测试在实现前失败
-- [ ] T015 [P] [US2] 先在 `tests/integration/us3-providers.test.ts` 增加删除前列表请求在删除后迟到、重复删除结果与重新打开 Sidebar 的集成回归，确认持久删除状态不会被恢复，测试在实现前失败
+- [X] T012 [P] [US2] 先创建 `tests/unit/profile-list-sync.test.ts`，覆盖 Main 列表 request sequence、仅提交最新 request ID、删除时先过滤当前快照再刷新以及 A/B 反序结果，确认测试在实现前失败
+- [X] T013 [P] [US2] 先创建 `tests/unit/sidebar-state.test.ts` 的删除状态组，覆盖 WebView 墓碑、即时过滤、编辑/选择/凭据展示/Test/pending 清理、重复成功幂等、迟到快照过滤和无本地请求时不创建结果槽，确认测试在实现前失败
+- [X] T014 [P] [US2] 先在 `tests/contract/sidebar-lifecycle.test.ts` 增加 `profile:deleted` 成功、取消与失败的跨运行时消息测试，覆盖权威成功时序、同一 request ID、状态保留及其他窗口隔离，确认测试在实现前失败
+- [X] T015 [P] [US2] 先在 `tests/integration/us3-providers.test.ts` 增加删除前列表请求在删除后迟到、重复删除结果与重新打开 Sidebar 的集成回归，确认持久删除状态不会被恢复，测试在实现前失败
 
 ### 实现
 
-- [ ] T016 [US2] 创建 `src/adapters/iina/profile-list-sync.ts`，实现逐窗口单调 request sequence、latest request identity、只接受最新结果及权威删除即时过滤的无副作用状态转换
-- [ ] T017 [US2] 在 `src/main.ts` 接入 `src/adapters/iina/profile-list-sync.ts`，为所有 `profiles:list` 请求分配不碰撞身份，只提交最新结果，并在 `profile:deleted` 时先清理当前 Profile/选择快照再请求新列表
-- [ ] T018 [US2] 创建 `ui/sidebar-state.ts` 的 classic-script 全局状态工厂，先实现 Sidebar Profile 集合、WebView 生命周期删除墓碑、编辑/选择/凭据展示/Test/pending 清理和本地删除成功结果槽转换，且不访问 DOM
-- [ ] T019 [US2] 在 `ui/sidebar.ts` 接入删除状态转换：权威成功到达即移除 Profile、清理关联状态并重绘；取消或失败保留业务状态；对所有列表快照应用墓碑过滤；重复或未知结果保持幂等
-- [ ] T020 [P] [US2] 在 `ui/sidebar.css` 添加删除成功只读结果槽的布局与 success 状态样式，使其占据原 Profile 列表位置但不呈现为可操作 `.profile`
-- [ ] T021 [US2] 运行 `npx vitest run tests/unit/profile-list-sync.test.ts tests/unit/sidebar-state.test.ts tests/contract/sidebar-lifecycle.test.ts tests/integration/us3-providers.test.ts`，确认 `src/main.ts` 与 `ui/sidebar.ts` 的反序、重复、取消、失败和多窗口删除场景满足 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
+- [X] T016 [US2] 创建 `src/adapters/iina/profile-list-sync.ts`，实现逐窗口单调 request sequence、latest request identity、只接受最新结果及权威删除即时过滤的无副作用状态转换
+- [X] T017 [US2] 在 `src/main.ts` 接入 `src/adapters/iina/profile-list-sync.ts`，为所有 `profiles:list` 请求分配不碰撞身份，只提交最新结果，并在 `profile:deleted` 时先清理当前 Profile/选择快照再请求新列表
+- [X] T018 [US2] 创建 `ui/sidebar-state.ts` 的 classic-script 全局状态工厂，先实现 Sidebar Profile 集合、WebView 生命周期删除墓碑、编辑/选择/凭据展示/Test/pending 清理和本地删除成功结果槽转换，且不访问 DOM
+- [X] T019 [US2] 在 `ui/sidebar.ts` 接入删除状态转换：权威成功到达即移除 Profile、清理关联状态并重绘；取消或失败保留业务状态；对所有列表快照应用墓碑过滤；重复或未知结果保持幂等
+- [X] T020 [P] [US2] 在 `ui/sidebar.css` 添加删除成功只读结果槽的布局与 success 状态样式，使其占据原 Profile 列表位置但不呈现为可操作 `.profile`
+- [X] T021 [US2] 运行 `npx vitest run tests/unit/profile-list-sync.test.ts tests/unit/sidebar-state.test.ts tests/contract/sidebar-lifecycle.test.ts tests/integration/us3-providers.test.ts`，确认 `src/main.ts` 与 `ui/sidebar.ts` 的反序、重复、取消、失败和多窗口删除场景满足 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
 
 **检查点**：删除成功事件送达后当前界面立即收敛，后续同步不恢复条目；取消与失败不清理任何业务状态。
 
@@ -88,17 +88,17 @@
 
 ### 测试
 
-- [ ] T022 [P] [US3] 先扩展 `tests/unit/sidebar-state.test.ts` 的反馈状态组，覆盖五类 region、action identity、同区域新请求替换、不同区域并行、旧/重复/未知结果、控件 busy 清理与 Profile 行重绘恢复，确认测试在实现前失败
-- [ ] T023 [P] [US3] 先在 `tests/contract/sidebar-form.test.ts` 增加每个操作控件正下方独立 `role="status" aria-live="polite"`、`ui/sidebar-state.ts` 早于 `ui/sidebar.ts` 以 classic script 加载及 Profile 列表容器不重复播报的生产 DOM 契约，确认测试在实现前失败
-- [ ] T024 [P] [US3] 先在 `tests/contract/sidebar-lifecycle.test.ts` 增加 Translate、Languages、Profile editor、Profile row 与 Retry 的 request 归属和反序消息场景，确认权威业务快照仍可收敛但无归属旧结果不产生反馈，测试在实现前失败
+- [X] T022 [P] [US3] 先扩展 `tests/unit/sidebar-state.test.ts` 的反馈状态组，覆盖五类 region、action identity、同区域新请求替换、不同区域并行、旧/重复/未知结果、控件 busy 清理与 Profile 行重绘恢复，确认测试在实现前失败
+- [X] T023 [P] [US3] 先在 `tests/contract/sidebar-form.test.ts` 增加每个操作控件正下方独立 `role="status" aria-live="polite"`、`ui/sidebar-state.ts` 早于 `ui/sidebar.ts` 以 classic script 加载及 Profile 列表容器不重复播报的生产 DOM 契约，确认测试在实现前失败
+- [X] T024 [P] [US3] 先在 `tests/contract/sidebar-lifecycle.test.ts` 增加 Translate、Languages、Profile editor、Profile row 与 Retry 的 request 归属和反序消息场景，确认权威业务快照仍可收敛但无归属旧结果不产生反馈，测试在实现前失败
 
 ### 实现
 
-- [ ] T025 [US3] 在 `ui/sidebar-state.ts` 实现 `translation-toggle`、`language-settings`、`profile-editor`、`profile-row:<profileId>` 与 `subtitle-retry` 的 latest request、phase、message 和 action busy 状态转换，不保存 DOM、endpoint 或敏感内容
-- [ ] T026 [P] [US3] 在 `ui/sidebar.html` 删除共享 `#operation-status`，为 Translate、Save Languages、Profile editor 与 Subtitle Retry 控件各添加紧邻其下的独立可访问状态容器，并确保 `ui/sidebar-state.ts` 在 `ui/sidebar.ts` 前以 classic script 加载
-- [ ] T027 [P] [US3] 在 `ui/sidebar.css` 为区域级状态、Profile 行内状态与删除结果槽统一 busy/success/error/cancelled 样式，并避免状态容器破坏窄宽度布局
-- [ ] T028 [US3] 在 `ui/sidebar.ts` 用 region/action identity 重构 `beginOperation`、终态处理和 Profile 行渲染，覆盖全部操作入口、迟到结果、行重绘及控件 busy 恢复，移除对共享状态节点和失效 DOM 引用的依赖
-- [ ] T029 [US3] 运行 `npx vitest run tests/unit/sidebar-state.test.ts tests/contract/sidebar-form.test.ts tests/contract/sidebar-lifecycle.test.ts`，确认所有操作的反馈位置、归属、可访问公布与竞态符合 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
+- [X] T025 [US3] 在 `ui/sidebar-state.ts` 实现 `translation-toggle`、`language-settings`、`profile-editor`、`profile-row:<profileId>` 与 `subtitle-retry` 的 latest request、phase、message 和 action busy 状态转换，不保存 DOM、endpoint 或敏感内容
+- [X] T026 [P] [US3] 在 `ui/sidebar.html` 删除共享 `#operation-status`，为 Translate、Save Languages、Profile editor 与 Subtitle Retry 控件各添加紧邻其下的独立可访问状态容器，并确保 `ui/sidebar-state.ts` 在 `ui/sidebar.ts` 前以 classic script 加载
+- [X] T027 [P] [US3] 在 `ui/sidebar.css` 为区域级状态、Profile 行内状态与删除结果槽统一 busy/success/error/cancelled 样式，并避免状态容器破坏窄宽度布局
+- [X] T028 [US3] 在 `ui/sidebar.ts` 用 region/action identity 重构 `beginOperation`、终态处理和 Profile 行渲染，覆盖全部操作入口、迟到结果、行重绘及控件 busy 恢复，移除对共享状态节点和失效 DOM 引用的依赖
+- [X] T029 [US3] 运行 `npx vitest run tests/unit/sidebar-state.test.ts tests/contract/sidebar-form.test.ts tests/contract/sidebar-lifecycle.test.ts`，确认所有操作的反馈位置、归属、可访问公布与竞态符合 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
 
 **检查点**：所有现有操作区均拥有独立反馈，不同区域可并行，同一区域只有最新请求可更新消息。
 
@@ -112,15 +112,15 @@
 
 ### 测试
 
-- [ ] T030 [P] [US4] 先扩展 `tests/unit/sidebar-state.test.ts` 的 Profile name 状态组，覆盖 `system | user | saved` 转换、任意 input 锁定、自定义/空白/同值保护及 New/reset 恢复，确认测试在实现前失败
-- [ ] T031 [P] [US4] 先在 `tests/contract/sidebar-form.test.ts` 增加 Service type 可见文本作为初始可保存名称、切换跟随与空白保存不使用通用回退名的生产表单契约，确认测试在实现前失败
+- [X] T030 [P] [US4] 先扩展 `tests/unit/sidebar-state.test.ts` 的 Profile name 状态组，覆盖 `system | user | saved` 转换、任意 input 锁定、自定义/空白/同值保护及 New/reset 恢复，确认测试在实现前失败
+- [X] T031 [P] [US4] 先在 `tests/contract/sidebar-form.test.ts` 增加 Service type 可见文本作为初始可保存名称、切换跟随与空白保存不使用通用回退名的生产表单契约，确认测试在实现前失败
 
 ### 实现
 
-- [ ] T032 [US4] 在 `ui/sidebar-state.ts` 实现 `ProfileNameState` 的 value、mode 与 serviceTypeLabel 转换，确保用户 input 即使为空、空白或等于默认文本也进入 `user`，载入既有 Profile 进入 `saved`
-- [ ] T033 [P] [US4] 在 `ui/sidebar.html` 将 `#profile-name` 初始值与默认 Service type 的可见文本统一，且不使用 placeholder 充当输入值
-- [ ] T034 [US4] 在 `ui/sidebar.ts` 接入名称来源状态与 Service type 可见 `<option>` 文本，覆盖初始化、类型切换、loadEditor、New/reset 和保存 trim 值，并移除 `"Provider"` 通用回退名
-- [ ] T035 [US4] 运行 `npx vitest run tests/unit/sidebar-state.test.ts tests/contract/sidebar-form.test.ts`，确认新建、切换、自定义、空白和编辑既有 Profile 的名称行为满足 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
+- [X] T032 [US4] 在 `ui/sidebar-state.ts` 实现 `ProfileNameState` 的 value、mode 与 serviceTypeLabel 转换，确保用户 input 即使为空、空白或等于默认文本也进入 `user`，载入既有 Profile 进入 `saved`
+- [X] T033 [P] [US4] 在 `ui/sidebar.html` 将 `#profile-name` 初始值与默认 Service type 的可见文本统一，且不使用 placeholder 充当输入值
+- [X] T034 [US4] 在 `ui/sidebar.ts` 接入名称来源状态与 Service type 可见 `<option>` 文本，覆盖初始化、类型切换、loadEditor、New/reset 和保存 trim 值，并移除 `"Provider"` 通用回退名
+- [X] T035 [US4] 运行 `npx vitest run tests/unit/sidebar-state.test.ts tests/contract/sidebar-form.test.ts`，确认新建、切换、自定义、空白和编辑既有 Profile 的名称行为满足 `specs/013-local-openai-profile-ux/contracts/sidebar-interactions.md`
 
 **检查点**：系统默认名称准确跟随 Service type，任何用户或保存名称均不会被自动覆盖。
 
@@ -134,15 +134,15 @@
 
 ### 测试
 
-- [ ] T036 [P] [US5] 先在 `tests/contract/ui-messages.test.ts` 增加 `Profile updated. Select it again for translation.` 与 `Connection test passed. Select this profile for translation.` 的精确生产文案断言，并覆盖生产用户文案不再包含 `to authorize translation`，确认测试在实现前失败
-- [ ] T037 [P] [US5] 先在 `tests/contract/sidebar-lifecycle.test.ts` 增加 Update 无凭据及两段式凭据保存对 `selectionInvalidated` 的保留、Test 不创建选择、Credential ready 不覆盖 Update 消息的消息流测试，确认测试在实现前失败
+- [X] T036 [P] [US5] 先在 `tests/contract/ui-messages.test.ts` 增加 `Profile updated. Select it again for translation.` 与 `Connection test passed. Select this profile for translation.` 的精确生产文案断言，并覆盖生产用户文案不再包含 `to authorize translation`，确认测试在实现前失败
+- [X] T037 [P] [US5] 先在 `tests/contract/sidebar-lifecycle.test.ts` 增加 Update 无凭据及两段式凭据保存对 `selectionInvalidated` 的保留、Test 不创建选择、Credential ready 不覆盖 Update 消息的消息流测试，确认测试在实现前失败
 
 ### 实现
 
-- [ ] T038 [US5] 在 `ui/provider-status.ts` 将成功 Test 文案精确更新为 `Connection test passed. Select this profile for translation.`，保持失败分类和安全详情不变
-- [ ] T039 [US5] 在 `ui/sidebar-state.ts` 保留同一 request ID 的 `PendingProfileSave.selectionInvalidated` 直到可选 Credential 终态，并使无凭据与两段式保存都产生同一精确 Update 成功消息
-- [ ] T040 [US5] 在 `ui/sidebar.ts` 接入两段式 Update 状态并将选择失效文案精确更新为 `Profile updated. Select it again for translation.`，确保 Test、Credential 与 Select 仍互不授权或自动触发
-- [ ] T041 [US5] 运行 `npx vitest run tests/contract/ui-messages.test.ts tests/contract/sidebar-lifecycle.test.ts tests/unit/sidebar-state.test.ts` 并用 `rg -n "to authorize translation" src ui Info.json` 检查生产文件，确认指定文案精确匹配且旧短语零残留
+- [X] T038 [US5] 在 `ui/provider-status.ts` 将成功 Test 文案精确更新为 `Connection test passed. Select this profile for translation.`，保持失败分类和安全详情不变
+- [X] T039 [US5] 在 `ui/sidebar-state.ts` 保留同一 request ID 的 `PendingProfileSave.selectionInvalidated` 直到可选 Credential 终态，并使无凭据与两段式保存都产生同一精确 Update 成功消息
+- [X] T040 [US5] 在 `ui/sidebar.ts` 接入两段式 Update 状态并将选择失效文案精确更新为 `Profile updated. Select it again for translation.`，确保 Test、Credential 与 Select 仍互不授权或自动触发
+- [X] T041 [US5] 运行 `npx vitest run tests/contract/ui-messages.test.ts tests/contract/sidebar-lifecycle.test.ts tests/unit/sidebar-state.test.ts` 并用 `rg -n "to authorize translation" src ui Info.json` 检查生产文件，确认指定文案精确匹配且旧短语零残留
 
 **检查点**：更新与 Test 文案准确一致，选择、测试与凭据保存语义没有改变。
 
@@ -152,12 +152,12 @@
 
 **目的**：统一 0.3.4 交付身份，运行完整质量门、审计最终归档并完成开发者单人 IINA 正式包验收；不发布远端 Release。
 
-- [ ] T042 先更新 `tests/contract/plugin-update-metadata.test.ts`、`tests/contract/package-manifest.test.ts`、`tests/contract/release-metadata.test.ts` 与 `tests/contract/release-audit.test.ts` 的当前版本生产接口用例，要求 0.3.4、`janwee-sha/SubLingo`、3004、`SubLingo-0.3.4.iinaplgz` 及漂移失败，并保留通用 0.1/0.2 fixture 与 0.3.3 历史事实，确认测试在元数据修改前失败
-- [ ] T043 在 `Info.json`、`package.json`、`package-lock.json` 顶层与 `packages[""]`、`scripts/pack.sh` 的 artifact 路径和安全 case 中串行统一 0.3.4、`janwee-sha/SubLingo` 与 3004，不修改 IINA `allowedDomains` 或 helper loopback 边界
-- [ ] T044 [P] 创建只描述本功能用户可见变化的中文 `docs/releases/v0.3.4.md`，并将 `docs/engineering/development.md` 中面向未来的固定归档名改为 `SubLingo-X.Y.Z.iinaplgz` 占位写法，不改写 `docs/releases/v0.3.3.md`、README、012 规格或既有验收证据
-- [ ] T045 运行 `node scripts/plugin-update-metadata.mjs --manifest Info.json`、`node scripts/release-metadata.mjs`、`npx vitest run tests/contract/plugin-update-metadata.test.ts tests/contract/package-manifest.test.ts tests/contract/release-metadata.test.ts tests/contract/release-audit.test.ts` 与 `npm run test:release`，确认 `specs/013-local-openai-profile-ux/contracts/version-identity.md` 的当前身份接口全部通过
-- [ ] T046 严格按 `specs/013-local-openai-profile-ux/quickstart.md` 依次运行 `npm run test`、`npm run typecheck`、`npm run lint`、`npm run build:native`、`npm run test:native`、`npm run build`、`npm run verify:package` 与 `npm run pack`，仅在八项全部成功后生成 `build/release-gates.json`
-- [ ] T047 按 `specs/013-local-openai-profile-ux/quickstart.md` 对最终 `build/package/SubLingo-0.3.4.iinaplgz` 执行 `scripts/audit-release.mjs`，验证版本/更新身份、根白名单、双 helper 架构/权限/签名/最低 macOS/系统依赖、合规材料、FFmpeg 锁、敏感材料与正文摘要，并生成 `build/release-summary.md` 和 `build/release/` 审计产物
+- [X] T042 先更新 `tests/contract/plugin-update-metadata.test.ts`、`tests/contract/package-manifest.test.ts`、`tests/contract/release-metadata.test.ts` 与 `tests/contract/release-audit.test.ts` 的当前版本生产接口用例，要求 0.3.4、`janwee-sha/SubLingo`、3004、`SubLingo-0.3.4.iinaplgz` 及漂移失败，并保留通用 0.1/0.2 fixture 与 0.3.3 历史事实，确认测试在元数据修改前失败
+- [X] T043 在 `Info.json`、`package.json`、`package-lock.json` 顶层与 `packages[""]`、`scripts/pack.sh` 的 artifact 路径和安全 case 中串行统一 0.3.4、`janwee-sha/SubLingo` 与 3004，不修改 IINA `allowedDomains` 或 helper loopback 边界
+- [X] T044 [P] 创建只描述本功能用户可见变化的中文 `docs/releases/v0.3.4.md`，并将 `docs/engineering/development.md` 中面向未来的固定归档名改为 `SubLingo-X.Y.Z.iinaplgz` 占位写法，不改写 `docs/releases/v0.3.3.md`、README、012 规格或既有验收证据
+- [X] T045 运行 `node scripts/plugin-update-metadata.mjs --manifest Info.json`、`node scripts/release-metadata.mjs`、`npx vitest run tests/contract/plugin-update-metadata.test.ts tests/contract/package-manifest.test.ts tests/contract/release-metadata.test.ts tests/contract/release-audit.test.ts` 与 `npm run test:release`，确认 `specs/013-local-openai-profile-ux/contracts/version-identity.md` 的当前身份接口全部通过
+- [X] T046 严格按 `specs/013-local-openai-profile-ux/quickstart.md` 依次运行 `npm run test`、`npm run typecheck`、`npm run lint`、`npm run build:native`、`npm run test:native`、`npm run build`、`npm run verify:package` 与 `npm run pack`，仅在八项全部成功后生成 `build/release-gates.json`
+- [X] T047 按 `specs/013-local-openai-profile-ux/quickstart.md` 对最终 `build/package/SubLingo-0.3.4.iinaplgz` 执行 `scripts/audit-release.mjs`，验证版本/更新身份、根白名单、双 helper 架构/权限/签名/最低 macOS/系统依赖、合规材料、FFmpeg 锁、敏感材料与正文摘要，并生成 `build/release-summary.md` 和 `build/release/` 审计产物
 - [ ] T048 使用 T047 的同一 `build/package/SubLingo-0.3.4.iinaplgz` 由开发者一人在 IINA 1.4.4 完成 `specs/013-local-openai-profile-ux/quickstart.md` 的安装、两种 Service type 的本地/私网/公网 HTTP 与 HTTPS、system/direct、删除竞态、区域反馈、默认名称、精确文案、多窗口、播放和卸载验收，只将允许的版本或 SHA-256、环境、Service type、主机位置类别、scheme、proxy mode 与结论追加到 `docs/validation/iina-matrix.md`
 
 ---

@@ -15,12 +15,8 @@ enum UpstreamPolicy {
     static func validate(_ url: URL) throws {
         guard url.user == nil, url.password == nil, url.fragment == nil,
               let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased(),
-              ["http", "https"].contains(scheme)
+              !host.isEmpty, ["http", "https"].contains(scheme)
         else { throw TransportProtocolError.forbiddenDestination }
-        let isLoopback = host == "127.0.0.1" || host == "::1" || host == "localhost"
-        guard scheme == "https" || (scheme == "http" && isLoopback) else {
-            throw TransportProtocolError.forbiddenDestination
-        }
     }
 
     static func sameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {
@@ -64,6 +60,7 @@ final class RedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Senda
             return redirects
         }
         guard redirectCount <= 3, let target = request.url,
+              (try? UpstreamPolicy.validate(target)) != nil,
               UpstreamPolicy.sameOrigin(originalURL, target)
         else {
             completionHandler(nil)

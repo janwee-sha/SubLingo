@@ -88,7 +88,7 @@ describe("allowlist-only diagnostics", () => {
     const sensitive = [
       "PRIVATE_SOURCE_BODY",
       "PRIVATE_TRANSLATION_BODY",
-      "https://private.example/v1",
+      "http://private.example:8080/v1",
       "Bearer private",
       "provider raw response",
     ];

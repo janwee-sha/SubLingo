@@ -1,9 +1,9 @@
 {
   "name": "SubLingo",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "identifier": "io.sublingo.iina",
   "ghRepo": "janwee-sha/SubLingo",
-  "ghVersion": 3003,
+  "ghVersion": 3004,
   "description": "Translates the selected local embedded text subtitle or external SRT/ASS subtitle and renders translated subtitles itself in IINA.",
   "author": {
     "name": "SubLingo Contributors"

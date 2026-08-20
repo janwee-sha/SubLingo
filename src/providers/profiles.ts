@@ -22,24 +22,52 @@ export interface WindowSelection {
   authorizedAt: number;
 }
 
+function invalidEndpoint(): never {
+  throw new Error("INVALID_ENDPOINT");
+}
+
+function validatePort(value: string): void {
+  if (!/^\d+$/.test(value)) invalidEndpoint();
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) invalidEndpoint();
+}
+
+function validateIpv6Host(value: string): void {
+  if (!value.includes(":") || !/^[0-9a-f:.]+$/i.test(value)) invalidEndpoint();
+  const compression = value.indexOf("::");
+  if (compression !== value.lastIndexOf("::")) invalidEndpoint();
+  const groups = value.split(":").filter(Boolean);
+  if (groups.some((group) => group.length > 4)) invalidEndpoint();
+  if ((compression === -1 && groups.length !== 8) || (compression !== -1 && groups.length >= 8))
+    invalidEndpoint();
+}
+
+function validateAuthority(authority: string): void {
+  if (!authority || /\s|@/.test(authority)) invalidEndpoint();
+  if (authority.startsWith("[")) {
+    const close = authority.indexOf("]");
+    if (close < 2 || authority.indexOf("]", close + 1) !== -1) invalidEndpoint();
+    validateIpv6Host(authority.slice(1, close));
+    const suffix = authority.slice(close + 1);
+    if (!suffix) return;
+    if (!suffix.startsWith(":")) invalidEndpoint();
+    validatePort(suffix.slice(1));
+    return;
+  }
+  if (authority.includes("[") || authority.includes("]")) invalidEndpoint();
+  const separator = authority.lastIndexOf(":");
+  const host = separator === -1 ? authority : authority.slice(0, separator);
+  if (!host || host.includes(":")) invalidEndpoint();
+  if (separator !== -1) validatePort(authority.slice(separator + 1));
+}
+
 export function normalizeProviderEndpoint(kind: Kind, value: string): string {
   const trimmed = value.trim();
-  const candidate =
-    kind === "ollama" && /^(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/.*)?$/i.test(trimmed)
-      ? `http://${trimmed}`
-      : trimmed;
-  const match = candidate.match(
-    /^(https?):\/\/([^/?#]+)(\/[^?#]*)?(?:\?[^#]*)?(?:#.*)?$/i,
-  );
-  if (!match || /[?#]/.test(candidate)) throw new Error("INVALID_ENDPOINT");
+  const match = trimmed.match(/^(https?):\/\/([^/?#]+)(\/[^?#]*)?$/i);
+  if (!match || /[?#]/.test(trimmed)) invalidEndpoint();
   const scheme = match[1]!.toLowerCase();
   const authority = match[2]!;
-  if (authority.includes("@") || /\s/.test(authority)) throw new Error("INVALID_ENDPOINT");
-  const hostname = authority.startsWith("[")
-    ? authority.slice(1, authority.indexOf("]")).toLowerCase()
-    : authority.split(":")[0]!.toLowerCase();
-  const loopback = ["127.0.0.1", "::1", "localhost"].includes(hostname);
-  if (scheme !== "https" && !(kind === "ollama" && loopback)) throw new Error("INSECURE_ENDPOINT");
+  validateAuthority(authority);
   if (kind === "openai") return trimmed;
   const path = (match[3] ?? "").replace(/\/+$/, "");
   return `${scheme}://${authority.toLowerCase()}${path}`;

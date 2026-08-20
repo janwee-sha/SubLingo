@@ -166,28 +166,28 @@ describe("release archive audit", () => {
   it("rejects final archive update identity drift", () => {
     expect(() =>
       validateArtifactIdentity({
-        artifactName: "SubLingo-0.3.3.iinaplgz",
+        artifactName: "SubLingo-0.3.4.iinaplgz",
         packageInfo: {
-          version: "0.3.3",
+          version: "0.3.4",
           ghRepo: "another/repository",
-          ghVersion: 3003,
+          ghVersion: 3004,
         },
-        expectedVersion: "0.3.3",
+        expectedVersion: "0.3.4",
         expectedGithubRepository: "janwee-sha/SubLingo",
-        expectedGithubVersion: 3003,
+        expectedGithubVersion: 3004,
       }),
     ).toThrow(/repository/i);
     expect(() =>
       validateArtifactIdentity({
-        artifactName: "SubLingo-0.3.3.iinaplgz",
+        artifactName: "SubLingo-0.3.4.iinaplgz",
         packageInfo: {
-          version: "0.3.3",
+          version: "0.3.4",
           ghRepo: "janwee-sha/SubLingo",
-          ghVersion: 3002,
+          ghVersion: 3003,
         },
-        expectedVersion: "0.3.3",
+        expectedVersion: "0.3.4",
         expectedGithubRepository: "janwee-sha/SubLingo",
-        expectedGithubVersion: 3003,
+        expectedGithubVersion: 3004,
       }),
     ).toThrow(/ghVersion|update/i);
   });

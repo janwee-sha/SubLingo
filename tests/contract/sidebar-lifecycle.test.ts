@@ -82,11 +82,44 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(mainSource).toContain("runtime.utils.ask");
   });
 
+  it("converges profile deletion only from the authoritative cross-runtime success", () => {
+    const handlerStart = mainSource.indexOf('runtime.global.onMessage("profile:deleted"');
+    const handlerSource = mainSource.slice(handlerStart, handlerStart + 1_500);
+    expect(mainSource).toContain("removeDeletedProfile");
+    expect(mainSource).toContain("beginProfileListRequest");
+    expect(handlerSource.indexOf("removeDeletedProfile")).toBeLessThan(
+      handlerSource.indexOf("requestProfiles"),
+    );
+    expect(sidebarSource).toContain("deleteSucceeded");
+    expect(sidebarSource).toContain('onMessage("profile:deleted"');
+  });
+
   it("keeps request-correlated operation feedback separate from session polling", () => {
     expect(sidebarSource).toContain("pendingOperations");
     expect(sidebarSource).toContain('onMessage("operation:result"');
     expect(sidebarSource).toContain("requestId");
     expect(sidebarSource).toContain("aria-busy");
+  });
+
+  it("binds every operation to its local region and ignores unowned late feedback", () => {
+    for (const region of [
+      "translation-toggle",
+      "language-settings",
+      "profile-editor",
+      "profile-row:",
+      "subtitle-retry",
+    ])
+      expect(sidebarSource).toContain(region);
+    expect(sidebarSource).toContain("sidebarState.finishOperation");
+    expect(sidebarSource).toContain("if (!finished.accepted) return");
+  });
+
+  it("keeps Update selection invalidation through optional credential completion", () => {
+    expect(sidebarSource).toContain("beginProfileSave");
+    expect(sidebarSource).toContain("profileRevisionCreated");
+    expect(sidebarSource).toContain("completeProfileSave");
+    expect(sidebarSource).toContain("Profile updated. Select it again for translation.");
+    expect(sidebarSource).not.toContain("to authorize translation");
   });
 
   it("prioritizes every safe embedded preparation state and exposes Retry only when allowed", () => {

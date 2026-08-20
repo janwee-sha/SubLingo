@@ -24,6 +24,12 @@ import {
 import { TARGET_LANGUAGES } from "./domain/target-languages.js";
 import { TargetLanguagePreferences } from "./adapters/iina/target-language-preferences.js";
 import { TargetLanguageSession } from "./app/target-language-session.js";
+import {
+  acceptProfileListResult,
+  beginProfileListRequest,
+  createProfileListSyncState,
+  removeDeletedProfile,
+} from "./adapters/iina/profile-list-sync.js";
 import type {
   PreparedSubtitleSource,
   SourcePreparationView,
@@ -92,6 +98,10 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     targetLanguages: TARGET_LANGUAGES,
   };
   const sidebarMessages: Array<{ name: string; data: unknown }> = [];
+  let profileListState = createProfileListSyncState<{
+    profileId: string;
+    [key: string]: unknown;
+  }>();
 
   const updateSidebarState = (patch: Record<string, unknown> = {}): void => {
     sidebarState = {
@@ -111,6 +121,16 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   const queueSidebarMessage = (name: string, data: unknown): void => {
     sidebarMessages.push({ name, data });
     if (sidebarMessages.length > 32) sidebarMessages.shift();
+  };
+
+  const requestProfiles = (): void => {
+    const request = beginProfileListRequest(profileListState, playerId);
+    profileListState = request.state;
+    runtime.global.postMessage("profiles:list", {
+      requestId: request.requestId,
+      revision: 1,
+      payload: {},
+    });
   };
 
   // Only post while handling a message sent by the live webview. IINA 1.4.4
@@ -357,11 +377,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   runtime.sidebar.loadFile("dist/ui/sidebar.html");
   runtime.sidebar.onMessage("ui:ready", () => {
     if (!loadSource(false)) scheduleSourceReload();
-    runtime.global.postMessage("profiles:list", {
-      requestId: `profiles-${Date.now()}`,
-      revision: 1,
-      payload: {},
-    });
+    requestProfiles();
     flushSidebar();
   });
   runtime.sidebar.onMessage("ui:poll", () => {
@@ -486,9 +502,27 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     runtime.global.postMessage("profile:delete", raw);
   });
   runtime.global.onMessage("profiles:result", (raw: unknown) => {
-    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-      updateSidebarState(raw as Record<string, unknown>);
-    }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
+    const result = raw as { requestId?: unknown; profiles?: unknown };
+    if (
+      typeof result.requestId !== "string" ||
+      !Array.isArray(result.profiles) ||
+      !result.profiles.every(
+        (profile) =>
+          profile &&
+          typeof profile === "object" &&
+          typeof (profile as { profileId?: unknown }).profileId === "string",
+      )
+    )
+      return;
+    const accepted = acceptProfileListResult(
+      profileListState,
+      result.requestId,
+      result.profiles as Array<{ profileId: string; [key: string]: unknown }>,
+    );
+    if (accepted === profileListState) return;
+    profileListState = accepted;
+    updateSidebarState({ profiles: profileListState.profiles });
   });
   runtime.global.onMessage("profile:revision-created", (raw: unknown) => {
     const result = raw as {
@@ -588,26 +622,21 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   });
   runtime.global.onMessage("profile:deleted", (raw: unknown) => {
     const result = raw as { profileId?: unknown; selectionInvalidated?: unknown };
+    profileListState = removeDeletedProfile(profileListState, String(result.profileId ?? ""));
     if (
       result.selectionInvalidated === true ||
       (currentSelection && result.profileId === currentSelection.profileId)
     ) {
       currentSelection = null;
       controller.clearProviderSelection();
-      updateSidebarState({ selection: null });
+      updateSidebarState({ selection: null, profiles: profileListState.profiles });
+    } else {
+      updateSidebarState({ profiles: profileListState.profiles });
     }
     queueSidebarMessage("profile:deleted", raw);
-    runtime.global.postMessage("profiles:list", {
-      requestId: `profiles-${Date.now()}`,
-      revision: 1,
-      payload: {},
-    });
+    requestProfiles();
   });
-  runtime.global.postMessage("profiles:list", {
-    requestId: `profiles-${Date.now()}`,
-    revision: 1,
-    payload: {},
-  });
+  requestProfiles();
 
   runtime.event.on("iina.file-loaded", () => {
     mediaEpoch += 1;
