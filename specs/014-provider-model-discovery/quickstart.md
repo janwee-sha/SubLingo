@@ -58,7 +58,7 @@ npm run verify:package
 npm run pack
 ```
 
-预期：全部命令通过，当前 manifest 身份保持一致；正式包仍只包含白名单材料和两个受支持架构的 helper，不含凭据、运行目录、源码、测试或 SDD。014 未指定发布版本，不在本流程提升版本、创建 release notes、commit、tag、上传或发布。
+预期：全部命令通过，0.3.5 manifest 身份保持一致；正式包仍只包含白名单材料和两个受支持架构的 helper，不含凭据、运行目录、源码、测试或 SDD。本流程不 commit、tag、上传或发布。
 
 ## 当前文档与披露复核
 

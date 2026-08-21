@@ -12,9 +12,9 @@ describe("IINA package manifest", () => {
     expect(manifest.globalEntry).toBe("dist/global.js");
     expect(manifest).not.toHaveProperty("global");
     expect(manifest.permissions).toEqual(["network-request", "file-system", "show-alert"]);
-    expect(manifest.version).toBe("0.3.4");
+    expect(manifest.version).toBe("0.3.5");
     expect(manifest.ghRepo).toBe("janwee-sha/SubLingo");
-    expect(manifest.ghVersion).toBe(3004);
+    expect(manifest.ghVersion).toBe(3005);
   });
 
   it("describes self-rendered translations without temporary display files", () => {

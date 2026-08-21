@@ -6,9 +6,9 @@ import {
 } from "../../scripts/plugin-update-metadata.mjs";
 
 const validManifest = {
-  version: "0.3.4",
+  version: "0.3.5",
   ghRepo: "janwee-sha/SubLingo",
-  ghVersion: 3004,
+  ghVersion: 3005,
 };
 
 describe("plugin update metadata", () => {
@@ -19,10 +19,10 @@ describe("plugin update metadata", () => {
     expect(expectedGithubVersion("1.0.0")).toBe(1_000_000);
   });
 
-  it("accepts the canonical SubLingo 0.3.4 update identity", () => {
+  it("accepts the canonical SubLingo 0.3.5 update identity", () => {
     expect(validatePluginUpdateMetadata(validManifest)).toEqual({
       githubRepository: "janwee-sha/SubLingo",
-      githubVersion: 3004,
+      githubVersion: 3005,
     });
   });
 
@@ -36,8 +36,9 @@ describe("plugin update metadata", () => {
     ["ghVersion", 0],
     ["ghVersion", 3002],
     ["ghVersion", 3003],
-    ["ghVersion", 3004.5],
-    ["ghVersion", "3004"],
+    ["ghVersion", 3004],
+    ["ghVersion", 3005.5],
+    ["ghVersion", "3005"],
   ])("rejects invalid %s metadata", (field, value) => {
     expect(() => validatePluginUpdateMetadata({ ...validManifest, [field]: value })).toThrow(
       /version|repository|ghVersion|update/i,
