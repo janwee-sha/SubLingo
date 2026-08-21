@@ -10,6 +10,8 @@ import {
   parseTargetLanguageSaved,
   parseLanguageOperationError,
   parseLanguageOperationResult,
+  parseProviderModelsRequest,
+  parseProviderModelsResult,
   sanitizedProfileView,
 } from "../../src/domain/messages.js";
 import { normalizeProviderError } from "../../src/domain/errors.js";
@@ -256,5 +258,70 @@ describe("Sidebar/Main/Global security messages", () => {
     expect(result).not.toHaveProperty("testId");
     expect(GLOBAL_MESSAGE_NAMES).toContain("provider:test");
     expect(SIDEBAR_MESSAGE_NAMES).toContain("provider:test");
+  });
+
+  it("accepts only the strict model refresh request fields", () => {
+    const message = {
+      requestId: "models.window-a.1",
+      revision: 2,
+      payload: {
+        trigger: "manual",
+        kind: "ollama",
+        endpoint: "https://models.example.test",
+        proxyMode: "direct",
+        profileId: profile.profileId,
+        profileRevision: 2,
+        endpointFingerprint: "fingerprint",
+      },
+    };
+    expect(parseProviderModelsRequest(message)).toEqual(message);
+    for (const forbidden of ["apiKey", "authorization", "model", "subtitle", "position"]) {
+      expect(() =>
+        parseProviderModelsRequest({
+          ...message,
+          payload: { ...message.payload, [forbidden]: "must-not-cross" },
+        }),
+      ).toThrow(/INVALID_MESSAGE/);
+    }
+    expect(() =>
+      parseProviderModelsRequest({
+        ...message,
+        payload: { ...message.payload, profileRevision: undefined },
+      }),
+    ).toThrow(/INVALID_MESSAGE/);
+  });
+
+  it("accepts only safe model refresh results", () => {
+    expect(
+      parseProviderModelsResult({
+        requestId: "models.window-a.1",
+        ok: true,
+        contextKey: "opaque-context",
+        models: ["model-a", "namespace/model:b"],
+      }),
+    ).toMatchObject({ ok: true, models: ["model-a", "namespace/model:b"] });
+    expect(
+      parseProviderModelsResult({
+        requestId: "models.window-a.2",
+        ok: false,
+        contextKey: "opaque-context",
+        category: "authentication",
+        retryable: false,
+        statusCode: 401,
+        code: "invalid_api_key",
+        userAction: "CHECK_CREDENTIALS",
+      }),
+    ).toMatchObject({ ok: false, category: "authentication" });
+    for (const forbidden of ["apiKey", "authorization", "endpoint", "body", "subtitle"]) {
+      expect(() =>
+        parseProviderModelsResult({
+          requestId: "models.window-a.3",
+          ok: true,
+          contextKey: "opaque-context",
+          models: [],
+          [forbidden]: "must-not-cross",
+        }),
+      ).toThrow(/INVALID_MESSAGE/);
+    }
   });
 });

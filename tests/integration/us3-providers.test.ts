@@ -13,8 +13,64 @@ import {
 } from "../../src/adapters/iina/profile-list-sync.js";
 import "../../ui/sidebar-state.js";
 import { makeProviderRequest } from "../contract/provider-test-helpers.js";
+import { discoverProviderModels } from "../../src/providers/model-discovery.js";
 
 describe("US3 provider broker integration", () => {
+  it("uses one Ollama Bearer for Refresh, Test and translation", async () => {
+    const paths: string[] = [];
+    const transport: ProviderTransport = {
+      request: async (request) => {
+        if (request.headers.Authorization !== "Bearer remote-secret")
+          return { statusCode: 401, headers: {}, bodyText: "{}" };
+        paths.push(new URL(request.url).pathname);
+        if (request.url.endsWith("/api/version"))
+          return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
+        if (request.url.endsWith("/api/tags"))
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: '{"models":[{"model":"qwen","name":"qwen"}]}',
+          };
+        const targets = JSON.parse(
+          (request.body as { messages: Array<{ content: string }> }).messages.at(-1)!.content,
+        ).targets as Array<{ id: string }>;
+        return {
+          statusCode: 200,
+          headers: {},
+          bodyText: JSON.stringify({
+            message: {
+              content: JSON.stringify({
+                translations: targets.map((target) => ({ id: target.id, text: "T" })),
+              }),
+            },
+          }),
+        };
+      },
+    };
+    await expect(
+      discoverProviderModels(
+        {
+          jobId: "refresh",
+          kind: "ollama",
+          endpoint: "https://ollama.example.test",
+          apiKey: "remote-secret",
+        },
+        transport,
+      ),
+    ).resolves.toEqual(["qwen"]);
+    const provider = new OllamaProvider(
+      {
+        endpoint: "https://ollama.example.test",
+        model: "qwen",
+        apiKey: "remote-secret",
+      },
+      transport,
+    );
+    await provider.testConnection("test");
+    await provider.attempt(makeProviderRequest());
+    expect(paths).toEqual(["/api/tags", "/api/version", "/api/tags", "/api/chat", "/api/chat"]);
+  });
+
   it("keeps a deleted profile removed across late lists, duplicate success and Sidebar reopen", () => {
     const deleted = { profileId: "deleted", revision: 1 };
     const retained = { profileId: "retained", revision: 1 };

@@ -16,11 +16,14 @@ import { IinaTranslationOverlay } from "./adapters/iina/subtitle-overlay.js";
 import { SubtitlePreparationCoordinator } from "./app/subtitle-preparation.js";
 import { LanguageDetectionCoordinator } from "./app/language-detection.js";
 import {
+  parseProviderModelsRequest,
+  parseProviderModelsResult,
   parseRetrySubtitlePreparation,
   parseLanguageOperationError,
   parseTargetLanguageSave,
   parseTargetLanguageSaved,
 } from "./domain/messages.js";
+import { ModelCatalogSync, modelCatalogContextToken } from "./adapters/iina/model-catalog-sync.js";
 import { TARGET_LANGUAGES } from "./domain/target-languages.js";
 import { TargetLanguagePreferences } from "./adapters/iina/target-language-preferences.js";
 import { TargetLanguageSession } from "./app/target-language-session.js";
@@ -102,6 +105,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     profileId: string;
     [key: string]: unknown;
   }>();
+  const modelCatalogSync = new ModelCatalogSync();
 
   const updateSidebarState = (patch: Record<string, unknown> = {}): void => {
     sidebarState = {
@@ -471,6 +475,23 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
       runtime.global.postMessage(globalName, raw),
     );
   }
+  runtime.sidebar.onMessage("provider:models", (raw: unknown) => {
+    try {
+      const message = parseProviderModelsRequest(raw);
+      const started = modelCatalogSync.begin(playerId, {
+        requestId: message.requestId,
+        contextToken: modelCatalogContextToken(message.payload),
+        trigger: message.payload.trigger,
+      });
+      if (started.forwarded) runtime.global.postMessage("provider:models", message);
+    } catch {
+      queueSidebarMessage("operation:error", {
+        requestId: (raw as { requestId?: unknown })?.requestId,
+        code: "INVALID_MESSAGE",
+        userAction: "NONE",
+      });
+    }
+  });
   runtime.sidebar.onMessage("profile:delete-request", (raw: unknown) => {
     const source = raw as {
       requestId?: unknown;
@@ -554,6 +575,15 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   runtime.global.onMessage("provider:test-result", (raw: unknown) =>
     queueSidebarMessage("provider:test-result", raw),
   );
+  runtime.global.onMessage("provider:models-result", (raw: unknown) => {
+    try {
+      const result = parseProviderModelsResult(raw);
+      if (modelCatalogSync.commit(playerId, result))
+        queueSidebarMessage("provider:models-result", result);
+    } catch {
+      return;
+    }
+  });
   runtime.global.onMessage("defaults:saved", (raw: unknown) => {
     try {
       const result = parseTargetLanguageSaved(raw);
@@ -676,6 +706,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     updateSidebarState();
   }, 350);
   runtime.event.on("iina.window-will-close", () => {
+    modelCatalogSync.remove(playerId);
     if (sourceSelectionTimer !== null) clearTimeout(sourceSelectionTimer);
     if (currentSelection)
       runtime.global.postMessage("profile:release", {

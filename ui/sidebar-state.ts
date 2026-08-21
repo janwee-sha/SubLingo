@@ -50,6 +50,14 @@ interface PendingProfileSaveState {
   selectionInvalidated: boolean;
 }
 
+interface ModelControlState {
+  value: string;
+  mode: "known" | "custom";
+  knownModelIds: string[];
+  contextKey: string;
+  refreshState: "idle" | "busy" | "success" | "error";
+}
+
 interface SidebarStateSnapshot {
   profiles: SidebarStateProfile[];
   deletedProfileIds: string[];
@@ -63,6 +71,7 @@ interface SidebarStateSnapshot {
   deletedResults: SidebarDeletedResult[];
   profileName: ProfileNameState;
   pendingProfileSave: PendingProfileSaveState | null;
+  modelControl: ModelControlState;
 }
 
 interface SidebarStateCoordinator {
@@ -98,6 +107,10 @@ interface SidebarStateCoordinator {
     succeeded?: boolean,
   ): string | null;
   cancelProfileSave(requestId: string): void;
+  setModelContext(contextKey: string, value: string): void;
+  applyModelCatalog(contextKey: string, models: string[]): boolean;
+  setModelRefreshState(state: ModelControlState["refreshState"]): void;
+  setModelValue(value: string): void;
 }
 
 interface Window {
@@ -119,11 +132,18 @@ function createSubLingoSidebarState(
     activeFeedback: null,
     deletedResults: [],
     profileName: {
-      value: "OpenAI-compatible",
+      value: "OpenAI",
       mode: "system",
-      serviceTypeLabel: "OpenAI-compatible",
+      serviceTypeLabel: "OpenAI",
     },
     pendingProfileSave: null,
+    modelControl: {
+      value: "",
+      mode: "custom",
+      knownModelIds: [],
+      contextKey: "",
+      refreshState: "idle",
+    },
   };
   const writeFeedback = (
     request: SidebarOperationRequest,
@@ -303,6 +323,46 @@ function createSubLingoSidebarState(
     if (snapshot.pendingProfileSave?.requestId === requestId) snapshot.pendingProfileSave = null;
   };
 
+  const classifyModelValue = (): void => {
+    snapshot.modelControl.mode = snapshot.modelControl.knownModelIds.includes(
+      snapshot.modelControl.value,
+    )
+      ? "known"
+      : "custom";
+  };
+
+  const setModelContext = (contextKey: string, value: string): void => {
+    if (snapshot.modelControl.contextKey !== contextKey) {
+      snapshot.modelControl.contextKey = contextKey;
+      snapshot.modelControl.knownModelIds = [];
+      snapshot.modelControl.refreshState = "idle";
+    }
+    snapshot.modelControl.value = value;
+    classifyModelValue();
+  };
+
+  const applyModelCatalog = (contextKey: string, models: string[]): boolean => {
+    if (snapshot.modelControl.contextKey !== contextKey) return false;
+    const seen = new Set<string>();
+    snapshot.modelControl.knownModelIds = models.filter((model) => {
+      if (!model || seen.has(model)) return false;
+      seen.add(model);
+      return true;
+    });
+    snapshot.modelControl.refreshState = "success";
+    classifyModelValue();
+    return true;
+  };
+
+  const setModelValue = (value: string): void => {
+    snapshot.modelControl.value = value;
+    classifyModelValue();
+  };
+
+  const setModelRefreshState = (state: ModelControlState["refreshState"]): void => {
+    snapshot.modelControl.refreshState = state;
+  };
+
   return {
     snapshot,
     applyProfiles,
@@ -319,6 +379,10 @@ function createSubLingoSidebarState(
     profileRevisionCreated,
     completeProfileSave,
     cancelProfileSave,
+    setModelContext,
+    applyModelCatalog,
+    setModelRefreshState,
+    setModelValue,
   };
 }
 

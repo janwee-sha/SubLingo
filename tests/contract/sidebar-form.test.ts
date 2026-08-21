@@ -24,8 +24,20 @@ describe("IINA sidebar bundle contract", () => {
     expect(html).toMatch(/id="provider-model"[\s\S]*?required/);
   });
 
+  it("uses one accessible vertical write-only API key field for both services", () => {
+    expect(html).toMatch(
+      /id="credential-row"[\s\S]*?<span>API key<\/span>[\s\S]*?id="provider-key"[\s\S]*?aria-describedby="credential-hint"[\s\S]*?<small\s+id="credential-hint"[^>]*>/,
+    );
+    expect(html).not.toContain('id="credential-row" class="field" hidden');
+    expect(sidebarSource).toContain(
+      'document.querySelector<HTMLElement>("#credential-row")!.hidden = false',
+    );
+  });
+
   it("uses the visible Service type as the savable default without a generic fallback", () => {
-    expect(html).toContain('id="profile-name" type="text" value="OpenAI-compatible"');
+    expect(html).toContain('<option value="openai">OpenAI</option>');
+    expect(html).toContain('id="profile-name" type="text" value="OpenAI"');
+    expect(html).not.toContain("OpenAI-compatible");
     expect(sidebarSource).toContain("selectedServiceTypeLabel");
     expect(sidebarSource).toContain("inputProfileName");
     expect(sidebarSource).toContain("changeServiceTypeLabel");

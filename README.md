@@ -21,7 +21,7 @@ SubLingo translates the local embedded text subtitle or external SRT/ASS subtitl
 
 - **Live bilingual subtitles:** Keep the original subtitle selected in IINA while SubLingo renders translations at the top center of the video without occupying another subtitle track.
 - **Embedded and external text subtitles:** Works with local Matroska SubRip/ASS/SSA, local MOV/MP4 `mov_text`, and readable external SRT/ASS tracks selected in IINA. The release includes the required extractor; no external `ffmpeg` or `ffprobe` is needed.
-- **Your choice of translation service:** Use an OpenAI-compatible Chat Completions endpoint or a local/remote Ollama server.
+- **Your choice of translation service:** Use an OpenAI Chat Completions-compatible endpoint or a local/remote Ollama server.
 - **Playback-first behavior:** Translation work never pauses the video or hides the original subtitle.
 - **Bounded requests:** SubLingo translates only nearby cues, limits concurrent work per player window, and caches successful results only for the current video session.
 - **Multiple profiles:** Save translation service profiles, test them, and explicitly select the exact endpoint allowed to receive subtitle text.
@@ -33,8 +33,8 @@ SubLingo translates the local embedded text subtitle or external SRT/ASS subtitl
 - IINA 1.4.0 or later
 - A supported local embedded text subtitle or readable external SRT/ASS/SSA track
 - One of the following translation services:
-  - An OpenAI-compatible endpoint, model ID, and an API key when required by the service
-  - An Ollama server with a compatible model already installed
+  - An OpenAI endpoint, model ID, and an API key when required by the service
+  - An Ollama server with a compatible model already installed and an API key when required
 
 SubLingo does not download or start translation models.
 
@@ -68,7 +68,7 @@ After either method, approve the requested plugin permissions if prompted, make 
 
 1. Load a local video and select a supported embedded text subtitle or external SRT/ASS subtitle as the primary subtitle in IINA.
 2. Under **Languages**, select your mother language. Confirm the subtitle language if IINA cannot identify it, then save the language settings.
-3. Under **Translation service**, create an OpenAI-compatible or Ollama profile and enter the exact model ID.
+3. Under **Translation service**, create an OpenAI or Ollama profile. Refresh and select a model returned by the endpoint, or enter an exact custom Model ID.
 4. Save and test the profile, then click **Select**. Selecting a profile explicitly authorizes SubLingo to send nearby subtitle text to the displayed endpoint.
 5. Turn on **Translate**. The original subtitle remains selected in IINA; translated cues appear in SubLingo's top-center overlay.
 
@@ -76,19 +76,19 @@ If the endpoint, model, key, or network route changes, save the updated profile 
 
 ## ⚙️ Translation Services
 
-### OpenAI-compatible
+### OpenAI
 
 - Enter the API root, for example `https://example.com/v1`, not a complete `/chat/completions` URL.
 - SubLingo appends `/chat/completions` and previews the resulting request URL in the sidebar.
-- Enter the exact model identifier exposed by your service.
+- Refresh the endpoint's model list and choose a returned identifier, or enter an exact custom Model ID.
 - The bearer API key is optional only when the endpoint accepts unauthenticated requests. The field is write-only after saving.
 - Remote endpoints must use HTTPS.
 
 ### Ollama
 
 - The default server root is `http://127.0.0.1:11434`.
-- Enter the exact installed model tag, such as `translategemma:12b` or `qwen3:14b`.
-- Ollama profiles do not store or use an API credential.
+- Refresh the server's model list and choose a returned tag, or enter an exact custom Model ID.
+- The bearer API key is optional when the Ollama server accepts unauthenticated requests. The field is write-only after saving.
 - SubLingo checks the server, installed tags, and structured-output chat support during the connection test.
 
 For either service, start with **Use macOS proxy settings**. Choose **Connect directly** only when a configured system proxy prevents access to that service.
@@ -96,9 +96,9 @@ For either service, start with **Use macOS proxy settings**. Choose **Connect di
 ## 🔒 Privacy, Credentials, and Cost
 
 - SubLingo sends only nearby subtitle cue text, language direction, opaque cue identifiers, and limited neighboring context to the profile you explicitly select. It does not send video or audio content.
-- OpenAI-compatible keys are stored as local plaintext in the plugin's private `credentials.json` file. Its directory uses mode `0700` and the file uses mode `0600`. The key is not written to IINA preferences, logs, diagnostics, the sidebar state, or the plugin package, and is not shown again after saving.
+- OpenAI and Ollama keys are stored as local plaintext in the plugin's private `credentials.json` file. Its directory uses mode `0700` and the file uses mode `0600`. Keys are not written to IINA preferences, logs, diagnostics, the sidebar state, or the plugin package, and are not shown again after saving.
 - File permissions protect the key from other macOS accounts and ordinary accidental access. They cannot protect it from a process that can already read files as your current macOS user.
-- The bundled transport helper listens only on a temporary `127.0.0.1` port and sends remote requests only to the selected endpoint. Cross-origin redirects and credentials embedded in URLs are rejected.
+- The bundled transport helper listens only on a temporary `127.0.0.1` port. A configured or currently edited endpoint may receive a subtitle-free model-list request before Select; only the explicitly selected profile receives nearby subtitle text for translation. Cross-origin redirects and credentials embedded in URLs are rejected.
 - For embedded text subtitles, the bundled extractor reads only the selected stream from the current local media into a session-only temporary SRT. It does not support remote media or image-based subtitles, and removes temporary extraction data after parsing, cancellation, timeout, or shutdown.
 - Translations are cached only for the current video session and are cleared when the video changes, playback ends, or the window closes.
 - Your translation provider may charge for requests and apply its own data and content policies. Batching and caching reduce calls but do not guarantee a maximum cost.

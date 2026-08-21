@@ -36,6 +36,32 @@ describe("IINA package manifest", () => {
     );
   });
 
+  it("discloses subtitle-free model discovery without widening permissions", () => {
+    const manifest = JSON.parse(rootFile("Info.json")) as {
+      permissions: string[];
+      allowedDomains: string[];
+      permissionDescriptions: Record<string, string>;
+    };
+    expect(manifest.permissions).toEqual(["network-request", "file-system", "show-alert"]);
+    expect(manifest.allowedDomains).toEqual(["127.0.0.1"]);
+    expect(manifest.permissionDescriptions["network-request"]).toMatch(
+      /edited endpoints.*subtitle-free model-list requests/i,
+    );
+    expect(manifest.permissionDescriptions["network-request"]).toMatch(
+      /selected profile receives subtitle text/i,
+    );
+  });
+
+  it("rejects runtime state and sensitive material from the package", () => {
+    const verify = rootFile("scripts/verify-package.sh");
+    const pack = rootFile("scripts/pack.sh");
+    expect(verify).toMatch(/credentials\.json/);
+    expect(verify).toMatch(/@data/);
+    expect(verify).toMatch(/@tmp/);
+    expect(pack).toMatch(/node_modules.*specs.*tests.*src.*@data.*@tmp/);
+    expect(pack).toMatch(/credentials\\\.json/);
+  });
+
   it("locks the exact minimal FFmpeg source and component allowlist", () => {
     const lock = JSON.parse(rootFile("native/ffmpeg.lock.json")) as {
       version: string;

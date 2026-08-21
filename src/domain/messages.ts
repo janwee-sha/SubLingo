@@ -93,6 +93,7 @@ export const SIDEBAR_MESSAGE_NAMES = [
   "profile:select",
   "profile:delete-request",
   "provider:test",
+  "provider:models",
   "translation:set-enabled",
   "subtitle:retry-preparation",
 ] as const;
@@ -135,6 +136,7 @@ export const GLOBAL_MESSAGE_NAMES = [
   "profile:select",
   "credential:set",
   "provider:test",
+  "provider:models",
   "provider:attempt",
   "provider:cancel",
   "profile:release",
@@ -218,6 +220,111 @@ export function parseEnvelope(value: unknown): RpcEnvelope {
   return record as unknown as RpcEnvelope;
 }
 
+export interface ProviderModelsRequestPayload {
+  trigger: "open" | "endpoint" | "profile" | "credential" | "manual";
+  kind: "openai" | "ollama";
+  endpoint: string;
+  proxyMode: "system" | "direct";
+  profileId?: string;
+  profileRevision?: number;
+  endpointFingerprint?: string;
+}
+
+export type ProviderModelsRequest = RpcEnvelope<ProviderModelsRequestPayload>;
+
+export function parseProviderModelsRequest(value: unknown): ProviderModelsRequest {
+  const envelope = parseEnvelope(value);
+  const payload = envelope.payload as Record<string, unknown>;
+  const allowed = new Set([
+    "trigger",
+    "kind",
+    "endpoint",
+    "proxyMode",
+    "profileId",
+    "profileRevision",
+    "endpointFingerprint",
+  ]);
+  const profileFields = [payload.profileId, payload.profileRevision, payload.endpointFingerprint];
+  const profileFieldCount = profileFields.filter((field) => field !== undefined).length;
+  if (
+    Object.keys(payload).some((key) => !allowed.has(key)) ||
+    !["open", "endpoint", "profile", "credential", "manual"].includes(String(payload.trigger)) ||
+    (payload.kind !== "openai" && payload.kind !== "ollama") ||
+    typeof payload.endpoint !== "string" ||
+    !payload.endpoint ||
+    (payload.proxyMode !== "system" && payload.proxyMode !== "direct") ||
+    (profileFieldCount !== 0 && profileFieldCount !== 3) ||
+    (payload.profileId !== undefined &&
+      (typeof payload.profileId !== "string" || !payload.profileId)) ||
+    (payload.profileRevision !== undefined &&
+      (!Number.isInteger(payload.profileRevision) || (payload.profileRevision as number) < 1)) ||
+    (payload.endpointFingerprint !== undefined &&
+      (typeof payload.endpointFingerprint !== "string" || !payload.endpointFingerprint))
+  )
+    throw new Error("INVALID_MESSAGE");
+  return envelope as ProviderModelsRequest;
+}
+
+export type ProviderModelsResult =
+  | { requestId: string; ok: true; contextKey: string; models: string[] }
+  | {
+      requestId: string;
+      ok: false;
+      contextKey: string;
+      category: string;
+      retryable: boolean;
+      statusCode?: number;
+      code?: string;
+      retryAfterMs?: number;
+      userAction: string;
+    };
+
+export function parseProviderModelsResult(value: unknown): ProviderModelsResult {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("INVALID_MESSAGE");
+  const record = value as Record<string, unknown>;
+  const commonValid =
+    typeof record.requestId === "string" &&
+    /^[A-Za-z0-9_.-]{1,128}$/.test(record.requestId) &&
+    typeof record.ok === "boolean" &&
+    typeof record.contextKey === "string" &&
+    Boolean(record.contextKey);
+  if (!commonValid) throw new Error("INVALID_MESSAGE");
+  if (record.ok) {
+    if (
+      Object.keys(record).sort().join(",") !== "contextKey,models,ok,requestId" ||
+      !Array.isArray(record.models) ||
+      record.models.some((model) => typeof model !== "string" || !model.trim())
+    )
+      throw new Error("INVALID_MESSAGE");
+    return record as ProviderModelsResult;
+  }
+  const allowed = new Set([
+    "requestId",
+    "ok",
+    "contextKey",
+    "category",
+    "retryable",
+    "statusCode",
+    "code",
+    "retryAfterMs",
+    "userAction",
+  ]);
+  if (
+    Object.keys(record).some((key) => !allowed.has(key)) ||
+    typeof record.category !== "string" ||
+    typeof record.retryable !== "boolean" ||
+    typeof record.userAction !== "string" ||
+    (record.statusCode !== undefined && !Number.isInteger(record.statusCode)) ||
+    (record.retryAfterMs !== undefined &&
+      (!Number.isInteger(record.retryAfterMs) || (record.retryAfterMs as number) < 0)) ||
+    (record.code !== undefined &&
+      (typeof record.code !== "string" || !/^[A-Za-z0-9_.:-]{1,128}$/.test(record.code)))
+  )
+    throw new Error("INVALID_MESSAGE");
+  return record as ProviderModelsResult;
+}
+
 export function sanitizedProfileView(profile: {
   profileId: string;
   revision: number;
@@ -228,6 +335,7 @@ export function sanitizedProfileView(profile: {
   proxyMode?: "system" | "direct";
   model?: string;
   credential?: Record<string, string>;
+  modelCatalog?: { contextKey: string; models: string[] };
 }): {
   profileId: string;
   revision: number;
@@ -238,6 +346,7 @@ export function sanitizedProfileView(profile: {
   proxyMode: "system" | "direct";
   model?: string;
   credentialConfigured: boolean;
+  modelCatalog?: { contextKey: string; models: string[] };
 } {
   return {
     profileId: profile.profileId,
@@ -251,6 +360,14 @@ export function sanitizedProfileView(profile: {
     credentialConfigured: Boolean(
       profile.credential && Object.values(profile.credential).some(Boolean),
     ),
+    ...(profile.modelCatalog
+      ? {
+          modelCatalog: {
+            contextKey: profile.modelCatalog.contextKey,
+            models: [...profile.modelCatalog.models],
+          },
+        }
+      : {}),
   };
 }
 

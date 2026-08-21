@@ -3,6 +3,7 @@ import { ProviderBroker } from "../../src/providers/broker.js";
 import { ProviderConnectionTests } from "../../src/providers/connection-tests.js";
 import type { ConfiguredProvider } from "../../src/providers/provider.js";
 import { ProviderProfiles } from "../../src/providers/profiles.js";
+import { ModelCatalogSync } from "../../src/adapters/iina/model-catalog-sync.js";
 import type { TranslationBatchRequest, TranslationBatchResult } from "../../src/providers/types.js";
 import { makeProviderRequest } from "../contract/provider-test-helpers.js";
 
@@ -57,6 +58,63 @@ class DeferredConfiguredProvider implements ConfiguredProvider {
 }
 
 describe("provider connection lifecycle integration", () => {
+  it("does not let model refresh ownership alter the selected translation profile", () => {
+    const profiles = new ProviderProfiles(() => "profile-model-sync");
+    const profile = profiles.save({
+      displayName: "Selected",
+      kind: "openai",
+      endpoint: "https://example.test/v1",
+      model: "selected-model",
+    });
+    profiles.select("window-a", profile.profileId, profile.revision, profile.endpointFingerprint);
+    const sync = new ModelCatalogSync();
+    sync.begin("window-a", {
+      requestId: "models-1",
+      contextToken: "profile-context",
+      trigger: "manual",
+    });
+    sync.commit("window-a", {
+      requestId: "models-1",
+      ok: true,
+      contextKey: "opaque",
+      models: ["different-model"],
+    });
+    expect(profiles.selection("window-a")).toMatchObject({
+      profileId: profile.profileId,
+      revision: profile.revision,
+    });
+    expect(profiles.get(profile.profileId)?.model).toBe("selected-model");
+  });
+
+  it("preserves known, custom and disappeared model IDs as the exact profile value", () => {
+    let sequence = 0;
+    const profiles = new ProviderProfiles(() => `model-profile-${++sequence}`);
+    const known = profiles.save({
+      displayName: "Known",
+      kind: "openai",
+      endpoint: "https://example.test/v1",
+      model: "namespace/model:v2",
+    });
+    const custom = profiles.save({
+      displayName: "Custom",
+      kind: "ollama",
+      endpoint: "https://ollama.example.test",
+      model: "  exact-Custom:7b  ",
+    });
+    const disappeared = profiles.save({
+      profileId: known.profileId,
+      expectedRevision: known.revision,
+      displayName: known.displayName,
+      kind: known.kind,
+      endpoint: known.endpoint,
+      model: known.model,
+    });
+
+    expect(profiles.get(known.profileId)?.model).toBe("namespace/model:v2");
+    expect(custom.model).toBe("exact-Custom:7b");
+    expect(disappeared.model).toBe("namespace/model:v2");
+  });
+
   it("isolates colliding window translations and connection tests through cancellation", async () => {
     let profileSequence = 0;
     let testSequence = 0;

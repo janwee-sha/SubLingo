@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { diagnostic } from "../../src/domain/logging.js";
-import { sanitizedProfileView } from "../../src/domain/messages.js";
+import { parseProviderModelsResult, sanitizedProfileView } from "../../src/domain/messages.js";
 import { SubtitlePreparationCoordinator } from "../../src/app/subtitle-preparation.js";
 import { SubtitleExtractorError } from "../../src/adapters/iina/subtitle-extractor.js";
 import { detectSubtitleLanguage } from "../../src/subtitles/language-detection.js";
@@ -8,6 +8,22 @@ import { buildTranslationTask } from "../../src/providers/translation-task.js";
 import type { SubtitleCue } from "../../src/subtitles/types.js";
 
 describe("credential and content leakage boundaries", () => {
+  it("rejects secret and raw response fields in model refresh results", () => {
+    for (const field of ["apiKey", "authorization", "endpoint", "responseBody"]) {
+      expect(() =>
+        parseProviderModelsResult({
+          requestId: "models-safe",
+          ok: false,
+          contextKey: "opaque",
+          category: "authentication",
+          retryable: false,
+          userAction: "CHECK_CREDENTIALS",
+          [field]: "remote-secret",
+        }),
+      ).toThrow("INVALID_MESSAGE");
+    }
+  });
+
   it("keeps credentials, local paths, loopback tokens, auth headers and bodies out of views/diagnostics", () => {
     const sensitive = [
       "provider-secret",

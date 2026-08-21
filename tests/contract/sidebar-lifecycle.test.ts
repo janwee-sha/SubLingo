@@ -11,6 +11,25 @@ describe("IINA sidebar lifecycle contract", () => {
     "utf8",
   );
   const sidebarHtml = readFileSync(new URL("../../ui/sidebar.html", import.meta.url), "utf8");
+  const globalSource = readFileSync(new URL("../../src/global.ts", import.meta.url), "utf8");
+
+  it("covers startup, open, stable endpoint and manual model refresh triggers", () => {
+    expect(globalSource).toContain("prefetchProfileModels");
+    expect(globalSource).toContain("models-startup-");
+    expect(sidebarSource).toContain('requestModels("open")');
+    expect(sidebarSource).toContain('requestModels("endpoint")');
+    expect(sidebarSource).toContain('requestModels("manual")');
+    expect(sidebarSource).toContain("}, 400)");
+    expect(sidebarSource).toContain("pendingModelRefresh");
+  });
+
+  it("does not reinterpret repeated ui:ready as a model refresh", () => {
+    const readyStart = mainSource.indexOf('runtime.sidebar.onMessage("ui:ready"');
+    const readyEnd = mainSource.indexOf('runtime.sidebar.onMessage("ui:poll"', readyStart);
+    const readySource = mainSource.slice(readyStart, readyEnd);
+    expect(readySource).not.toContain("provider:models");
+    expect(sidebarSource).toContain('onMessage("provider:models-result"');
+  });
 
   it("lets the live webview request state instead of posting from the player timer", () => {
     expect(mainSource).toContain('runtime.sidebar.onMessage("ui:poll"');

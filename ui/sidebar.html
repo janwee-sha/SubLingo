@@ -42,13 +42,13 @@
         <label class="field">
           <span>Service type</span>
           <select id="provider-kind">
-            <option value="openai">OpenAI-compatible</option>
+            <option value="openai">OpenAI</option>
             <option value="ollama">Ollama</option>
           </select>
         </label>
         <label class="field">
           <span>Profile name</span>
-          <input id="profile-name" type="text" value="OpenAI-compatible" autocomplete="off" />
+          <input id="profile-name" type="text" value="OpenAI" autocomplete="off" />
         </label>
         <label class="field">
           <span>Endpoint</span>
@@ -65,17 +65,38 @@
           >
           <small id="request-url">Requests will use /chat/completions below this root.</small>
         </label>
-        <label id="model-row" class="field">
-          <span>Model ID</span>
+        <div id="model-row" class="field">
+          <label for="provider-model-select">Model ID</label>
+          <div class="model-control">
+            <select id="provider-model-select" aria-describedby="model-hint">
+              <option value="__custom__">Custom model ID…</option>
+            </select>
+            <button
+              id="refresh-models"
+              class="secondary"
+              type="button"
+              aria-label="Refresh model list"
+              aria-busy="false"
+            >
+              Refresh
+            </button>
+          </div>
           <input
             id="provider-model"
             type="text"
             placeholder="e.g. gpt-4.1-mini"
+            aria-describedby="model-hint"
             autocomplete="off"
             required
           />
-          <small id="model-hint">Enter the exact model identifier exposed by this service.</small>
-        </label>
+          <small id="model-hint">Choose a discovered model or enter its exact identifier.</small>
+          <p
+            id="model-catalog-status"
+            class="operation-status"
+            role="status"
+            aria-live="polite"
+          ></p>
+        </div>
         <label class="field">
           <span>Network route</span>
           <select id="provider-proxy-mode" aria-describedby="proxy-mode-hint">
@@ -87,15 +108,17 @@
           >
         </label>
         <label id="credential-row" class="field">
-          <span
-            >API key <span class="optional">write-only; optional when unauthenticated</span></span
-          >
+          <span>API key</span>
           <input
             id="provider-key"
             type="password"
             autocomplete="new-password"
             placeholder="Not shown after saving"
+            aria-describedby="credential-hint"
           />
+          <small id="credential-hint"
+            >Write-only; optional when the service is unauthenticated.</small
+          >
         </label>
         <div class="form-actions">
           <button id="save-profile" type="button">Save profile</button>

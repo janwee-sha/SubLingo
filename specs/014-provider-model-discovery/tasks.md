@@ -16,7 +16,7 @@
 
 **目的**：确认现有基线并为行为变更保留可比较的验证结果。
 
-- [ ] T001 按 `specs/014-provider-model-discovery/quickstart.md` 的聚焦自动化范围运行现有可执行测试并记录任何基线失败，不读取或输出 `docs/providers` 中的凭据与服务响应
+- [X] T001 按 `specs/014-provider-model-discovery/quickstart.md` 的聚焦自动化范围运行现有可执行测试并记录任何基线失败，不读取或输出 `docs/providers` 中的凭据与服务响应
 
 ---
 
@@ -26,10 +26,10 @@
 
 **关键要求**：本阶段完成前不得进入用户故事实现。
 
-- [ ] T002 [P] 扩展可控 Provider 测试服务以支持 OpenAI `/models`、Ollama `/api/tags`、Bearer 校验、延迟、空与畸形响应，修改 `tests/helpers/provider-server.ts` 并补充 `tests/fixtures/providers/openai-success.json`、`tests/fixtures/providers/ollama-success.json`
-- [ ] T003 [P] 为 `provider:models` 请求、成功/失败响应、Profile 目录快照、未知字段拒绝和敏感字段拒绝编写失败优先的契约测试，修改 `tests/contract/ui-messages.test.ts` 与 `tests/contract/global-rpc.test.ts`
-- [ ] T004 定义发现上下文、模型目录、刷新结果与安全错误类型，并实现严格 envelope 解析和安全 Profile view，修改 `src/providers/types.ts` 与 `src/domain/messages.ts` 使 T003 通过
-- [ ] T005 将模型刷新消息加入 Sidebar、Main 与 Global 的允许消息集合且保持逐窗口 request ID 归属，修改 `src/domain/messages.ts`、`src/adapters/iina/global-rpc.ts` 与 `src/adapters/iina/sidebar-rpc.ts`
+- [X] T002 [P] 扩展可控 Provider 测试服务以支持 OpenAI `/models`、Ollama `/api/tags`、Bearer 校验、延迟、空与畸形响应，修改 `tests/helpers/provider-server.ts` 并补充 `tests/fixtures/providers/openai-success.json`、`tests/fixtures/providers/ollama-success.json`
+- [X] T003 [P] 为 `provider:models` 请求、成功/失败响应、Profile 目录快照、未知字段拒绝和敏感字段拒绝编写失败优先的契约测试，修改 `tests/contract/ui-messages.test.ts` 与 `tests/contract/global-rpc.test.ts`
+- [X] T004 定义发现上下文、模型目录、刷新结果与安全错误类型，并实现严格 envelope 解析和安全 Profile view，修改 `src/providers/types.ts` 与 `src/domain/messages.ts` 使 T003 通过
+- [X] T005 将模型刷新消息加入 Sidebar、Main 与 Global 的允许消息集合且保持逐窗口 request ID 归属，修改 `src/domain/messages.ts`、`src/adapters/iina/global-rpc.ts` 与 `src/adapters/iina/sidebar-rpc.ts`
 
 **检查点**：共享消息只允许契约字段，API Key、Authorization、字幕、译文、播放位置和原始响应无法进入刷新消息。
 
@@ -43,17 +43,17 @@
 
 ### 测试
 
-- [ ] T006 [P] [US1] 为 OpenAI `data[].id`、忽略 `owned_by`、Ollama `model`/`name` 回退、精确去重、成功空目录和协议失败编写失败优先的生产模块契约测试，新增 `tests/contract/provider-model-discovery.test.ts`
-- [ ] T007 [P] [US1] 为 known/custom 模式切换、目录更新不改值、模型消失保留值、成功空目录和跨上下文隔离编写失败优先的状态测试，修改 `tests/unit/sidebar-state.test.ts`
-- [ ] T008 [P] [US1] 为已知、自定义和已消失 Model ID 的 Save、重新载入、Test 与翻译精确值传递编写失败优先的集成回归，修改 `tests/integration/provider-connection-lifecycle.test.ts`
+- [X] T006 [P] [US1] 为 OpenAI `data[].id`、忽略 `owned_by`、Ollama `model`/`name` 回退、精确去重、成功空目录和协议失败编写失败优先的生产模块契约测试，新增 `tests/contract/provider-model-discovery.test.ts`
+- [X] T007 [P] [US1] 为 known/custom 模式切换、目录更新不改值、模型消失保留值、成功空目录和跨上下文隔离编写失败优先的状态测试，修改 `tests/unit/sidebar-state.test.ts`
+- [X] T008 [P] [US1] 为已知、自定义和已消失 Model ID 的 Save、重新载入、Test 与翻译精确值传递编写失败优先的集成回归，修改 `tests/integration/provider-connection-lifecycle.test.ts`
 
 ### 实现
 
-- [ ] T009 [US1] 实现两种 GET 协议、10 秒超时、1 MiB 上限、空 body、可选 Bearer、安全错误分类及线性清洗，新增 `src/providers/model-discovery.ts`
-- [ ] T010 [US1] 实现运行期目录与 Model ID 的 known/custom 状态归类且保持 Profile `model` 为唯一权威值，修改 `ui/sidebar-state.ts`
-- [ ] T011 [US1] 将 Model ID 文本框替换为原生已知模型 select、固定 Custom 项、条件必填输入、刷新按钮和模型区域 live status，修改 `ui/sidebar.html` 与 `ui/sidebar.css`
-- [ ] T012 [US1] 连接 known/custom 控件渲染、输入和保存路径，确保目录更新不自动选择首项且保存只提交一个精确非空 Model ID，修改 `ui/sidebar.ts`
-- [ ] T013 [US1] 运行 US1 聚焦测试并核对模型目录请求不含 Model ID 或翻译正文，验证 `tests/contract/provider-model-discovery.test.ts`、`tests/unit/sidebar-state.test.ts` 与 `tests/integration/provider-connection-lifecycle.test.ts`
+- [X] T009 [US1] 实现两种 GET 协议、10 秒超时、1 MiB 上限、空 body、可选 Bearer、安全错误分类及线性清洗，新增 `src/providers/model-discovery.ts`
+- [X] T010 [US1] 实现运行期目录与 Model ID 的 known/custom 状态归类且保持 Profile `model` 为唯一权威值，修改 `ui/sidebar-state.ts`
+- [X] T011 [US1] 将 Model ID 文本框替换为原生已知模型 select、固定 Custom 项、条件必填输入、刷新按钮和模型区域 live status，修改 `ui/sidebar.html` 与 `ui/sidebar.css`
+- [X] T012 [US1] 连接 known/custom 控件渲染、输入和保存路径，确保目录更新不自动选择首项且保存只提交一个精确非空 Model ID，修改 `ui/sidebar.ts`
+- [X] T013 [US1] 运行 US1 聚焦测试并核对模型目录请求不含 Model ID 或翻译正文，验证 `tests/contract/provider-model-discovery.test.ts`、`tests/unit/sidebar-state.test.ts` 与 `tests/integration/provider-connection-lifecycle.test.ts`
 
 **检查点**：US1 可独立展示服务响应模型并完整保存和使用自定义 Model ID，产品预置模型数量为零。
 
@@ -67,17 +67,17 @@
 
 ### 测试
 
-- [ ] T014 [P] [US2] 为逐窗口目录缓存、自动请求合并、手动请求取代、上下文失效、成功空目录、失败保留和迟到丢弃编写失败优先的单元测试，新增 `tests/unit/model-catalog-sync.test.ts`
-- [ ] T015 [P] [US2] 为启动预取、Profile 快照目录、Sidebar 可见边沿、重复 `ui:ready`、400 毫秒 Endpoint 防抖和手动刷新编写失败优先的生命周期测试，修改 `tests/contract/global-rpc.test.ts` 与 `tests/contract/sidebar-lifecycle.test.ts`
-- [ ] T016 [P] [US2] 为多窗口、Profile/revision/route/Endpoint 竞态及刷新不改变选择或翻译状态编写失败优先的集成回归，修改 `tests/integration/provider-connection-lifecycle.test.ts`
+- [X] T014 [P] [US2] 为逐窗口目录缓存、自动请求合并、手动请求取代、上下文失效、成功空目录、失败保留和迟到丢弃编写失败优先的单元测试，新增 `tests/unit/model-catalog-sync.test.ts`
+- [X] T015 [P] [US2] 为启动预取、Profile 快照目录、Sidebar 可见边沿、重复 `ui:ready`、400 毫秒 Endpoint 防抖和手动刷新编写失败优先的生命周期测试，修改 `tests/contract/global-rpc.test.ts` 与 `tests/contract/sidebar-lifecycle.test.ts`
+- [X] T016 [P] [US2] 为多窗口、Profile/revision/route/Endpoint 竞态及刷新不改变选择或翻译状态编写失败优先的集成回归，修改 `tests/integration/provider-connection-lifecycle.test.ts`
 
 ### 实现
 
-- [ ] T017 [US2] 实现逐窗口模型目录快照、请求 owner、等价自动请求合并、手动优先和 latest-only 结果提交，新增 `src/adapters/iina/model-catalog-sync.ts`
-- [ ] T018 [US2] 实现 Global 启动非阻塞预取、完整权威上下文校验、运行期成功目录、job 取消与安全结果返回，修改 `src/global.ts`
-- [ ] T019 [US2] 实现 Main 的逐窗口请求转发、Profile 目录同步、Sidebar 真正打开边沿识别和仅向活动 WebView 的 `ui:poll` 投递，修改 `src/main.ts`
-- [ ] T020 [US2] 实现 Sidebar 的初载/切换/Profile/route 自动刷新、400 毫秒有效 Endpoint 防抖、立即手动刷新、忙碌与 latest-only 反馈，修改 `ui/sidebar.ts`、`ui/sidebar-state.ts` 与 `ui/provider-status.ts`
-- [ ] T021 [US2] 运行 US2 聚焦测试并确认刷新失败不覆盖目录、迟到结果不结束较新 busy、启动与打开不阻塞，验证 `tests/unit/model-catalog-sync.test.ts`、`tests/contract/sidebar-lifecycle.test.ts` 与 `tests/integration/provider-connection-lifecycle.test.ts`
+- [X] T017 [US2] 实现逐窗口模型目录快照、请求 owner、等价自动请求合并、手动优先和 latest-only 结果提交，新增 `src/adapters/iina/model-catalog-sync.ts`
+- [X] T018 [US2] 实现 Global 启动非阻塞预取、完整权威上下文校验、运行期成功目录、job 取消与安全结果返回，修改 `src/global.ts`
+- [X] T019 [US2] 实现 Main 的逐窗口请求转发、Profile 目录同步、Sidebar 真正打开边沿识别和仅向活动 WebView 的 `ui:poll` 投递，修改 `src/main.ts`
+- [X] T020 [US2] 实现 Sidebar 的初载/切换/Profile/route 自动刷新、400 毫秒有效 Endpoint 防抖、立即手动刷新、忙碌与 latest-only 反馈，修改 `ui/sidebar.ts`、`ui/sidebar-state.ts` 与 `ui/provider-status.ts`
+- [X] T021 [US2] 运行 US2 聚焦测试并确认刷新失败不覆盖目录、迟到结果不结束较新 busy、启动与打开不阻塞，验证 `tests/unit/model-catalog-sync.test.ts`、`tests/contract/sidebar-lifecycle.test.ts` 与 `tests/integration/provider-connection-lifecycle.test.ts`
 
 **检查点**：四类刷新触发均可验证，目录不会跨 Endpoint、Profile、route、凭据上下文或窗口串用。
 
@@ -91,17 +91,17 @@
 
 ### 测试
 
-- [ ] T022 [P] [US3] 为 Ollama `/api/version`、`/api/tags`、`/api/chat` 的可选统一 Bearer及 OpenAI 既有 Bearer 回归编写失败优先的契约测试，修改 `tests/contract/ollama.test.ts` 与 `tests/contract/openai.test.ts`
-- [ ] T023 [P] [US3] 为 Ollama 凭据保存、只返回 configured、替换/删除、全 revision Provider cache 清理和保存失败保持旧权威编写失败优先的契约测试，修改 `tests/contract/credential-store.test.ts`、`tests/contract/provider-profiles.test.ts` 与 `tests/contract/global-rpc.test.ts`
-- [ ] T024 [P] [US3] 为刷新消息、Profile view、preferences、日志、诊断和包的 Key/Authorization/完整 Endpoint/原始响应隔离及认证错误清洗编写失败优先的安全回归，修改 `tests/security/credential-leakage.test.ts` 与 `tests/security/redaction.test.ts`
-- [ ] T025 [P] [US3] 为远程认证 Ollama 的 Refresh、Test、翻译及正确/缺失/错误/空 Key 流程编写失败优先的集成回归，修改 `tests/integration/us3-providers.test.ts` 与 `tests/integration/provider-connection-lifecycle.test.ts`
+- [X] T022 [P] [US3] 为 Ollama `/api/version`、`/api/tags`、`/api/chat` 的可选统一 Bearer及 OpenAI 既有 Bearer 回归编写失败优先的契约测试，修改 `tests/contract/ollama.test.ts` 与 `tests/contract/openai.test.ts`
+- [X] T023 [P] [US3] 为 Ollama 凭据保存、只返回 configured、替换/删除、全 revision Provider cache 清理和保存失败保持旧权威编写失败优先的契约测试，修改 `tests/contract/credential-store.test.ts`、`tests/contract/provider-profiles.test.ts` 与 `tests/contract/global-rpc.test.ts`
+- [X] T024 [P] [US3] 为刷新消息、Profile view、preferences、日志、诊断和包的 Key/Authorization/完整 Endpoint/原始响应隔离及认证错误清洗编写失败优先的安全回归，修改 `tests/security/credential-leakage.test.ts` 与 `tests/security/redaction.test.ts`
+- [X] T025 [P] [US3] 为远程认证 Ollama 的 Refresh、Test、翻译及正确/缺失/错误/空 Key 流程编写失败优先的集成回归，修改 `tests/integration/us3-providers.test.ts` 与 `tests/integration/provider-connection-lifecycle.test.ts`
 
 ### 实现
 
-- [ ] T026 [US3] 让 Ollama Provider 接受可选 `apiKey` 并在 version、tags、chat 请求统一按非空值添加 Bearer，修改 `src/providers/ollama.ts`
-- [ ] T027 [US3] 让 Global 为权威 Ollama Profile 读取只写凭据，并在凭据替换/删除后递增运行期 epoch、取消发现/Test/翻译、清理全部 revision Provider cache 与旧目录，修改 `src/global.ts`、`src/providers/broker.ts` 与 `src/providers/connection-tests.ts`
-- [ ] T028 [US3] 让 OpenAI 与 Ollama 共用可选只写 API Key 表单，并将主标签、输入框、`aria-describedby` 提示各自纵向分行，修改 `ui/sidebar.html`、`ui/sidebar.css`、`ui/sidebar.ts` 与 `ui/sidebar-state.ts`
-- [ ] T029 [US3] 运行 US3 契约、集成和安全测试并确认 sentinel 在 preferences、日志、诊断、进程参数与候选包中的命中数为零，验证 `tests/contract/ollama.test.ts`、`tests/integration/us3-providers.test.ts` 与 `tests/security/credential-leakage.test.ts`
+- [X] T026 [US3] 让 Ollama Provider 接受可选 `apiKey` 并在 version、tags、chat 请求统一按非空值添加 Bearer，修改 `src/providers/ollama.ts`
+- [X] T027 [US3] 让 Global 为权威 Ollama Profile 读取只写凭据，并在凭据替换/删除后递增运行期 epoch、取消发现/Test/翻译、清理全部 revision Provider cache 与旧目录，修改 `src/global.ts`、`src/providers/broker.ts` 与 `src/providers/connection-tests.ts`
+- [X] T028 [US3] 让 OpenAI 与 Ollama 共用可选只写 API Key 表单，并将主标签、输入框、`aria-describedby` 提示各自纵向分行，修改 `ui/sidebar.html`、`ui/sidebar.css`、`ui/sidebar.ts` 与 `ui/sidebar-state.ts`
+- [X] T029 [US3] 运行 US3 契约、集成和安全测试并确认 sentinel 在 preferences、日志、诊断、进程参数与候选包中的命中数为零，验证 `tests/contract/ollama.test.ts`、`tests/integration/us3-providers.test.ts` 与 `tests/security/credential-leakage.test.ts`
 
 **检查点**：认证 Ollama 的三条访问路径使用同一权威 Key，无认证 Ollama 保持可用，任何可读 Profile 或反馈均不含密钥。
 
@@ -115,13 +115,13 @@
 
 ### 测试
 
-- [ ] T030 [P] [US4] 为默认可见名称、既有 displayName 不迁移、内部 kind 稳定和自定义 Endpoint 全流程编写失败优先的生产行为回归，修改 `tests/contract/provider-profiles.test.ts`、`tests/contract/sidebar-form.test.ts` 与 `tests/integration/provider-connection-lifecycle.test.ts`
+- [X] T030 [P] [US4] 为默认可见名称、既有 displayName 不迁移、内部 kind 稳定和自定义 Endpoint 全流程编写失败优先的生产行为回归，修改 `tests/contract/provider-profiles.test.ts`、`tests/contract/sidebar-form.test.ts` 与 `tests/integration/provider-connection-lifecycle.test.ts`
 
 ### 实现
 
-- [ ] T031 [US4] 将当前 Service type、系统默认 Profile 名和操作反馈统一为 OpenAI且不改变内部 kind 或已保存 displayName，修改 `ui/sidebar.html`、`ui/sidebar-state.ts`、`ui/sidebar.ts` 与 `ui/provider-status.ts`
-- [ ] T032 [US4] 更新当前用户与开发文档中的 OpenAI 名称、自定义兼容 Endpoint、两种 Profile 的模型目录/自定义 Model ID 与可选只写 Key 说明，修改 `README.md`、`docs/readme/README.zh-CN.md`、`docs/readme/README.fr.md`、`docs/readme/README.ja.md`、`docs/readme/README.ko.md`、`docs/readme/README.ru.md`、`docs/readme/README.ar.md` 与 `docs/engineering/development.md`
-- [ ] T033 [US4] 运行 US4 聚焦回归并人工复核当前文档不再出现用户可见 `OpenAI-compatible`，但不回写历史 release notes 或既有验收记录，验证 `tests/contract/provider-profiles.test.ts` 与 `specs/014-provider-model-discovery/quickstart.md`
+- [X] T031 [US4] 将当前 Service type、系统默认 Profile 名和操作反馈统一为 OpenAI且不改变内部 kind 或已保存 displayName，修改 `ui/sidebar.html`、`ui/sidebar-state.ts`、`ui/sidebar.ts` 与 `ui/provider-status.ts`
+- [X] T032 [US4] 更新当前用户与开发文档中的 OpenAI 名称、自定义兼容 Endpoint、两种 Profile 的模型目录/自定义 Model ID 与可选只写 Key 说明，修改 `README.md`、`docs/readme/README.zh-CN.md`、`docs/readme/README.fr.md`、`docs/readme/README.ja.md`、`docs/readme/README.ko.md`、`docs/readme/README.ru.md`、`docs/readme/README.ar.md` 与 `docs/engineering/development.md`
+- [X] T033 [US4] 运行 US4 聚焦回归并人工复核当前文档不再出现用户可见 `OpenAI-compatible`，但不回写历史 release notes 或既有验收记录，验证 `tests/contract/provider-profiles.test.ts` 与 `specs/014-provider-model-discovery/quickstart.md`
 
 **检查点**：用户只看到 OpenAI，升级前 Profile 与自定义兼容 Endpoint 的数据和行为保持不变。
 
@@ -131,10 +131,10 @@
 
 **目的**：校验网络披露、安全边界、完整测试、正式构建、最小安装包与 IINA 宿主行为。
 
-- [ ] T034 [P] 为 manifest 网络披露、权限与 `allowedDomains` 不变、包不含运行目录和敏感材料补充生产接口回归，修改 `tests/contract/package-manifest.test.ts`
-- [ ] T035 更新 Select 前无字幕模型目录请求与 Select 后字幕请求的网络披露且保持权限集合不变，修改 `Info.json` 并复核 `README.md` 与 `docs/engineering/development.md`
-- [ ] T036 按 `specs/014-provider-model-discovery/quickstart.md` 运行全部聚焦 Vitest 与 `npm run test:native`，修复所有失败后再继续
-- [ ] T037 严格依次运行 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build:native`、`npm run test:native`、`npm run build`、`npm run verify:package` 与 `npm run pack`，并按 `specs/014-provider-model-discovery/quickstart.md` 审计候选包架构、权限、签名、白名单和敏感材料
+- [X] T034 [P] 为 manifest 网络披露、权限与 `allowedDomains` 不变、包不含运行目录和敏感材料补充生产接口回归，修改 `tests/contract/package-manifest.test.ts`
+- [X] T035 更新 Select 前无字幕模型目录请求与 Select 后字幕请求的网络披露且保持权限集合不变，修改 `Info.json` 并复核 `README.md` 与 `docs/engineering/development.md`
+- [X] T036 按 `specs/014-provider-model-discovery/quickstart.md` 运行全部聚焦 Vitest 与 `npm run test:native`，修复所有失败后再继续
+- [X] T037 严格依次运行 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build:native`、`npm run test:native`、`npm run build`、`npm run verify:package` 与 `npm run pack`，并按 `specs/014-provider-model-discovery/quickstart.md` 审计候选包架构、权限、签名、白名单和敏感材料
 - [ ] T038 由开发者一人使用同一候选 `.iinaplgz` 完成 `specs/014-provider-model-discovery/quickstart.md` 的 IINA 1.4.4 九项人工验收，仅在实际通过后将包 SHA-256、环境和结果记录到 `docs/validation/iina-matrix.md`
 
 ---

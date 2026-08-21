@@ -9,6 +9,47 @@ import type {
 
 export type ProviderKind = "openai" | "ollama" | "fake";
 
+export type ModelRefreshTrigger =
+  | "startup"
+  | "open"
+  | "endpoint"
+  | "profile"
+  | "credential"
+  | "manual";
+
+export interface ModelDiscoveryContext {
+  requestId: string;
+  trigger: ModelRefreshTrigger;
+  playerId?: PlayerId;
+  kind: Exclude<ProviderKind, "fake">;
+  endpoint: string;
+  endpointFingerprint?: EndpointFingerprint;
+  proxyMode: "system" | "direct";
+  profileId?: ProfileId;
+  profileRevision?: number;
+  credentialEpoch: number;
+  contextKey: string;
+}
+
+export interface ModelCatalog {
+  contextKey: string;
+  models: string[];
+  commitSequence: number;
+}
+
+export interface SafeModelDiscoveryError {
+  category: ProviderErrorCategory;
+  retryable: boolean;
+  statusCode?: number;
+  code?: string;
+  retryAfterMs?: number;
+  userAction: string;
+}
+
+export type ModelDiscoveryResult =
+  | { requestId: string; ok: true; contextKey: string; models: string[] }
+  | ({ requestId: string; ok: false; contextKey: string } & SafeModelDiscoveryError);
+
 export interface FrozenTranslationTarget {
   id: string;
   text: string;
@@ -85,4 +126,5 @@ export interface ProviderProfileSnapshot {
   model?: string;
   capability?: "strict-json-schema" | "json-object" | "prompt-json";
   credential?: Readonly<Record<string, string>>;
+  modelCatalog?: Pick<ModelCatalog, "contextKey" | "models">;
 }

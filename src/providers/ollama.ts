@@ -24,6 +24,7 @@ export class OllamaProvider implements ConfiguredProvider {
     private readonly config: {
       endpoint: string;
       model: string;
+      apiKey?: string;
       proxyMode?: "system" | "direct";
     },
     private readonly transport: ProviderTransport,
@@ -61,12 +62,12 @@ export class OllamaProvider implements ConfiguredProvider {
     const models = this.json(tagsResponse.bodyText).models;
     if (
       !Array.isArray(models) ||
-      !models.some(
-        (model) =>
-          model &&
-          typeof model === "object" &&
-          (model as Record<string, unknown>).name === this.config.model,
-      )
+      !models.some((model) => {
+        if (!model || typeof model !== "object") return false;
+        const item = model as Record<string, unknown>;
+        const id = typeof item.model === "string" && item.model.trim() ? item.model : item.name;
+        return id === this.config.model;
+      })
     ) {
       throw protocolError("OLLAMA_MODEL_MISSING", "model");
     }
@@ -155,7 +156,9 @@ export class OllamaProvider implements ConfiguredProvider {
         jobId,
         method: "GET",
         url: `${this.endpoint}${path}`,
-        headers: {},
+        headers: this.config.apiKey?.trim()
+          ? { Authorization: `Bearer ${this.config.apiKey.trim()}` }
+          : {},
         proxyMode: this.config.proxyMode ?? "system",
         timeoutMs: 10_000,
         maxResponseBytes: 1_048_576,
@@ -179,7 +182,12 @@ export class OllamaProvider implements ConfiguredProvider {
         jobId,
         method: "POST",
         url: `${this.endpoint}/api/chat`,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(this.config.apiKey?.trim()
+            ? { Authorization: `Bearer ${this.config.apiKey.trim()}` }
+            : {}),
+        },
         proxyMode: this.config.proxyMode ?? "system",
         body: {
           model: this.config.model,

@@ -5,6 +5,41 @@ import { buildTranslationTask } from "../../src/providers/translation-task.js";
 import { makeProviderRequest } from "./provider-test-helpers.js";
 
 describe("Ollama native provider", () => {
+  it("uses the same optional Bearer for version, tags and chat", async () => {
+    const headers: Array<Record<string, string>> = [];
+    const provider = new OllamaProvider(
+      { endpoint: "https://ollama.example.test", model: "qwen", apiKey: "remote-secret" },
+      {
+        request: async (request) => {
+          headers.push(request.headers);
+          if (request.url.endsWith("/api/version"))
+            return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
+          if (request.url.endsWith("/api/tags"))
+            return { statusCode: 200, headers: {}, bodyText: '{"models":[{"model":"qwen"}]}' };
+          const payload = JSON.parse(
+            (request.body as { messages: Array<{ content: string }> }).messages.at(-1)?.content ??
+              "{}",
+          ) as { targets?: Array<{ id: string }> };
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: JSON.stringify({
+              message: {
+                content: JSON.stringify({
+                  translations: (payload.targets ?? []).map((item) => ({ id: item.id, text: "T" })),
+                }),
+              },
+            }),
+          };
+        },
+      },
+    );
+    await provider.testConnection("authenticated-test");
+    await provider.attempt(makeProviderRequest());
+    expect(headers).toHaveLength(4);
+    expect(headers.every((value) => value.Authorization === "Bearer remote-secret")).toBe(true);
+  });
+
   it("probes version/tags/schema and diagnoses missing model", async () => {
     const paths: string[] = [];
     const transport: ProviderTransport = {
@@ -13,7 +48,11 @@ describe("Ollama native provider", () => {
         if (request.url.endsWith("/api/version"))
           return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
         if (request.url.endsWith("/api/tags"))
-          return { statusCode: 200, headers: {}, bodyText: '{"models":[{"name":"qwen"}]}' };
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: '{"models":[{"model":" ","name":"qwen"}]}',
+          };
         return {
           statusCode: 200,
           headers: {},
