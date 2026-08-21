@@ -47,6 +47,28 @@ describe("per-window model catalog synchronization", () => {
     ).toMatchObject({ forwarded: true, ownerRequestId: "manual-1" });
   });
 
+  it("lets a credential refresh replace the automatic owner cancelled by credential save", () => {
+    const sync = new ModelCatalogSync();
+    sync.begin("window-a", {
+      requestId: "before-credential",
+      contextToken: "profile-context",
+      trigger: "profile",
+    });
+
+    expect(
+      sync.begin("window-a", {
+        requestId: "after-credential",
+        contextToken: "profile-context",
+        trigger: "credential",
+      }),
+    ).toEqual({
+      forwarded: true,
+      ownerRequestId: "after-credential",
+      supersededRequestId: "before-credential",
+    });
+    expect(sync.snapshot("window-a").ownerRequestId).toBe("after-credential");
+  });
+
   it("commits only the latest owner and keeps the last successful catalog on failure", () => {
     const sync = new ModelCatalogSync();
     sync.begin("window-a", {

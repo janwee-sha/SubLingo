@@ -42,10 +42,22 @@
 - **理由**：凭据按 Profile ID 而非 revision 存储；仅删除当前 revision cache 会让旧 revision Provider 继续持有旧 Key，也会允许旧目录结果误报成功。
 - **备选方案**：为每个 revision 保存独立密钥会改变 native 存储与迁移契约，超出当前范围；保留活动旧 Provider 不符合替换后的权威凭据语义。
 
+## Ollama 输出能力
+
+- **决策**：Ollama Test 与翻译不发送 `think`。官方 `ollama.com` 原生 API 直接使用严格提示约束的 JSON；其他 Endpoint 先探测 JSON Schema，明确不支持或响应不兼容时回退到 prompt-only JSON并在 Provider 生命周期内记忆能力。响应只接受完整 JSON 对象或包裹该对象的单一 JSON 代码块，随后继续执行精确 ID、唯一性与非空译文校验。
+- **理由**：Ollama Cloud 当前不支持 structured outputs，Chat API 的 `think` 也是按模型变化的可选参数；强制二者会让有效的远程原生 API 被拒绝。严格提示和本地验证保持输出安全边界，单一代码块兼容常见模型呈现而不从任意文本中猜测 JSON。
+- **备选方案**：对所有 Ollama 永久关闭 JSON Schema 会降低本地服务的确定性；按 HTTP 状态一律重试会重复认证、配额或模型错误；从自然语言中抽取首个大括号对象会接受含额外说明的不兼容响应。
+
+## Profile 创建与凭据刷新收敛
+
+- **决策**：Main 收到权威 revision 创建结果后立即 upsert 当前窗口的 Profile 列表并作废创建前的列表请求；Sidebar 与 Main 均把 `credential` 模型刷新视为必须取代同上下文旧自动请求的 owner。
+- **理由**：凭据写入会在 Global 取消旧模型请求，若上下游仍合并 credential 触发，旧请求不会返回且 busy 永远无法结束。revision 创建结果已是安全权威 view，无需等待另一次异步列表往返才显示。
+- **备选方案**：仅增加超时会掩盖 owner 丢失且仍可能不使用新凭据；只依赖重复 `ui:ready` 会继续受列表响应乱序影响。
+
 ## Sidebar 模型控件
 
-- **决策**：使用原生 `<select>` 展示响应模型及固定的 `Custom model ID…` 项，配合仅在自定义模式显示的必填文本输入；当前 Profile 始终只保存一个精确 Model ID。刷新按钮与选择框同排，具有可访问名称、`aria-busy` 和紧邻的 `role="status" aria-live="polite"` 反馈槽；模型区域参与既有全局单消息竞态。
-- **理由**：原生 select 明确区分已知与自定义模式，键盘和屏幕阅读器行为可预测。目录更新只重分类当前值：仍在目录中显示为已知，已消失则显示为自定义，但绝不改值或自动选首项。
+- **决策**：使用原生 `<select>` 展示响应模型及固定的 `Custom model ID…` 项，配合仅在自定义模式显示的必填文本输入；当前 Profile 始终只保存一个精确 Model ID。Custom 模式是用户显式选择，不能只由当前值是否命中目录推导。刷新按钮与选择框同排，只显示刷新图标并具有可访问名称、`aria-busy` 和紧邻的 `role="status" aria-live="polite"` 反馈槽；模型反馈独立于页面其他操作消息。
+- **理由**：原生 select 明确区分已知与自定义模式，键盘和屏幕阅读器行为可预测。目录更新只在用户未显式选择 Custom 时重分类当前值；显式 Custom 保持可编辑，且任何模式都不改值或自动选首项。
 - **备选方案**：`datalist` 无法可靠区分已知/自定义；自制组合框增加无障碍复杂度；只保留文本框无法呈现服务端目录。
 
 ## OpenAI 名称与兼容数据

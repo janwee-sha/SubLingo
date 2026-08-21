@@ -14,12 +14,14 @@ import { encodeWireItems } from "./wire-items.js";
 import { buildTranslationTask } from "./translation-task.js";
 
 const MAX_ITEMS_PER_CHAT_REQUEST = 2;
+type OllamaOutputCapability = "json-schema" | "prompt-json";
 
 export class OllamaProvider implements ConfiguredProvider {
   private readonly endpoint: string;
   private readonly activeJobs = new Set<string>();
   private readonly activeRequests = new Set<string>();
   private readonly cancelledRequests = new Set<string>();
+  private outputCapability: OllamaOutputCapability;
   constructor(
     private readonly config: {
       endpoint: string;
@@ -31,6 +33,11 @@ export class OllamaProvider implements ConfiguredProvider {
   ) {
     this.endpoint = normalizeProviderEndpoint("ollama", config.endpoint);
     if (!config.model.trim()) throw new Error("MODEL_REQUIRED");
+    const authority = this.endpoint.match(/^https?:\/\/([^/]+)/i)?.[1] ?? "";
+    this.outputCapability =
+      authority === "ollama.com" || authority.startsWith("ollama.com:")
+        ? "prompt-json"
+        : "json-schema";
   }
 
   async probe(): Promise<{ version: string; model: string }> {
@@ -71,7 +78,8 @@ export class OllamaProvider implements ConfiguredProvider {
     ) {
       throw protocolError("OLLAMA_MODEL_MISSING", "model");
     }
-    const response = await this.chat(
+    await this.validatedChat(
+      scopeId,
       `${scopeId}-schema`,
       [{ id: "probe", text: "hello" }],
       "en",
@@ -79,8 +87,6 @@ export class OllamaProvider implements ConfiguredProvider {
       15_000,
     );
     this.throwIfCancelled(scopeId);
-    if (response.statusCode !== 200) throw providerHttpError(response.statusCode, response.headers);
-    this.parse(["probe"], response);
     return { version: typeof version === "string" ? version : "unknown", model: this.config.model };
   }
 
@@ -97,19 +103,13 @@ export class OllamaProvider implements ConfiguredProvider {
         this.throwIfCancelled(request.requestId);
         const items = wire.items.slice(offset, offset + MAX_ITEMS_PER_CHAT_REQUEST);
         const part = Math.floor(offset / MAX_ITEMS_PER_CHAT_REQUEST) + 1;
-        const response = await this.chat(
+        const parsed = await this.validatedChat(
+          request.requestId,
           `${request.requestId}-part-${part}`,
           items,
           request.sourceLanguage,
           request.targetLanguage,
           60_000,
-        );
-        this.throwIfCancelled(request.requestId);
-        if (response.statusCode < 200 || response.statusCode >= 300)
-          throw providerHttpError(response.statusCode, response.headers);
-        const parsed = this.parse(
-          items.map((item) => item.id),
-          response,
         );
         this.throwIfCancelled(request.requestId);
         const progress = wire.restore(parsed);
@@ -174,6 +174,7 @@ export class OllamaProvider implements ConfiguredProvider {
     sourceLanguage: string,
     targetLanguage: string,
     timeoutMs: number,
+    capability = this.outputCapability,
   ): Promise<ProviderTransportResponse> {
     const task = buildTranslationTask({ sourceLanguage, targetLanguage, targets: items });
     this.activeJobs.add(jobId);
@@ -192,8 +193,7 @@ export class OllamaProvider implements ConfiguredProvider {
         body: {
           model: this.config.model,
           stream: false,
-          think: false,
-          format: task.outputSchema,
+          ...(capability === "json-schema" ? { format: task.outputSchema } : {}),
           options: { temperature: 0 },
           messages: [
             {
@@ -209,6 +209,76 @@ export class OllamaProvider implements ConfiguredProvider {
     } finally {
       this.activeJobs.delete(jobId);
     }
+  }
+
+  private async validatedChat(
+    scopeId: string,
+    jobId: string,
+    items: WireTranslationTarget[],
+    sourceLanguage: string,
+    targetLanguage: string,
+    timeoutMs: number,
+  ): Promise<TranslationBatchResult> {
+    const requestedIds = items.map((item) => item.id);
+    const initialCapability = this.outputCapability;
+    let response = await this.chat(
+      jobId,
+      items,
+      sourceLanguage,
+      targetLanguage,
+      timeoutMs,
+      initialCapability,
+    );
+    this.throwIfCancelled(scopeId);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (
+        initialCapability !== "json-schema" ||
+        !this.isStructuredOutputIncompatibility(response)
+      )
+        throw providerHttpError(response.statusCode, response.headers);
+      this.outputCapability = "prompt-json";
+      response = await this.chat(
+        this.fallbackJobId(jobId),
+        items,
+        sourceLanguage,
+        targetLanguage,
+        timeoutMs,
+        "prompt-json",
+      );
+      this.throwIfCancelled(scopeId);
+      if (response.statusCode < 200 || response.statusCode >= 300)
+        throw providerHttpError(response.statusCode, response.headers);
+      return this.parse(requestedIds, response);
+    }
+    try {
+      return this.parse(requestedIds, response);
+    } catch (error) {
+      if (initialCapability !== "json-schema") throw error;
+      this.outputCapability = "prompt-json";
+      const fallback = await this.chat(
+        this.fallbackJobId(jobId),
+        items,
+        sourceLanguage,
+        targetLanguage,
+        timeoutMs,
+        "prompt-json",
+      );
+      this.throwIfCancelled(scopeId);
+      if (fallback.statusCode < 200 || fallback.statusCode >= 300)
+        throw providerHttpError(fallback.statusCode, fallback.headers);
+      return this.parse(requestedIds, fallback);
+    }
+  }
+
+  private fallbackJobId(jobId: string): string {
+    return jobId.endsWith("-schema") ? `${jobId.slice(0, -7)}-prompt` : `${jobId}-prompt`;
+  }
+
+  private isStructuredOutputIncompatibility(response: ProviderTransportResponse): boolean {
+    if (response.statusCode !== 400 && response.statusCode !== 422) return false;
+    return /(unsupported|not supported|format|json.?schema|structured output)/i.test(
+      response.bodyText.slice(0, 16_384),
+    );
   }
 
   private json(text: string): Record<string, unknown> {
@@ -228,7 +298,14 @@ export class OllamaProvider implements ConfiguredProvider {
     const parsed = this.json(response.bodyText);
     const message = parsed.message as Record<string, unknown> | undefined;
     if (typeof message?.content !== "string") throw protocolError("OLLAMA_MALFORMED_OUTPUT");
-    const validated = validateIdOutput(requestedIds, message.content);
+    const content = message.content.trim();
+    const fenced = content.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i);
+    let validated: TranslationBatchResult;
+    try {
+      validated = validateIdOutput(requestedIds, fenced ? fenced[1]!.trim() : content);
+    } catch {
+      throw protocolError("OLLAMA_MALFORMED_OUTPUT");
+    }
     return {
       translations: validated.translations,
       usage: {

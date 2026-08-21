@@ -336,12 +336,27 @@ describe("Sidebar model catalog state", () => {
     const state = createState();
     state.setModelContext("context-a", "model-a");
     state.applyModelCatalog("context-a", ["model-a", "Model-A"]);
-    state.setModelValue("Model-A");
+    state.selectKnownModel("Model-A");
     expect(state.snapshot.modelControl).toMatchObject({ value: "Model-A", mode: "known" });
-    state.setModelValue("namespace/custom:v2");
+    state.selectCustomModel();
+    state.inputCustomModelValue("namespace/custom:v2");
     expect(state.snapshot.modelControl).toMatchObject({
       value: "namespace/custom:v2",
       mode: "custom",
+    });
+  });
+
+  it("keeps an explicitly selected Custom mode when the current value is still known", () => {
+    const state = createState();
+    state.setModelContext("context-a", "model-a");
+    state.applyModelCatalog("context-a", ["model-a", "model-b"]);
+
+    state.selectCustomModel();
+
+    expect(state.snapshot.modelControl).toMatchObject({
+      value: "model-a",
+      mode: "custom",
+      knownModelIds: ["model-a", "model-b"],
     });
   });
 
@@ -359,6 +374,32 @@ describe("Sidebar model catalog state", () => {
       refreshState: "error",
       knownModelIds: ["model-a", "model-b"],
       value: "model-a",
+    });
+  });
+
+  it("keeps model refresh feedback independent from the latest Profile operation", () => {
+    const state = createState();
+    state.beginOperation(
+      {
+        requestId: "select-request",
+        regionId: "profile-row:retained",
+        actionId: "select",
+        profileId: "retained",
+      },
+      "Selecting…",
+    );
+    state.finishOperation("select-request", "success", "Profile selected for translation.");
+
+    state.setModelRefreshState("busy", "Refreshing models…");
+    state.setModelRefreshState("success", "Model list refreshed.");
+
+    expect(state.snapshot.activeFeedback).toMatchObject({
+      requestId: "select-request",
+      message: "Profile selected for translation.",
+    });
+    expect(state.snapshot.modelControl).toMatchObject({
+      refreshState: "success",
+      refreshMessage: "Model list refreshed.",
     });
   });
 });

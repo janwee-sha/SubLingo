@@ -139,6 +139,31 @@
 
 ---
 
+## 阶段 8：人工反馈收敛
+
+**目的**：修复首轮人工验收发现的 Model ID 交互、反馈所有权、凭据竞态和按钮呈现问题，再重新生成候选包供 T038 验收。
+
+- [X] T039 [P] [US1] 为选择已知模型后仍可显式切换 Custom 且保留精确值补充失败优先的状态回归，修改 `tests/unit/sidebar-state.test.ts`
+- [X] T040 [P] [US2] 为模型刷新反馈不替换 Profile 操作反馈、刷新按钮只显示可访问图标补充失败优先回归，修改 `tests/unit/sidebar-state.test.ts` 与 `tests/contract/sidebar-form.test.ts`
+- [X] T041 [P] [US3] 为凭据代次变化时拒绝旧 Provider 构造结果、Ollama Test 使用新 Key 及服务专属失败提示补充失败优先回归，修改 `tests/unit/provider-cache.test.ts`、`tests/integration/us3-providers.test.ts` 与 `tests/contract/ui-messages.test.ts`
+- [X] T042 [US1] [US2] 实现显式 Custom 模式、独立模型反馈和刷新图标，修改 `ui/sidebar-state.ts`、`ui/sidebar.ts`、`ui/sidebar.html` 与 `ui/sidebar.css`
+- [X] T043 [US3] 将 Provider cache 绑定凭据代次并为 Ollama Test 提供服务专属安全反馈，修改 `src/providers/provider-cache.ts`、`src/global.ts`、`ui/provider-status.ts` 与 `ui/sidebar.ts`
+- [X] T044 运行新增与 014 聚焦回归，再严格执行完整门禁、重新打包并保留 T038 为待人工验收
+
+---
+
+## 阶段 9：远程 Ollama 与保存生命周期收敛
+
+**目的**：兼容不支持 structured outputs 的远程原生 Ollama，并修复新建带凭据 Profile 后的模型请求与列表竞态，再生成候选包供 T038 继续验收。
+
+- [X] T045 [P] [US3] 为 Ollama Cloud 不发送 `format`/`think`、其他 Endpoint 的 JSON Schema 探测回退、单一 JSON 代码块解析及严格输出拒绝补充失败优先契约与集成回归，修改 `tests/contract/ollama.test.ts` 与 `tests/integration/us3-providers.test.ts`
+- [X] T046 [P] [US2] [US3] 为 credential 刷新取代旧自动请求、revision 创建立即 upsert Profile 且拒绝创建前迟到列表补充失败优先状态与生命周期回归，修改 `tests/unit/model-catalog-sync.test.ts`、`tests/unit/profile-list-sync.test.ts` 与 `tests/contract/sidebar-lifecycle.test.ts`
+- [X] T047 [US3] 实现 Ollama JSON Schema 能力选择、prompt-only 回退、可选参数最小化与受限 JSON 代码块解析，修改 `src/providers/ollama.ts`
+- [X] T048 [US2] [US3] 让 Sidebar/Main 的 credential 刷新取得新 owner，并让 Main 以 revision 创建结果立即收敛 Profile 列表，修改 `ui/sidebar.ts`、`src/adapters/iina/model-catalog-sync.ts`、`src/adapters/iina/profile-list-sync.ts` 与 `src/main.ts`
+- [X] T049 运行新增与 014 聚焦回归，再严格执行完整门禁、重新打包并保留 T038 为待人工验收
+
+---
+
 ## 依赖与执行顺序
 
 ### 阶段依赖
@@ -149,7 +174,9 @@
 - **US2（阶段 4）**：依赖 US1 的目录协议和控件；其刷新协调可在 US1 核心生产模块稳定后开始。
 - **US3（阶段 5）**：Provider 凭据测试与 Ollama Bearer 实现可在阶段 2 后开始；完整 Refresh 验收依赖 US1 与 US2。
 - **US4（阶段 6）**：非 UI 文档与数据兼容测试可在阶段 2 后独立开始；共享 Sidebar 文件必须在 US1、US3 之后按顺序合并。
-- **阶段 7（收尾）**：依赖计划纳入交付的全部用户故事；T036、T037、T038 必须串行。
+- **阶段 7（收尾）**：依赖计划纳入交付的全部用户故事；T036、T037 必须串行。
+- **阶段 8（人工反馈收敛）**：依赖首轮 T038 人工反馈；T039、T040、T041 的测试准备完成后按 T042 → T043 → T044 串行，最后重新执行 T038。
+- **阶段 9（远程 Ollama 与保存生命周期收敛）**：依赖阶段 8 的候选包反馈；T045、T046 完成失败优先测试后按 T047 → T048 → T049 串行，最后继续执行 T038。
 
 ### 用户故事完成顺序
 

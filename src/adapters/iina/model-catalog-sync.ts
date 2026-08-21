@@ -41,6 +41,7 @@ export class ModelCatalogSync {
     const state = this.state(windowId);
     if (
       input.trigger !== "manual" &&
+      input.trigger !== "credential" &&
       state.owner &&
       state.owner.trigger !== "manual" &&
       state.owner.contextToken === input.contextToken

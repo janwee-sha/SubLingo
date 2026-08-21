@@ -24,6 +24,13 @@ describe("IINA sidebar bundle contract", () => {
     expect(html).toMatch(/id="provider-model"[\s\S]*?required/);
   });
 
+  it("uses an accessible icon-only model refresh control", () => {
+    const button = html.match(/<button[\s\S]*?id="refresh-models"[\s\S]*?<\/button>/)?.[0] ?? "";
+    expect(button).toContain('aria-label="Refresh model list"');
+    expect(button).toContain('class="refresh-icon"');
+    expect(button).not.toMatch(/>\s*Refresh\s*</);
+  });
+
   it("uses one accessible vertical write-only API key field for both services", () => {
     expect(html).toMatch(
       /id="credential-row"[\s\S]*?<span>API key<\/span>[\s\S]*?id="provider-key"[\s\S]*?aria-describedby="credential-hint"[\s\S]*?<small\s+id="credential-hint"[^>]*>/,

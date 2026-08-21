@@ -4,7 +4,7 @@
 
 ## 摘要
 
-为 OpenAI 与 Ollama 增加独立于翻译 Provider 的运行期模型发现层：Global 通过现有 native transport 请求当前 Endpoint，按权威 Profile 上下文读取可选凭据，保存最近一次成功目录，并用请求身份、完整上下文与凭据代次拒绝迟到结果；Main 只转发逐窗口消息并隔离窗口状态，Sidebar 以带自定义项的 Model ID 下拉控件、400 毫秒 Endpoint 防抖和手动刷新呈现目录。Ollama 沿用现有只写 `apiKey` 存储并让发现、Test 与翻译统一携带可选 Bearer。用户可见名称改为 OpenAI，同时保留内部 `kind: "openai"`、既有 Profile 数据和自定义 API Root 语义。
+为 OpenAI 与 Ollama 增加独立于翻译 Provider 的运行期模型发现层：Global 通过现有 native transport 请求当前 Endpoint，按权威 Profile 上下文读取可选凭据，保存最近一次成功目录，并用请求身份、完整上下文与凭据代次拒绝迟到结果；Main 只转发逐窗口消息并隔离窗口状态，Sidebar 以带自定义项的 Model ID 下拉控件、400 毫秒 Endpoint 防抖和手动刷新呈现目录。Ollama 沿用现有只写 `apiKey` 存储并让发现、Test 与翻译统一携带可选 Bearer，同时按 Endpoint 能力在 JSON Schema 与严格 prompt-only JSON 间选择。Profile 创建结果立即更新窗口列表，凭据刷新取代保存前请求。用户可见名称改为 OpenAI，同时保留内部 `kind: "openai"`、既有 Profile 数据和自定义 API Root 语义。
 
 ## 技术上下文
 

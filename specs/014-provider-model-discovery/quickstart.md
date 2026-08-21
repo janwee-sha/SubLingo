@@ -36,6 +36,8 @@ npm run test:native
 - 两种响应均正确处理空白、重复、大小写、标点、空目录和畸形结构；失败保留旧目录，成功空目录清空已知项。
 - IINA 启动、Sidebar 打开、稳定 Endpoint 和手动四类触发均被生产状态机覆盖；手动请求、Profile/revision/route/credential 变化和多窗口竞态均 latest-only。
 - Ollama 的 version、tags、chat 在有 Key 时使用同一 Bearer，无 Key 时不发送 Authorization；凭据替换和删除清理旧任务与 cache。
+- Ollama Test 与翻译不发送 `think`；支持 JSON Schema 的 Endpoint 使用结构化输出，不支持该能力的远程原生 API 使用 prompt-only JSON，并仍拒绝额外自然语言或错误 ID。
+- 新建带凭据 Profile 后立即显示 Profile 行；凭据触发的模型刷新取代保存前已取消请求并最终结束 busy。
 - 刷新消息、Profile view、反馈、日志、preferences 和包不含 API Key、Authorization、原始响应、完整 Endpoint、字幕、译文或播放位置。
 - 刷新不修改 Model ID、不 Select、不创建 lease、不授权或触发翻译。
 

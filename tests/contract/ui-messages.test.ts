@@ -24,6 +24,7 @@ const providerTestStatusMessage = (
       ok?: boolean;
       category?: string;
       userAction?: string;
+      providerKind?: "openai" | "ollama";
     }): string;
   }
 ).sublingoProviderTestStatusMessage;
@@ -149,6 +150,20 @@ describe("Sidebar/Main/Global security messages", () => {
         userAction: "CHECK_NETWORK",
       }),
     ).toMatch(/HTTP 503.*network route/i);
+    expect(
+      providerTestStatusMessage({
+        ok: false,
+        userAction: "CHECK_ENDPOINT",
+        providerKind: "ollama",
+      }),
+    ).toMatch(/Ollama server URL.*chat support/i);
+    expect(
+      providerTestStatusMessage({
+        ok: false,
+        userAction: "CHECK_ENDPOINT",
+        providerKind: "openai",
+      }),
+    ).toMatch(/OpenAI.*chat-completions/i);
   });
 
   it("uses exact translation-selection guidance without authorization wording", () => {

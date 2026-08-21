@@ -81,7 +81,9 @@ pending ──新请求/上下文变化/删除/凭据变化──> stale 或 can
 stale/cancelled ──迟到结果──> 丢弃
 ```
 
-等价自动触发可共享已有 pending 操作；手动触发必须成为新 owner。旧请求不得清除较新请求的 busy 或反馈。
+等价自动触发可共享已有 pending 操作；手动与凭据成功触发必须成为新 owner。旧请求不得清除较新请求的 busy 或反馈。
+
+Profile revision 创建成功时，Main 立即把安全 Profile view 插入或替换到逐窗口列表，并使创建前的列表请求失效；后续权威列表请求只负责收敛凭据状态与模型目录等派生字段。
 
 ## Model ID 控件状态
 

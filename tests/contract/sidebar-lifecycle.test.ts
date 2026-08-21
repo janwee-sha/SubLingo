@@ -166,6 +166,17 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(sidebarSource).not.toContain("to authorize translation");
   });
 
+  it("lets credential completion replace cancelled model work and publishes the created profile", () => {
+    expect(sidebarSource).toContain('trigger !== "credential"');
+    expect(mainSource).toContain("upsertCreatedProfile");
+    const createdStart = mainSource.indexOf('runtime.global.onMessage("profile:revision-created"');
+    const createdSource = mainSource.slice(createdStart, createdStart + 1_600);
+    expect(createdSource).toContain("updateSidebarState({ profiles:");
+    expect(createdSource.indexOf("upsertCreatedProfile")).toBeLessThan(
+      createdSource.indexOf('queueSidebarMessage("profile:revision-created"'),
+    );
+  });
+
   it("prioritizes every safe embedded preparation state and exposes Retry only when allowed", () => {
     for (const text of [
       "Preparing the selected embedded subtitle…",

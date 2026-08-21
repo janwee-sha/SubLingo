@@ -43,3 +43,14 @@ export function removeDeletedProfile<T extends ProfileListItem>(
     profiles: state.profiles.filter((profile) => profile.profileId !== profileId),
   };
 }
+
+export function upsertCreatedProfile<T extends ProfileListItem>(
+  state: ProfileListSyncState<T>,
+  profile: T,
+): ProfileListSyncState<T> {
+  const index = state.profiles.findIndex((item) => item.profileId === profile.profileId);
+  const profiles = [...state.profiles];
+  if (index >= 0) profiles[index] = profile;
+  else profiles.push(profile);
+  return { ...state, latestRequestId: null, profiles };
+}

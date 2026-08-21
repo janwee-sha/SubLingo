@@ -188,7 +188,6 @@ function controlForAction(
   if (actionId === "languages") return saveLanguagesButton;
   if (actionId === "save-profile") return saveProfileButton;
   if (actionId === "retry-preparation") return retrySubtitleButton;
-  if (actionId === "refresh-models") return refreshModelsButton;
   if (!profileId) return null;
   return (
     Array.from(profilesElement.querySelectorAll<HTMLButtonElement>("button[data-action]")).find(
@@ -201,7 +200,6 @@ function idleLabelForAction(actionId: string, profileId?: string): string {
   if (actionId === "languages") return "Save Languages";
   if (actionId === "save-profile") return editingProfile ? "Update profile" : "Save profile";
   if (actionId === "retry-preparation") return "Retry";
-  if (actionId === "refresh-models") return "Refresh";
   if (actionId === "select") return selectedProfileId === profileId ? "Selected" : "Select";
   if (actionId === "test") return "Test";
   if (actionId === "delete") return "Delete";
@@ -238,7 +236,6 @@ function renderActiveFeedback(): void {
     languageStatus,
     profileEditorStatus,
     subtitleRetryStatus,
-    modelCatalogStatus,
     ...Array.from(
       profilesElement.querySelectorAll<HTMLParagraphElement>(".profile-operation-status"),
     ),
@@ -261,6 +258,19 @@ function renderActiveFeedback(): void {
     }
   }
   updateSubtitleRetryControls();
+}
+
+function renderModelFeedback(): void {
+  const state = sidebarState.snapshot.modelControl;
+  if (state.refreshState === "idle") delete modelCatalogStatus.dataset.state;
+  else modelCatalogStatus.dataset.state = state.refreshState;
+  modelCatalogStatus.textContent = state.refreshMessage;
+  refreshModelsButton.setAttribute("aria-busy", String(state.refreshState === "busy"));
+}
+
+function setModelRefreshFeedback(state: "idle" | "busy" | "success" | "error", message = ""): void {
+  sidebarState.setModelRefreshState(state, message);
+  renderModelFeedback();
 }
 
 function beginOperation(
@@ -370,19 +380,14 @@ function requestModels(trigger: "open" | "endpoint" | "profile" | "credential" |
   const contextSignature = modelContextKey();
   if (
     trigger !== "manual" &&
+    trigger !== "credential" &&
     pendingModelRefresh?.contextSignature === contextSignature &&
     pendingModelRefresh.trigger !== "manual"
   )
     return;
-  const requestId = beginOperation(
-    "model-catalog",
-    "refresh-models",
-    "Refreshing models…",
-    editingProfile?.profileId,
-    editingProfile?.revision,
-  );
+  const requestId = nextRequestId();
   pendingModelRefresh = { requestId, contextSignature, trigger };
-  sidebarState.setModelRefreshState("busy");
+  setModelRefreshFeedback("busy", "Refreshing models…");
   window.iina?.postMessage("provider:models", envelope(modelRefreshPayload(trigger), requestId));
 }
 
@@ -391,8 +396,7 @@ function scheduleEndpointModelRefresh(): void {
   if (pendingModelRefresh?.contextSignature !== modelContextKey()) {
     const requestId = pendingModelRefresh?.requestId;
     pendingModelRefresh = null;
-    sidebarState.setModelRefreshState("idle");
-    finishOperation(requestId, "Model refresh cancelled after the endpoint changed.", "cancelled");
+    if (requestId) setModelRefreshFeedback("idle");
   }
   setModelContext(sidebarState.snapshot.modelControl.value);
   if (!validModelEndpoint()) return;
@@ -480,13 +484,13 @@ providerProxyMode.addEventListener("change", () => {
 });
 refreshModelsButton.addEventListener("click", () => requestModels("manual"));
 providerModelSelect.addEventListener("change", () => {
-  if (providerModelSelect.value !== "__custom__")
-    sidebarState.setModelValue(providerModelSelect.value);
+  if (providerModelSelect.value === "__custom__") sidebarState.selectCustomModel();
+  else sidebarState.selectKnownModel(providerModelSelect.value);
   renderModelControl();
   if (providerModelSelect.value === "__custom__") providerModel.focus();
 });
 providerModel.addEventListener("input", () => {
-  sidebarState.setModelValue(providerModel.value);
+  sidebarState.inputCustomModelValue(providerModel.value);
 });
 profileName.addEventListener("input", () => {
   sidebarState.inputProfileName(profileName.value);
@@ -733,13 +737,18 @@ window.iina?.onMessage("provider:test-result", (raw: unknown) => {
     category?: string;
     userAction?: string;
   };
+  const tested =
+    typeof result.requestId === "string" ? pendingProfileTests.get(result.requestId) : undefined;
+  const testedProfile = tested ? profiles.get(tested.profileId) : undefined;
   const accepted = finishOperation(
     result.requestId,
-    window.sublingoProviderTestStatusMessage(result),
+    window.sublingoProviderTestStatusMessage({
+      ...result,
+      ...(testedProfile ? { providerKind: testedProfile.kind } : {}),
+    }),
     result.ok === true ? "success" : "error",
   );
   if (typeof result.requestId === "string") {
-    const tested = pendingProfileTests.get(result.requestId);
     pendingProfileTests.delete(result.requestId);
     if (accepted && tested) {
       const testState: { revision: number; state: ProfileTestState } = {
@@ -772,22 +781,19 @@ window.iina?.onMessage("provider:models-result", (raw: unknown) => {
     typeof result.ok !== "boolean"
   )
     return;
-  const requestId = pendingModelRefresh.requestId;
   pendingModelRefresh = null;
   if (result.ok) {
     if (!Array.isArray(result.models) || result.models.some((model) => typeof model !== "string")) {
-      sidebarState.setModelRefreshState("error");
-      finishOperation(requestId, "The model list response was incompatible.", "error");
+      setModelRefreshFeedback("error", "The model list response was incompatible.");
       return;
     }
     const value = sidebarState.snapshot.modelControl.value;
     sidebarState.setModelContext(result.contextKey, value);
     sidebarState.applyModelCatalog(result.contextKey, result.models as string[]);
     renderModelControl();
-    finishOperation(
-      requestId,
-      window.sublingoModelCatalogStatusMessage({ ok: true, count: result.models.length }),
+    setModelRefreshFeedback(
       "success",
+      window.sublingoModelCatalogStatusMessage({ ok: true, count: result.models.length }),
     );
     return;
   }
@@ -796,8 +802,7 @@ window.iina?.onMessage("provider:models-result", (raw: unknown) => {
     ...(typeof result.category === "string" ? { category: result.category } : {}),
     ...(typeof result.statusCode === "number" ? { statusCode: result.statusCode } : {}),
   });
-  sidebarState.setModelRefreshState("error");
-  finishOperation(requestId, message, "error");
+  setModelRefreshFeedback("error", message);
 });
 
 window.iina?.onMessage("credential:state", (raw: unknown) => {

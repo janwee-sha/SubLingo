@@ -14,6 +14,7 @@ import { IinaLocalHttpBridge, IinaProcessLauncher } from "./adapters/iina/provid
 import { discoverHelperExecutable, TransportProcess } from "./adapters/iina/transport-process.js";
 import { ProviderBroker } from "./providers/broker.js";
 import { ProviderConnectionTests } from "./providers/connection-tests.js";
+import { CredentialScopedProviderCache } from "./providers/provider-cache.js";
 import { OllamaProvider } from "./providers/ollama.js";
 import { OpenAICompatibleProvider } from "./providers/openai.js";
 import { ProviderProfiles } from "./providers/profiles.js";
@@ -37,7 +38,6 @@ function localUuid(): string {
 }
 
 const profiles = new ProviderProfiles(localUuid);
-const providerCache = new Map<string, Promise<ConfiguredProvider>>();
 const providerConnectionTests = new ProviderConnectionTests(localUuid);
 const modelCredentialEpochs = new Map<string, number>();
 const modelCatalogs = new Map<string, string[]>();
@@ -130,8 +130,7 @@ const activeModelRequests = new Map<
 >();
 
 function clearProfileProviderCache(profileId: string): void {
-  for (const key of [...providerCache.keys()])
-    if (key.startsWith(`${profileId}\u0000`)) providerCache.delete(key);
+  providerCache.clearProfile(profileId);
 }
 
 function clearProfileModelCatalogs(profileId: string): void {
@@ -176,10 +175,6 @@ function profileModelContextKey(profile: ProviderProfileSnapshot): string {
     endpointFingerprint: profile.endpointFingerprint,
     credentialEpoch: modelCredentialEpochs.get(profile.profileId) ?? 0,
   });
-}
-
-function providerCacheKey(profile: ProviderProfileSnapshot): string {
-  return `${profile.profileId}\u0000${profile.revision}`;
 }
 
 async function buildProvider(profile: ProviderProfileSnapshot): Promise<ConfiguredProvider> {
@@ -229,16 +224,13 @@ async function buildProvider(profile: ProviderProfileSnapshot): Promise<Configur
   }
 }
 
+const providerCache = new CredentialScopedProviderCache(
+  (profileId) => modelCredentialEpochs.get(profileId) ?? 0,
+  buildProvider,
+);
+
 function providerFor(profile: ProviderProfileSnapshot): Promise<ConfiguredProvider> {
-  const key = providerCacheKey(profile);
-  const cached = providerCache.get(key);
-  if (cached) return cached;
-  const created = buildProvider(profile);
-  providerCache.set(key, created);
-  void created.catch(() => {
-    if (providerCache.get(key) === created) providerCache.delete(key);
-  });
-  return created;
+  return providerCache.get(profile);
 }
 
 const broker = new ProviderBroker(profiles, providerFor);

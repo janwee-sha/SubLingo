@@ -32,6 +32,7 @@ import {
   beginProfileListRequest,
   createProfileListSyncState,
   removeDeletedProfile,
+  upsertCreatedProfile,
 } from "./adapters/iina/profile-list-sync.js";
 import type {
   PreparedSubtitleSource,
@@ -548,8 +549,15 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   runtime.global.onMessage("profile:revision-created", (raw: unknown) => {
     const result = raw as {
       selectionInvalidated?: unknown;
-      profile?: { profileId?: unknown };
+      profile?: { profileId?: unknown; [key: string]: unknown };
     };
+    if (result.profile && typeof result.profile.profileId === "string") {
+      profileListState = upsertCreatedProfile(
+        profileListState,
+        result.profile as { profileId: string; [key: string]: unknown },
+      );
+      updateSidebarState({ profiles: profileListState.profiles });
+    }
     if (
       result.selectionInvalidated === true &&
       currentSelection &&

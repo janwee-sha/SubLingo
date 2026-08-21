@@ -4,6 +4,7 @@ interface ProviderTestStatus {
   statusCode?: number;
   code?: string;
   userAction?: string;
+  providerKind?: "openai" | "ollama";
 }
 
 interface Window {
@@ -45,7 +46,9 @@ function providerTestStatusMessage(result: ProviderTestStatus): string {
         ? "The service timed out. Check network reachability and service status, then retry."
         : "The service could not be reached. Check the network and service status, then retry.";
     case "CHECK_ENDPOINT":
-      return "The endpoint rejected the request. Check the API URL and OpenAI chat-completions support.";
+      return result.providerKind === "ollama"
+        ? "The endpoint rejected the request. Check the Ollama server URL and chat support."
+        : "The endpoint rejected the request. Check the OpenAI API URL and chat-completions support.";
     default:
       return "Connection test failed. Review the endpoint, credentials, model, and service status.";
   }
