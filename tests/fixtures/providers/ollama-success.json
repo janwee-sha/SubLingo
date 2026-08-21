@@ -1,9 +1,6 @@
 {
-  "model": "fixture-model",
-  "message": {
-    "role": "assistant",
-    "content": "{\"translations\":[{\"id\":\"c1\",\"text\":\"你好，世界！\"}]}"
-  },
-  "prompt_eval_count": 10,
-  "eval_count": 8
+  "models": [
+    { "model": "qwen3:8b", "name": "ignored-name" },
+    { "name": "gemma3:4b" }
+  ]
 }

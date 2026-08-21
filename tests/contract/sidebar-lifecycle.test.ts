@@ -11,6 +11,32 @@ describe("IINA sidebar lifecycle contract", () => {
     "utf8",
   );
   const sidebarHtml = readFileSync(new URL("../../ui/sidebar.html", import.meta.url), "utf8");
+  const globalSource = readFileSync(new URL("../../src/global.ts", import.meta.url), "utf8");
+
+  it("covers startup, open, stable endpoint and manual model refresh triggers", () => {
+    expect(globalSource).toContain("prefetchProfileModels");
+    expect(globalSource).toContain("models-startup-");
+    expect(sidebarSource).toContain('requestModels("open")');
+    expect(sidebarSource).toContain('requestModels("endpoint")');
+    expect(sidebarSource).toContain('requestModels("manual")');
+    expect(sidebarSource).toContain("}, 400)");
+    expect(sidebarSource).toContain("pendingModelRefresh");
+  });
+
+  it("invalidates draft model work when the entered credential changes", () => {
+    expect(sidebarSource).toContain('providerKey.addEventListener("input"');
+    expect(sidebarSource).toContain("draftCredentialEpoch += 1");
+    expect(sidebarSource).toContain('trigger === "manual"');
+    expect(sidebarSource).toContain('"provider:models-preview"');
+  });
+
+  it("does not reinterpret repeated ui:ready as a model refresh", () => {
+    const readyStart = mainSource.indexOf('runtime.sidebar.onMessage("ui:ready"');
+    const readyEnd = mainSource.indexOf('runtime.sidebar.onMessage("ui:poll"', readyStart);
+    const readySource = mainSource.slice(readyStart, readyEnd);
+    expect(readySource).not.toContain("provider:models");
+    expect(sidebarSource).toContain('onMessage("provider:models-result"');
+  });
 
   it("lets the live webview request state instead of posting from the player timer", () => {
     expect(mainSource).toContain('runtime.sidebar.onMessage("ui:poll"');
@@ -145,6 +171,17 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(sidebarSource).toContain("completeProfileSave");
     expect(sidebarSource).toContain("Profile updated. Select it again for translation.");
     expect(sidebarSource).not.toContain("to authorize translation");
+  });
+
+  it("lets credential completion replace cancelled model work and publishes the created profile", () => {
+    expect(sidebarSource).toContain('trigger !== "credential"');
+    expect(mainSource).toContain("upsertCreatedProfile");
+    const createdStart = mainSource.indexOf('runtime.global.onMessage("profile:revision-created"');
+    const createdSource = mainSource.slice(createdStart, createdStart + 1_600);
+    expect(createdSource).toContain("updateSidebarState({ profiles:");
+    expect(createdSource.indexOf("upsertCreatedProfile")).toBeLessThan(
+      createdSource.indexOf('queueSidebarMessage("profile:revision-created"'),
+    );
   });
 
   it("prioritizes every safe embedded preparation state and exposes Retry only when allowed", () => {

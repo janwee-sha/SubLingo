@@ -1,7 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { normalizeProviderEndpoint, ProviderProfiles } from "../../src/providers/profiles.js";
+import { sanitizedProfileView } from "../../src/domain/messages.js";
 
 describe("immutable provider profile revisions", () => {
+  it("keeps an existing display name and internal kind while using a custom OpenAI API root", () => {
+    const profiles = new ProviderProfiles(() => "existing-openai-profile");
+    const saved = profiles.save({
+      displayName: "OpenAI-compatible",
+      kind: "openai",
+      endpoint: "https://compatible.example.test/custom/v1",
+      model: "custom-model",
+    });
+    expect(saved).toMatchObject({
+      displayName: "OpenAI-compatible",
+      kind: "openai",
+      endpoint: "https://compatible.example.test/custom/v1",
+      model: "custom-model",
+    });
+  });
+
+  it("exposes only configured state for an Ollama credential", () => {
+    const view = sanitizedProfileView({
+      profileId: "ollama-profile",
+      revision: 1,
+      displayName: "Ollama",
+      kind: "ollama",
+      endpoint: "https://ollama.example.test",
+      endpointFingerprint: "fingerprint",
+      credential: { apiKey: "remote-secret" },
+    });
+    expect(view.credentialConfigured).toBe(true);
+    expect(JSON.stringify(view)).not.toContain("remote-secret");
+  });
+
   it("normalizes endpoints, fingerprints semantic fields and creates immutable revisions", () => {
     const profiles = new ProviderProfiles(() => "00000000-0000-4000-8000-000000000001");
     const first = profiles.save({

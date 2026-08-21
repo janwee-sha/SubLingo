@@ -24,8 +24,40 @@ describe("IINA sidebar bundle contract", () => {
     expect(html).toMatch(/id="provider-model"[\s\S]*?required/);
   });
 
+  it("uses an accessible icon-only model refresh control", () => {
+    const button = html.match(/<button[\s\S]*?id="refresh-models"[\s\S]*?<\/button>/)?.[0] ?? "";
+    expect(button).toContain('aria-label="Refresh model list"');
+    expect(button).toContain('class="refresh-icon"');
+    expect(button).not.toMatch(/>\s*Refresh\s*</);
+  });
+
+  it("uses one accessible vertical write-only API key field for both services", () => {
+    expect(html).toMatch(
+      /id="credential-row"[\s\S]*?<span>API key<\/span>[\s\S]*?id="provider-key"[\s\S]*?aria-describedby="credential-hint"[\s\S]*?<small\s+id="credential-hint"[^>]*>/,
+    );
+    expect(html).not.toContain('id="credential-row" class="field" hidden');
+    expect(sidebarSource).toContain(
+      'document.querySelector<HTMLElement>("#credential-row")!.hidden = false',
+    );
+    expect(html).toContain('maxlength="8192"');
+    expect(html).toMatch(/credential-hint[\s\S]*refresh/i);
+  });
+
+  it("uses entered credentials only for manual model preview and blocks empty-model saves", () => {
+    expect(sidebarSource).toContain('"provider:models-preview"');
+    expect(sidebarSource).toContain('trigger === "manual"');
+    expect(sidebarSource).toContain("draftCredentialEpoch");
+    expect(sidebarSource).toContain("Refresh models and choose one, or enter a custom model ID.");
+    const saveStart = sidebarSource.indexOf('saveProfileButton.addEventListener("click"');
+    const saveEnd = sidebarSource.indexOf('newProfileButton.addEventListener("click"', saveStart);
+    const saveHandler = sidebarSource.slice(saveStart, saveEnd);
+    expect(saveHandler.indexOf("if (!model)")).toBeLessThan(saveHandler.indexOf("beginOperation("));
+  });
+
   it("uses the visible Service type as the savable default without a generic fallback", () => {
-    expect(html).toContain('id="profile-name" type="text" value="OpenAI-compatible"');
+    expect(html).toContain('<option value="openai">OpenAI</option>');
+    expect(html).toContain('id="profile-name" type="text" value="OpenAI"');
+    expect(html).not.toContain("OpenAI-compatible");
     expect(sidebarSource).toContain("selectedServiceTypeLabel");
     expect(sidebarSource).toContain("inputProfileName");
     expect(sidebarSource).toContain("changeServiceTypeLabel");

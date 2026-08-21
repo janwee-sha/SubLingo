@@ -108,10 +108,10 @@ describe("release metadata", () => {
   it("keeps repository license sources consistent", () => {
     const metadata = readReleaseMetadata(fileURLToPath(new URL("../../", import.meta.url)));
     expect(metadata.license).toBe("GPL-3.0-only");
-    expect(metadata.version).toBe("0.3.4");
-    expect(metadata.artifactName).toBe("SubLingo-0.3.4.iinaplgz");
+    expect(metadata.version).toBe("0.3.5");
+    expect(metadata.artifactName).toBe("SubLingo-0.3.5.iinaplgz");
     expect(metadata.githubRepository).toBe("janwee-sha/SubLingo");
-    expect(metadata.githubVersion).toBe(3004);
+    expect(metadata.githubVersion).toBe(3005);
     expect(metadata.ffmpegSourceAssetName).toBe("ffmpeg-8.1.2.tar.xz");
   });
 

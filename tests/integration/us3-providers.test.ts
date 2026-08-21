@@ -13,8 +13,195 @@ import {
 } from "../../src/adapters/iina/profile-list-sync.js";
 import "../../ui/sidebar-state.js";
 import { makeProviderRequest } from "../contract/provider-test-helpers.js";
+import { discoverProviderModels } from "../../src/providers/model-discovery.js";
+import { CredentialScopedProviderCache } from "../../src/providers/provider-cache.js";
 
 describe("US3 provider broker integration", () => {
+  it("uses one Ollama Bearer for Refresh, Test and translation", async () => {
+    const paths: string[] = [];
+    const transport: ProviderTransport = {
+      request: async (request) => {
+        if (request.headers.Authorization !== "Bearer remote-secret")
+          return { statusCode: 401, headers: {}, bodyText: "{}" };
+        paths.push(new URL(request.url).pathname);
+        if (request.url.endsWith("/api/version"))
+          return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
+        if (request.url.endsWith("/api/tags"))
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: '{"models":[{"model":"qwen","name":"qwen"}]}',
+          };
+        const targets = JSON.parse(
+          (request.body as { messages: Array<{ content: string }> }).messages.at(-1)!.content,
+        ).targets as Array<{ id: string }>;
+        return {
+          statusCode: 200,
+          headers: {},
+          bodyText: JSON.stringify({
+            message: {
+              content: JSON.stringify({
+                translations: targets.map((target) => ({ id: target.id, text: "T" })),
+              }),
+            },
+          }),
+        };
+      },
+    };
+    await expect(
+      discoverProviderModels(
+        {
+          jobId: "refresh",
+          kind: "ollama",
+          endpoint: "https://ollama.example.test",
+          apiKey: "remote-secret",
+        },
+        transport,
+      ),
+    ).resolves.toEqual(["qwen"]);
+    const provider = new OllamaProvider(
+      {
+        endpoint: "https://ollama.example.test",
+        model: "qwen",
+        apiKey: "remote-secret",
+      },
+      transport,
+    );
+    await provider.testConnection("test");
+    await provider.attempt(makeProviderRequest());
+    expect(paths).toEqual(["/api/tags", "/api/version", "/api/tags", "/api/chat", "/api/chat"]);
+  });
+
+  it("uses one Bearer with prompt-only JSON across official Ollama Cloud flows", async () => {
+    const requests: Array<{ path: string; body?: Record<string, unknown> }> = [];
+    const transport: ProviderTransport = {
+      request: async (request) => {
+        expect(request.headers.Authorization).toBe("Bearer cloud-secret");
+        requests.push({
+          path: new URL(request.url).pathname,
+          ...(request.body ? { body: request.body as Record<string, unknown> } : {}),
+        });
+        if (request.url.endsWith("/api/version"))
+          return { statusCode: 200, headers: {}, bodyText: '{"version":"cloud"}' };
+        if (request.url.endsWith("/api/tags"))
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: '{"models":[{"model":"cloud-model"}]}',
+          };
+        const messages = (request.body as { messages: Array<{ content: string }> }).messages;
+        const targets = JSON.parse(messages.at(-1)!.content).targets as Array<{ id: string }>;
+        const hasExactSchema =
+          messages[0]!.content.includes('"required":["translations"]') &&
+          targets.every((target) => messages[0]!.content.includes(`"${target.id}"`));
+        return {
+          statusCode: 200,
+          headers: {},
+          bodyText: JSON.stringify({
+            message: {
+              content: hasExactSchema
+                ? `\`\`\`json\n${JSON.stringify({
+                    translations: targets.map((target) => ({ id: target.id, text: "T" })),
+                  })}\n\`\`\``
+                : JSON.stringify(
+                    Object.fromEntries(targets.map((target) => [target.id, "T"])),
+                  ),
+            },
+          }),
+        };
+      },
+    };
+
+    await expect(
+      discoverProviderModels(
+        {
+          jobId: "cloud-refresh",
+          kind: "ollama",
+          endpoint: "https://ollama.com",
+          apiKey: "cloud-secret",
+        },
+        transport,
+      ),
+    ).resolves.toEqual(["cloud-model"]);
+    const provider = new OllamaProvider(
+      {
+        endpoint: "https://ollama.com",
+        model: "cloud-model",
+        apiKey: "cloud-secret",
+      },
+      transport,
+    );
+    await expect(provider.testConnection("cloud-test")).resolves.toBeDefined();
+    await expect(provider.attempt(makeProviderRequest())).resolves.toMatchObject({
+      translations: [{ id: "c1" }, { id: "c2" }],
+    });
+    expect(requests.map((request) => request.path)).toEqual([
+      "/api/tags",
+      "/api/version",
+      "/api/tags",
+      "/api/chat",
+      "/api/chat",
+    ]);
+    for (const request of requests.filter((item) => item.body)) {
+      expect(request.body).not.toHaveProperty("format");
+      expect(request.body).not.toHaveProperty("think");
+      const messages = request.body!.messages as Array<{ content: string }>;
+      expect(messages[0]!.content).toContain('"required":["translations"]');
+    }
+  });
+
+  it("does not let an Ollama Test continue with a Provider built across credential replacement", async () => {
+    let epoch = 0;
+    let apiKey = "old-secret";
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const profile = {
+      profileId: "00000000-0000-4000-8000-000000000001",
+      revision: 1,
+      endpoint: "https://ollama.example.test",
+      model: "qwen",
+    } as Parameters<CredentialScopedProviderCache["get"]>[0];
+    const seenHeaders: string[] = [];
+    const cache = new CredentialScopedProviderCache(
+      () => epoch,
+      async (value) => {
+        const capturedKey = apiKey;
+        await gate;
+        return new OllamaProvider(
+          { endpoint: value.endpoint, model: value.model!, apiKey: capturedKey },
+          {
+            request: async (request) => {
+              seenHeaders.push(request.headers.Authorization ?? "");
+              if (request.url.endsWith("/api/version"))
+                return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
+              if (request.url.endsWith("/api/tags"))
+                return { statusCode: 200, headers: {}, bodyText: '{"models":[{"model":"qwen"}]}' };
+              return {
+                statusCode: 200,
+                headers: {},
+                bodyText:
+                  '{"message":{"content":"{\\"translations\\":[{\\"id\\":\\"probe\\",\\"text\\":\\"T\\"}]}"}}',
+              };
+            },
+          },
+        );
+      },
+    );
+
+    const stale = cache.get(profile);
+    apiKey = "new-secret";
+    epoch = 1;
+    cache.clearProfile(profile.profileId);
+    release();
+
+    await expect(stale).rejects.toMatchObject({ providerCode: "CREDENTIAL_CONTEXT_CHANGED" });
+    const current = await cache.get(profile);
+    await expect(current.testConnection("fresh-test")).resolves.toMatchObject({ model: "qwen" });
+    expect(seenHeaders).toEqual(["Bearer new-secret", "Bearer new-secret", "Bearer new-secret"]);
+  });
+
   it("keeps a deleted profile removed across late lists, duplicate success and Sidebar reopen", () => {
     const deleted = { profileId: "deleted", revision: 1 };
     const retained = { profileId: "retained", revision: 1 };

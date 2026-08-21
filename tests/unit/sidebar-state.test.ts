@@ -301,6 +301,109 @@ describe("Sidebar operation feedback ownership", () => {
   });
 });
 
+describe("Sidebar model catalog state", () => {
+  it("classifies known and custom values without changing the model ID", () => {
+    const state = createState();
+    state.setModelContext("context-a", "custom/model:v1");
+    expect(state.applyModelCatalog("context-a", ["model-a", "custom/model:v1"])).toBe(true);
+    expect(state.snapshot.modelControl).toMatchObject({
+      contextKey: "context-a",
+      value: "custom/model:v1",
+      mode: "known",
+      knownModelIds: ["model-a", "custom/model:v1"],
+    });
+    state.applyModelCatalog("context-a", ["model-a"]);
+    expect(state.snapshot.modelControl).toMatchObject({
+      value: "custom/model:v1",
+      mode: "custom",
+      knownModelIds: ["model-a"],
+    });
+  });
+
+  it("accepts a successful empty catalog and rejects another context", () => {
+    const state = createState();
+    state.setModelContext("context-a", "model-a");
+    expect(state.applyModelCatalog("context-b", ["foreign"])).toBe(false);
+    expect(state.applyModelCatalog("context-a", [])).toBe(true);
+    expect(state.snapshot.modelControl).toMatchObject({
+      value: "model-a",
+      mode: "custom",
+      knownModelIds: [],
+    });
+  });
+
+  it("switches between exact known and custom input values", () => {
+    const state = createState();
+    state.setModelContext("context-a", "model-a");
+    state.applyModelCatalog("context-a", ["model-a", "Model-A"]);
+    state.selectKnownModel("Model-A");
+    expect(state.snapshot.modelControl).toMatchObject({ value: "Model-A", mode: "known" });
+    state.selectCustomModel();
+    state.inputCustomModelValue("namespace/custom:v2");
+    expect(state.snapshot.modelControl).toMatchObject({
+      value: "namespace/custom:v2",
+      mode: "custom",
+    });
+  });
+
+  it("keeps an explicitly selected Custom mode when the current value is still known", () => {
+    const state = createState();
+    state.setModelContext("context-a", "model-a");
+    state.applyModelCatalog("context-a", ["model-a", "model-b"]);
+
+    state.selectCustomModel();
+
+    expect(state.snapshot.modelControl).toMatchObject({
+      value: "model-a",
+      mode: "custom",
+      knownModelIds: ["model-a", "model-b"],
+    });
+  });
+
+  it("tracks busy and safe failure states without clearing the last successful catalog", () => {
+    const state = createState();
+    state.setModelContext("context-a", "model-a");
+    state.applyModelCatalog("context-a", ["model-a", "model-b"]);
+    state.setModelRefreshState("busy");
+    expect(state.snapshot.modelControl).toMatchObject({
+      refreshState: "busy",
+      knownModelIds: ["model-a", "model-b"],
+    });
+    state.setModelRefreshState("error");
+    expect(state.snapshot.modelControl).toMatchObject({
+      refreshState: "error",
+      knownModelIds: ["model-a", "model-b"],
+      value: "model-a",
+    });
+  });
+
+  it("keeps model refresh feedback independent from the latest Profile operation", () => {
+    const state = createState();
+    state.beginOperation(
+      {
+        requestId: "select-request",
+        regionId: "profile-row:retained",
+        actionId: "select",
+        profileId: "retained",
+      },
+      "Selecting…",
+    );
+    state.finishOperation("select-request", "success", "Profile selected for translation.");
+
+    state.setModelRefreshState("busy", "Refreshing models…");
+    state.setModelRefreshState("success", "Model list refreshed.");
+
+    expect(state.snapshot.activeFeedback).toMatchObject({
+      requestId: "select-request",
+      message: "Profile selected for translation.",
+    });
+    expect(state.snapshot.modelControl).toMatchObject({
+      refreshState: "success",
+      refreshMessage: "Model list refreshed.",
+    });
+  });
+});
+
 describe("Sidebar Profile name source", () => {
   it("follows Service type labels only while the name is system-owned", () => {
     const state = createState();

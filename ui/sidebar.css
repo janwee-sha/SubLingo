@@ -78,6 +78,35 @@ label {
   font-size: 0.75rem;
   font-weight: 400;
 }
+.model-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+.model-control button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  padding: 0.35rem;
+}
+.refresh-icon {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#refresh-models[aria-busy="true"] .refresh-icon {
+  animation: refresh-spin 700ms linear infinite;
+}
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 [hidden] {
   display: none !important;
 }
@@ -234,6 +263,9 @@ button.secondary {
     grid-template-columns: 1fr;
   }
   .profile-actions {
+    grid-template-columns: 1fr;
+  }
+  .model-control {
     grid-template-columns: 1fr;
   }
 }

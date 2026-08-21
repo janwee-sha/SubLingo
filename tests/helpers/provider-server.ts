@@ -12,6 +12,8 @@ export type ProviderSimulatorMode = "success" | "quota";
 export interface ProviderSimulatorCall {
   path: string;
   method: string;
+  headers: Record<string, string | string[] | undefined>;
+  body: string;
 }
 
 export class ProviderSimulator {
@@ -20,6 +22,7 @@ export class ProviderSimulator {
   private readonly countWaiters: Array<{ count: number; resolve: () => void }> = [];
   private server: Server | null = null;
   private mode: ProviderSimulatorMode = "success";
+  private expectedBearer: string | null = null;
   private requestGate: Promise<void> = Promise.resolve();
   private releaseGate: (() => void) | null = null;
   url = "";
@@ -34,6 +37,10 @@ export class ProviderSimulator {
 
   setMode(mode: ProviderSimulatorMode): void {
     this.mode = mode;
+  }
+
+  requireBearer(token: string | null): void {
+    this.expectedBearer = token;
   }
 
   blockRequests(): void {
@@ -57,16 +64,24 @@ export class ProviderSimulator {
 
   async start(): Promise<void> {
     this.server = createServer((request, response) => {
-      request.resume();
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
         this.calls.push({
           path: request.url ?? "/",
           method: request.method ?? "GET",
+          headers: { ...request.headers },
+          body: Buffer.concat(chunks).toString("utf8"),
         });
         this.resolveCountWaiters();
         const gate = this.requestGate;
         void gate.then(() => {
-          const next = this.responses.shift() ?? this.responseForMode();
+          const authorized =
+            this.expectedBearer === null ||
+            request.headers.authorization === `Bearer ${this.expectedBearer}`;
+          const next = authorized
+            ? (this.responses.shift() ?? this.responseForMode(request.url ?? "/"))
+            : { status: 401, body: { error: { code: "invalid_api_key" } } };
           setTimeout(() => {
             response.writeHead(next.status, {
               "Content-Type": "application/json",
@@ -101,13 +116,17 @@ export class ProviderSimulator {
     this.server = null;
   }
 
-  private responseForMode(): SimulatedResponse {
+  private responseForMode(path: string): SimulatedResponse {
     if (this.mode === "quota") {
       return {
         status: 429,
         body: { error: { code: "insufficient_quota", message: "quota exceeded" } },
       };
     }
+    if (path.endsWith("/models"))
+      return { status: 200, body: { data: [{ id: "model-a" }, { id: "model-b" }] } };
+    if (path.endsWith("/api/tags"))
+      return { status: 200, body: { models: [{ model: "llama-a" }, { name: "llama-b" }] } };
     return { status: 200, body: {} };
   }
 

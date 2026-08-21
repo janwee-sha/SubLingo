@@ -4,11 +4,21 @@ interface ProviderTestStatus {
   statusCode?: number;
   code?: string;
   userAction?: string;
+  providerKind?: "openai" | "ollama";
 }
 
 interface Window {
   sublingoProviderTestStatusMessage(result: ProviderTestStatus): string;
   sublingoCredentialStatusMessage(result: CredentialStatus): string;
+  sublingoModelCatalogStatusMessage(result: ModelCatalogStatus): string;
+}
+
+interface ModelCatalogStatus {
+  ok?: boolean;
+  count?: number;
+  category?: string;
+  statusCode?: number;
+  credentialSource?: "saved" | "entered" | "none";
 }
 
 interface CredentialStatus {
@@ -37,7 +47,9 @@ function providerTestStatusMessage(result: ProviderTestStatus): string {
         ? "The service timed out. Check network reachability and service status, then retry."
         : "The service could not be reached. Check the network and service status, then retry.";
     case "CHECK_ENDPOINT":
-      return "The endpoint rejected the request. Check the API URL and OpenAI-compatible chat-completions support.";
+      return result.providerKind === "ollama"
+        ? "The endpoint rejected the request. Check the Ollama server URL and chat support."
+        : "The endpoint rejected the request. Check the OpenAI API URL and chat-completions support.";
     default:
       return "Connection test failed. Review the endpoint, credentials, model, and service status.";
   }
@@ -66,3 +78,24 @@ function credentialStatusMessage(result: CredentialStatus): string {
 
 (globalThis as typeof globalThis & Window).sublingoCredentialStatusMessage =
   credentialStatusMessage;
+
+function modelCatalogStatusMessage(result: ModelCatalogStatus): string {
+  if (result.ok)
+    return result.count === 0
+      ? "No models were returned. Custom model ID remains available."
+      : "Model list refreshed.";
+  if (result.category === "authentication") {
+    if (result.credentialSource === "entered")
+      return "Model refresh failed. Check the entered API key.";
+    if (result.credentialSource === "saved")
+      return "Model refresh failed. Check the saved API key.";
+    return "Model refresh failed. Enter an API key and refresh again.";
+  }
+  if (result.category === "timeout") return "Model refresh timed out. Try again.";
+  if (typeof result.statusCode === "number")
+    return `Model refresh failed with HTTP ${result.statusCode}. Check the endpoint.`;
+  return "Model refresh failed. Check the endpoint and network route.";
+}
+
+(globalThis as typeof globalThis & Window).sublingoModelCatalogStatusMessage =
+  modelCatalogStatusMessage;

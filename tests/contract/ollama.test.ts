@@ -5,6 +5,41 @@ import { buildTranslationTask } from "../../src/providers/translation-task.js";
 import { makeProviderRequest } from "./provider-test-helpers.js";
 
 describe("Ollama native provider", () => {
+  it("uses the same optional Bearer for version, tags and chat", async () => {
+    const headers: Array<Record<string, string>> = [];
+    const provider = new OllamaProvider(
+      { endpoint: "https://ollama.example.test", model: "qwen", apiKey: "remote-secret" },
+      {
+        request: async (request) => {
+          headers.push(request.headers);
+          if (request.url.endsWith("/api/version"))
+            return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
+          if (request.url.endsWith("/api/tags"))
+            return { statusCode: 200, headers: {}, bodyText: '{"models":[{"model":"qwen"}]}' };
+          const payload = JSON.parse(
+            (request.body as { messages: Array<{ content: string }> }).messages.at(-1)?.content ??
+              "{}",
+          ) as { targets?: Array<{ id: string }> };
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: JSON.stringify({
+              message: {
+                content: JSON.stringify({
+                  translations: (payload.targets ?? []).map((item) => ({ id: item.id, text: "T" })),
+                }),
+              },
+            }),
+          };
+        },
+      },
+    );
+    await provider.testConnection("authenticated-test");
+    await provider.attempt(makeProviderRequest());
+    expect(headers).toHaveLength(4);
+    expect(headers.every((value) => value.Authorization === "Bearer remote-secret")).toBe(true);
+  });
+
   it("probes version/tags/schema and diagnoses missing model", async () => {
     const paths: string[] = [];
     const transport: ProviderTransport = {
@@ -13,7 +48,11 @@ describe("Ollama native provider", () => {
         if (request.url.endsWith("/api/version"))
           return { statusCode: 200, headers: {}, bodyText: '{"version":"0.10"}' };
         if (request.url.endsWith("/api/tags"))
-          return { statusCode: 200, headers: {}, bodyText: '{"models":[{"name":"qwen"}]}' };
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: '{"models":[{"model":" ","name":"qwen"}]}',
+          };
         return {
           statusCode: 200,
           headers: {},
@@ -35,7 +74,7 @@ describe("Ollama native provider", () => {
     await expect(missing.probe()).rejects.toMatchObject({ category: "model", retryable: false });
   });
 
-  it("uses non-stream structured chat, think:false, temperature 0 and cold-start timeout", async () => {
+  it("uses non-stream structured chat, temperature 0 and cold-start timeout", async () => {
     const calls: unknown[] = [];
     const provider = new OllamaProvider(
       { endpoint: "http://localhost:11434/", model: "qwen" },
@@ -58,8 +97,9 @@ describe("Ollama native provider", () => {
     expect(calls[0]).toMatchObject({
       url: "http://localhost:11434/api/chat",
       timeoutMs: 60_000,
-      body: { stream: false, think: false, options: { temperature: 0 } },
+      body: { stream: false, options: { temperature: 0 } },
     });
+    expect((calls[0] as { body: Record<string, unknown> }).body).not.toHaveProperty("think");
     const userMessage = (
       calls[0] as { body: { messages: Array<{ content: string }> } }
     ).body.messages.at(-1)?.content;
@@ -215,6 +255,146 @@ describe("Ollama native provider", () => {
       provider.attempt(makeProviderRequest(), (value) => progress.push(value)),
     ).resolves.toMatchObject({ translations: [] });
     expect(progress).toEqual([]);
+  });
+
+  it("uses prompt-only JSON for Ollama Cloud and accepts one complete JSON code block", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const provider = new OllamaProvider(
+      { endpoint: "https://ollama.com", model: "cloud-model", apiKey: "cloud-secret" },
+      {
+        request: async (request) => {
+          if (request.url.endsWith("/api/version"))
+            return { statusCode: 200, headers: {}, bodyText: '{"version":"cloud"}' };
+          if (request.url.endsWith("/api/tags"))
+            return {
+              statusCode: 200,
+              headers: {},
+              bodyText: '{"models":[{"model":"cloud-model"}]}',
+            };
+          bodies.push(request.body as Record<string, unknown>);
+          const messages = (request.body as { messages: Array<{ content: string }> }).messages;
+          const targets = JSON.parse(messages.at(-1)!.content).targets as Array<{ id: string }>;
+          const hasExactSchema =
+            messages[0]!.content.includes('"required":["translations"]') &&
+            targets.every((target) => messages[0]!.content.includes(`"${target.id}"`));
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText: JSON.stringify({
+              message: {
+                content: hasExactSchema
+                  ? `\`\`\`json\n${JSON.stringify({
+                      translations: targets.map((target) => ({ id: target.id, text: "T" })),
+                    })}\n\`\`\``
+                  : JSON.stringify(
+                      Object.fromEntries(targets.map((target) => [target.id, "T"])),
+                    ),
+              },
+            }),
+          };
+        },
+      },
+    );
+
+    await expect(provider.testConnection("cloud-test")).resolves.toMatchObject({
+      model: "cloud-model",
+    });
+    await expect(provider.attempt(makeProviderRequest())).resolves.toMatchObject({
+      translations: [{ id: "c1" }, { id: "c2" }],
+    });
+    expect(bodies).toHaveLength(2);
+    for (const body of bodies) {
+      expect(body).not.toHaveProperty("format");
+      expect(body).not.toHaveProperty("think");
+      const messages = body.messages as Array<{ content: string }>;
+      expect(messages[0]!.content).toContain('"additionalProperties":false');
+      expect(messages[0]!.content).toContain('"required":["translations"]');
+    }
+  });
+
+  it("falls back from rejected JSON Schema without retrying unrelated request failures", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const provider = new OllamaProvider(
+      { endpoint: "https://remote-ollama.example.test", model: "remote-model" },
+      {
+        request: async (request) => {
+          if (request.url.endsWith("/api/version"))
+            return { statusCode: 200, headers: {}, bodyText: '{"version":"remote"}' };
+          if (request.url.endsWith("/api/tags"))
+            return {
+              statusCode: 200,
+              headers: {},
+              bodyText: '{"models":[{"model":"remote-model"}]}',
+            };
+          const body = request.body as Record<string, unknown>;
+          bodies.push(body);
+          if ("format" in body)
+            return {
+              statusCode: 400,
+              headers: {},
+              bodyText: '{"error":"structured output is not supported"}',
+            };
+          return {
+            statusCode: 200,
+            headers: {},
+            bodyText:
+              '{"message":{"content":"{\\"translations\\":[{\\"id\\":\\"probe\\",\\"text\\":\\"hola\\"}]}"}}',
+          };
+        },
+      },
+    );
+
+    await expect(provider.testConnection("fallback-test")).resolves.toMatchObject({
+      model: "remote-model",
+    });
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]).toHaveProperty("format");
+    expect(bodies[1]).not.toHaveProperty("format");
+    expect(bodies.every((body) => !("think" in body))).toBe(true);
+  });
+
+  it("does not retry a non-capability request rejection", async () => {
+    let chatCalls = 0;
+    const provider = new OllamaProvider(
+      { endpoint: "https://remote-ollama.example.test", model: "missing-model" },
+      {
+        request: async (request) => {
+          if (request.url.endsWith("/api/version"))
+            return { statusCode: 200, headers: {}, bodyText: '{"version":"remote"}' };
+          if (request.url.endsWith("/api/tags"))
+            return {
+              statusCode: 200,
+              headers: {},
+              bodyText: '{"models":[{"model":"missing-model"}]}',
+            };
+          chatCalls += 1;
+          return { statusCode: 400, headers: {}, bodyText: '{"error":"invalid model"}' };
+        },
+      },
+    );
+
+    await expect(provider.testConnection("rejected-test")).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    expect(chatCalls).toBe(1);
+  });
+
+  it("rejects natural-language wrappers around an otherwise valid JSON object", async () => {
+    const provider = new OllamaProvider(
+      { endpoint: "https://ollama.com", model: "cloud-model" },
+      {
+        request: async () => ({
+          statusCode: 200,
+          headers: {},
+          bodyText:
+            '{"message":{"content":"Here is the result: {\\"translations\\":[{\\"id\\":\\"c1\\",\\"text\\":\\"T\\"}]}"}}',
+        }),
+      },
+    );
+
+    await expect(provider.attempt(makeProviderRequest())).rejects.toMatchObject({
+      category: "protocol",
+    });
   });
 
   it("cancels every active split chat for the logical batch", async () => {

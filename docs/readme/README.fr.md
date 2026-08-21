@@ -20,7 +20,7 @@ SubLingo traduit le sous-titre texte intégré d'un média local ou le sous-titr
 
 - **Sous-titres bilingues en temps réel :** le texte d'origine reste sélectionné dans IINA, tandis que SubLingo affiche la traduction en haut au centre de la vidéo sans occuper une autre piste.
 - **Sous-titres texte intégrés et externes :** prend en charge Matroska SubRip/ASS/SSA et MOV/MP4 `mov_text` locaux, ainsi que les SRT/ASS externes. L'extracteur est inclus ; aucun `ffmpeg` ou `ffprobe` externe n'est requis.
-- **Service de traduction au choix :** utilisez un endpoint OpenAI-compatible Chat Completions ou un serveur Ollama local/distant.
+- **Service de traduction au choix :** utilisez un endpoint compatible avec le contrat OpenAI Chat Completions ou un serveur Ollama local/distant.
 - **Priorité à la lecture :** la traduction ne met jamais la vidéo en pause et ne masque pas les sous-titres d'origine.
 - **Requêtes limitées :** SubLingo ne traduit que les cue proches, limite les tâches simultanées par fenêtre de lecture et ne met en cache les résultats réussis que pendant la session vidéo actuelle.
 - **Plusieurs Profile :** enregistrez et testez des Profile de services, puis sélectionnez explicitement l'endpoint précis autorisé à recevoir le texte des sous-titres.
@@ -32,7 +32,7 @@ SubLingo traduit le sous-titre texte intégré d'un média local ou le sous-titr
 - IINA 1.4.0 ou version ultérieure
 - Une piste texte intégrée locale prise en charge ou une piste externe SRT/ASS/SSA lisible
 - L'un des services de traduction suivants :
-  - Un endpoint OpenAI-compatible, un Model ID et une API key si le service l'exige
+  - Un endpoint OpenAI, un Model ID et une API key si le service l'exige
   - Un serveur Ollama avec un modèle compatible déjà installé
 
 SubLingo ne télécharge ni ne démarre les modèles de traduction.
@@ -67,7 +67,7 @@ Avec l'une ou l'autre méthode, approuvez les autorisations demandées si IINA l
 
 1. Ouvrez une vidéo locale et sélectionnez dans IINA une piste texte intégrée prise en charge ou un SRT/ASS externe comme sous-titre principal.
 2. Dans **Languages**, sélectionnez votre langue maternelle. Si IINA ne peut pas identifier la langue du sous-titre, confirmez-la manuellement, puis enregistrez les réglages.
-3. Dans **Translation service**, créez un Profile OpenAI-compatible ou Ollama et saisissez le Model ID exact.
+3. Dans **Translation service**, créez un Profile OpenAI ou Ollama. Si le service exige une authentification, saisissez son API key avant d'actualiser manuellement la liste des modèles. Choisissez ensuite un modèle retourné ou saisissez un Model ID personnalisé exact.
 4. Enregistrez et testez le Profile, puis cliquez sur **Select**. La sélection autorise explicitement SubLingo à envoyer le texte des sous-titres proches à l'endpoint affiché.
 5. Activez **Translate**. Le sous-titre d'origine reste affiché par IINA et les cue traduits apparaissent dans la surcouche de SubLingo, en haut au centre.
 
@@ -75,7 +75,7 @@ Si l'endpoint, le modèle, l'API key ou la route réseau change, enregistrez le 
 
 ## ⚙️ Services de traduction
 
-### OpenAI-compatible
+### OpenAI
 
 - Saisissez l'API root, par exemple `https://example.com/v1`, et non une URL `/chat/completions` complète.
 - SubLingo ajoute `/chat/completions` et affiche un aperçu de l'URL finale dans la barre latérale.
@@ -87,7 +87,7 @@ Si l'endpoint, le modèle, l'API key ou la route réseau change, enregistrez le 
 
 - L'adresse par défaut du serveur est `http://127.0.0.1:11434`.
 - Saisissez le tag exact du modèle installé, tel que `translategemma:12b` ou `qwen3:14b`.
-- Les Profile Ollama n'enregistrent et n'utilisent aucun identifiant d'API.
+- La Bearer API key est facultative si le serveur Ollama accepte les requêtes non authentifiées et reste en écriture seule après l'enregistrement.
 - Le test de connexion vérifie le serveur, les tag installés et la prise en charge du structured-output chat.
 
 Pour les deux services, commencez par **Use macOS proxy settings**. Ne choisissez **Connect directly** que si le proxy système configuré empêche l'accès au service.
@@ -95,9 +95,9 @@ Pour les deux services, commencez par **Use macOS proxy settings**. Ne choisisse
 ## 🔒 Confidentialité, identifiants et coûts
 
 - SubLingo envoie uniquement au Profile explicitement sélectionné le texte des cue proches, la direction des langues, des identifiants de cue opaques et un contexte voisin limité. Aucun contenu vidéo ou audio n'est envoyé.
-- Les OpenAI-compatible API key sont stockées localement en clair dans le fichier privé `credentials.json` du plugin. Son répertoire utilise le mode `0700` et le fichier le mode `0600`. La key n'est inscrite ni dans les preferences IINA, ni dans les journaux, diagnostics, l'état de la Sidebar ou le paquet du plugin, et elle n'est plus affichée après l'enregistrement.
+- Les API key OpenAI et Ollama sont stockées localement en clair dans le fichier privé `credentials.json` du plugin. Son répertoire utilise le mode `0700` et le fichier le mode `0600`. La key n'est inscrite ni dans les preferences IINA, ni dans les journaux, diagnostics, l'état de la Sidebar ou le paquet du plugin, et elle n'est plus affichée après l'enregistrement.
 - Les autorisations du fichier protègent la key contre les autres comptes macOS et les accès accidentels ordinaires. Elles ne la protègent pas d'un processus déjà capable de lire les fichiers au nom de votre utilisateur macOS actuel.
-- Le transport helper inclus n'écoute que sur un port temporaire `127.0.0.1` et n'envoie des requêtes distantes qu'à l'endpoint sélectionné. Les redirect inter-origines et les identifiants inclus dans les URL sont refusés.
+- Le transport helper inclus n'écoute que sur un port temporaire `127.0.0.1`. Un endpoint configuré ou en cours d'édition peut recevoir une liste de modèles sans sous-titres avant Select ; seul le Profile sélectionné reçoit le texte des sous-titres. Les redirect inter-origines et les identifiants inclus dans les URL sont refusés.
 - Les traductions ne sont mises en cache que pendant la session vidéo actuelle et sont effacées lors d'un changement de vidéo, à la fin de la lecture ou à la fermeture de la fenêtre.
 - Votre Provider de traduction peut facturer les requêtes et appliquer ses propres politiques relatives aux données et au contenu. Le traitement par lots et le cache réduisent les appels, mais ne garantissent pas un coût maximal.
 

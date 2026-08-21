@@ -43,3 +43,27 @@ export function removeDeletedProfile<T extends ProfileListItem>(
     profiles: state.profiles.filter((profile) => profile.profileId !== profileId),
   };
 }
+
+export function upsertCreatedProfile<T extends ProfileListItem>(
+  state: ProfileListSyncState<T>,
+  profile: T,
+): ProfileListSyncState<T> {
+  const index = state.profiles.findIndex((item) => item.profileId === profile.profileId);
+  const profiles = [...state.profiles];
+  if (index >= 0) profiles[index] = profile;
+  else profiles.push(profile);
+  return { ...state, latestRequestId: null, profiles };
+}
+
+export function markProfileCredentialConfigured<
+  T extends ProfileListItem & { credentialConfigured?: boolean },
+>(state: ProfileListSyncState<T>, profileId: string): ProfileListSyncState<T> {
+  const profile = state.profiles.find((item) => item.profileId === profileId);
+  if (!profile || profile.credentialConfigured) return state;
+  return {
+    ...state,
+    profiles: state.profiles.map((item) =>
+      item.profileId === profileId ? { ...item, credentialConfigured: true } : item,
+    ),
+  };
+}

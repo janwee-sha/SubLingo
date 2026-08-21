@@ -1,7 +1,9 @@
-import { sha256Hex } from "./domain/identity.js";
+import { identityHash, sha256Hex } from "./domain/identity.js";
 import { normalizeProviderError } from "./domain/errors.js";
 import {
   parseProfileSelection,
+  parseProviderModelsPreviewRequest,
+  parseProviderModelsRequest,
   parseSecretSet,
   parseTargetLanguageSave,
   parseTranslationBatchProgress,
@@ -13,9 +15,12 @@ import { IinaLocalHttpBridge, IinaProcessLauncher } from "./adapters/iina/provid
 import { discoverHelperExecutable, TransportProcess } from "./adapters/iina/transport-process.js";
 import { ProviderBroker } from "./providers/broker.js";
 import { ProviderConnectionTests } from "./providers/connection-tests.js";
+import { CredentialScopedProviderCache } from "./providers/provider-cache.js";
 import { OllamaProvider } from "./providers/ollama.js";
 import { OpenAICompatibleProvider } from "./providers/openai.js";
 import { ProviderProfiles } from "./providers/profiles.js";
+import { normalizeProviderEndpoint } from "./providers/profiles.js";
+import { discoverProviderModels } from "./providers/model-discovery.js";
 import type { ConfiguredProvider } from "./providers/provider.js";
 import type { ProviderProfileSnapshot, TranslationBatchRequest } from "./providers/types.js";
 import { HelperProviderTransport as ProviderTransportAdapter } from "./adapters/iina/provider-transport.js";
@@ -34,8 +39,10 @@ function localUuid(): string {
 }
 
 const profiles = new ProviderProfiles(localUuid);
-const providerCache = new Map<string, Promise<ConfiguredProvider>>();
 const providerConnectionTests = new ProviderConnectionTests(localUuid);
+const modelCredentialEpochs = new Map<string, number>();
+const modelCatalogs = new Map<string, string[]>();
+const modelCatalogKeysByProfile = new Map<string, Set<string>>();
 const targetLanguagePreferences = new TargetLanguagePreferences(iina.preferences);
 
 try {
@@ -117,9 +124,58 @@ const transport = new TransportSupervisor(async () => {
 });
 
 const credentials = new HelperCredentialStore(transport);
+const modelTransport = new ProviderTransportAdapter(transport, localUuid);
+const activeModelRequests = new Map<
+  string,
+  { requestId: string; jobId: string; profileId?: string }
+>();
 
-function providerCacheKey(profile: ProviderProfileSnapshot): string {
-  return `${profile.profileId}\u0000${profile.revision}`;
+function clearProfileProviderCache(profileId: string): void {
+  providerCache.clearProfile(profileId);
+}
+
+function clearProfileModelCatalogs(profileId: string): void {
+  for (const key of modelCatalogKeysByProfile.get(profileId) ?? []) modelCatalogs.delete(key);
+  modelCatalogKeysByProfile.delete(profileId);
+}
+
+async function cancelProfileModelRequests(profileId: string): Promise<void> {
+  const matching = [...activeModelRequests].filter(
+    ([, request]) => request.profileId === profileId,
+  );
+  for (const [playerId] of matching) activeModelRequests.delete(playerId);
+  await Promise.allSettled(matching.map(([, request]) => modelTransport.cancel?.(request.jobId)));
+}
+
+function recordProfileModelCatalog(profileId: string, contextKey: string, models: string[]): void {
+  modelCatalogs.set(contextKey, models);
+  const keys = modelCatalogKeysByProfile.get(profileId) ?? new Set<string>();
+  keys.add(contextKey);
+  modelCatalogKeysByProfile.set(profileId, keys);
+}
+
+function modelContextKey(input: {
+  kind: "openai" | "ollama";
+  endpoint: string;
+  proxyMode: "system" | "direct";
+  profileId?: string;
+  profileRevision?: number;
+  endpointFingerprint?: string;
+  credentialEpoch: number;
+}): string {
+  return identityHash(input);
+}
+
+function profileModelContextKey(profile: ProviderProfileSnapshot): string {
+  return modelContextKey({
+    kind: profile.kind,
+    endpoint: profile.endpoint,
+    proxyMode: profile.proxyMode ?? "system",
+    profileId: profile.profileId,
+    profileRevision: profile.revision,
+    endpointFingerprint: profile.endpointFingerprint,
+    credentialEpoch: modelCredentialEpochs.get(profile.profileId) ?? 0,
+  });
 }
 
 async function buildProvider(profile: ProviderProfileSnapshot): Promise<ConfiguredProvider> {
@@ -155,10 +211,12 @@ async function buildProvider(profile: ProviderProfileSnapshot): Promise<Configur
           providerCode: "MODEL_REQUIRED",
           userAction: "CHECK_MODEL",
         };
+      const secret = await credentials.getSecret(profile.profileId);
       return new OllamaProvider(
         {
           endpoint: profile.endpoint,
           model: profile.model,
+          ...(secret?.apiKey ? { apiKey: secret.apiKey } : {}),
           proxyMode: profile.proxyMode ?? "system",
         },
         providerTransport,
@@ -167,16 +225,13 @@ async function buildProvider(profile: ProviderProfileSnapshot): Promise<Configur
   }
 }
 
+const providerCache = new CredentialScopedProviderCache(
+  (profileId) => modelCredentialEpochs.get(profileId) ?? 0,
+  buildProvider,
+);
+
 function providerFor(profile: ProviderProfileSnapshot): Promise<ConfiguredProvider> {
-  const key = providerCacheKey(profile);
-  const cached = providerCache.get(key);
-  if (cached) return cached;
-  const created = buildProvider(profile);
-  providerCache.set(key, created);
-  void created.catch(() => {
-    if (providerCache.get(key) === created) providerCache.delete(key);
-  });
-  return created;
+  return providerCache.get(profile);
 }
 
 const broker = new ProviderBroker(profiles, providerFor);
@@ -243,14 +298,18 @@ async function profileViews(): Promise<unknown[]> {
   return Promise.all(
     profiles.listLatest().map(async (profile) => {
       let credential: Record<string, string> | null = null;
-      if (profile.kind === "openai") {
-        try {
-          credential = await credentials.getSecret(profile.profileId);
-        } catch {
-          /* Profile metadata remains usable when the credential file is unavailable. */
-        }
+      try {
+        credential = await credentials.getSecret(profile.profileId);
+      } catch {
+        credential = null;
       }
-      return sanitizedProfileView({ ...profile, ...(credential ? { credential } : {}) });
+      const contextKey = profileModelContextKey(profile);
+      const models = modelCatalogs.get(contextKey);
+      return sanitizedProfileView({
+        ...profile,
+        ...(credential ? { credential } : {}),
+        ...(models ? { modelCatalog: { contextKey, models } } : {}),
+      });
     }),
   );
 }
@@ -283,6 +342,157 @@ iina.global.onMessage("profiles:list", async (raw: unknown, playerId?: string) =
   });
 });
 
+iina.global.onMessage("provider:models", async (raw: unknown, playerId?: string) => {
+  if (!playerId) return;
+  let externalRequestId = requestId(raw);
+  let contextKey = "invalid";
+  let owner: { requestId: string; jobId: string; profileId?: string } | null = null;
+  try {
+    const message = parseProviderModelsRequest(raw);
+    externalRequestId = message.requestId;
+    const values = message.payload;
+    const endpoint = normalizeProviderEndpoint(values.kind, values.endpoint);
+    const profile = values.profileId
+      ? profiles.get(values.profileId, values.profileRevision)
+      : null;
+    const authorized = Boolean(
+      profile &&
+      profile!.revision === values.profileRevision &&
+      profile!.kind === values.kind &&
+      profile!.endpoint === endpoint &&
+      (profile!.proxyMode ?? "system") === values.proxyMode &&
+      profile!.endpointFingerprint === values.endpointFingerprint,
+    );
+    const credentialEpoch =
+      authorized && profile ? (modelCredentialEpochs.get(profile.profileId) ?? 0) : 0;
+    contextKey = modelContextKey({
+      kind: values.kind,
+      endpoint,
+      proxyMode: values.proxyMode,
+      ...(authorized && profile
+        ? {
+            profileId: profile.profileId,
+            profileRevision: profile.revision,
+            endpointFingerprint: profile.endpointFingerprint,
+          }
+        : {}),
+      credentialEpoch,
+    });
+    const previous = activeModelRequests.get(playerId);
+    if (previous) await modelTransport.cancel?.(previous.jobId);
+    const jobId = `models-${localUuid()}`;
+    owner = {
+      requestId: message.requestId,
+      jobId,
+      ...(authorized && profile ? { profileId: profile.profileId } : {}),
+    };
+    activeModelRequests.set(playerId, owner);
+    let apiKey: string | undefined;
+    if (authorized && profile) {
+      const secret = await credentials.getSecret(profile.profileId);
+      apiKey = secret?.apiKey;
+    }
+    const models = await discoverProviderModels(
+      {
+        jobId,
+        kind: values.kind,
+        endpoint,
+        ...(apiKey ? { apiKey } : {}),
+        proxyMode: values.proxyMode,
+      },
+      modelTransport,
+    );
+    if (activeModelRequests.get(playerId) !== owner) return;
+    activeModelRequests.delete(playerId);
+    if (authorized && profile) recordProfileModelCatalog(profile.profileId, contextKey, models);
+    else modelCatalogs.set(contextKey, models);
+    postToPlayer(playerId, "provider:models-result", {
+      requestId: message.requestId,
+      ok: true,
+      contextKey,
+      models,
+    });
+  } catch (error) {
+    const active = activeModelRequests.get(playerId);
+    if (owner && active !== owner) return;
+    if (active && active.requestId !== externalRequestId) return;
+    if (active?.requestId === externalRequestId) activeModelRequests.delete(playerId);
+    const safe = normalizeProviderError(error);
+    postToPlayer(playerId, "provider:models-result", {
+      requestId: externalRequestId,
+      ok: false,
+      contextKey,
+      category: safe.category,
+      retryable: safe.retryable,
+      ...(safe.statusCode === undefined ? {} : { statusCode: safe.statusCode }),
+      ...(safe.providerCode ? { code: safe.providerCode } : {}),
+      ...(safe.retryAfterMs === undefined ? {} : { retryAfterMs: safe.retryAfterMs }),
+      userAction: safe.userAction,
+    });
+  }
+});
+
+iina.global.onMessage("provider:models-preview", async (raw: unknown, playerId?: string) => {
+  if (!playerId) return;
+  let externalRequestId = requestId(raw);
+  let contextKey = "invalid";
+  let owner: { requestId: string; jobId: string } | null = null;
+  try {
+    const message = parseProviderModelsPreviewRequest(raw);
+    externalRequestId = message.requestId;
+    const values = message.payload;
+    const endpoint = normalizeProviderEndpoint(values.kind, values.endpoint);
+    contextKey = identityHash({
+      playerId,
+      requestId: message.requestId,
+      kind: values.kind,
+      endpoint,
+      proxyMode: values.proxyMode,
+      draftCredentialEpoch: values.draftCredentialEpoch,
+    });
+    const previous = activeModelRequests.get(playerId);
+    if (previous) await modelTransport.cancel?.(previous.jobId);
+    const jobId = `models-${localUuid()}`;
+    owner = { requestId: message.requestId, jobId };
+    activeModelRequests.set(playerId, owner);
+    const models = await discoverProviderModels(
+      {
+        jobId,
+        kind: values.kind,
+        endpoint,
+        apiKey: values.credential.apiKey,
+        proxyMode: values.proxyMode,
+      },
+      modelTransport,
+    );
+    if (activeModelRequests.get(playerId) !== owner) return;
+    activeModelRequests.delete(playerId);
+    postToPlayer(playerId, "provider:models-result", {
+      requestId: message.requestId,
+      ok: true,
+      contextKey,
+      models,
+    });
+  } catch (error) {
+    const active = activeModelRequests.get(playerId);
+    if (owner && active !== owner) return;
+    if (active && active.requestId !== externalRequestId) return;
+    if (active?.requestId === externalRequestId) activeModelRequests.delete(playerId);
+    const safe = normalizeProviderError(error);
+    postToPlayer(playerId, "provider:models-result", {
+      requestId: externalRequestId,
+      ok: false,
+      contextKey,
+      category: safe.category,
+      retryable: safe.retryable,
+      ...(safe.statusCode === undefined ? {} : { statusCode: safe.statusCode }),
+      ...(safe.providerCode ? { code: safe.providerCode } : {}),
+      ...(safe.retryAfterMs === undefined ? {} : { retryAfterMs: safe.retryAfterMs }),
+      userAction: safe.userAction,
+    });
+  }
+});
+
 iina.global.onMessage("profile:create-revision", async (raw: unknown, playerId?: string) => {
   if (!playerId) return;
   try {
@@ -303,7 +513,10 @@ iina.global.onMessage("profile:create-revision", async (raw: unknown, playerId?:
     await Promise.all([
       broker.cancelProfile(profile.profileId),
       providerConnectionTests.cancelProfile(profile.profileId),
+      cancelProfileModelRequests(profile.profileId),
     ]);
+    clearProfileProviderCache(profile.profileId);
+    clearProfileModelCatalogs(profile.profileId);
     persistProfileMetadata();
     postToPlayer(playerId, "profile:revision-created", {
       requestId: requestId(raw),
@@ -331,10 +544,12 @@ iina.global.onMessage("profile:delete", async (raw: unknown, playerId?: string) 
       throw new Error("STALE_PROFILE_REVISION");
     await broker.cancelProfile(profileId);
     await providerConnectionTests.cancelProfile(profileId);
+    await cancelProfileModelRequests(profileId);
     await credentials.deleteSecret(profileId);
     const affectedPlayerIds = profiles.delete(profileId);
-    for (const key of [...providerCache.keys()])
-      if (key.startsWith(`${profileId}\u0000`)) providerCache.delete(key);
+    clearProfileProviderCache(profileId);
+    clearProfileModelCatalogs(profileId);
+    modelCredentialEpochs.delete(profileId);
     persistProfileMetadata();
     for (const target of new Set([playerId, ...affectedPlayerIds]))
       postToPlayer(target, "profile:deleted", {
@@ -359,7 +574,17 @@ iina.global.onMessage("credential:set", async (raw: unknown, playerId?: string) 
     if (!profile || profile.revision !== secret.expectedRevision)
       throw new Error("STALE_PROFILE_REVISION");
     await credentials.setSecret(secret.profileId, secret.fields);
-    providerCache.delete(`${secret.profileId}\u0000${secret.expectedRevision}`);
+    await Promise.all([
+      broker.cancelProfile(secret.profileId),
+      providerConnectionTests.cancelProfile(secret.profileId),
+      cancelProfileModelRequests(secret.profileId),
+    ]);
+    modelCredentialEpochs.set(
+      secret.profileId,
+      (modelCredentialEpochs.get(secret.profileId) ?? 0) + 1,
+    );
+    clearProfileProviderCache(secret.profileId);
+    clearProfileModelCatalogs(secret.profileId);
     postToPlayer(playerId, "credential:result", {
       requestId: requestId(raw),
       state: "ready",
@@ -475,3 +700,38 @@ iina.global.onMessage("profile:release", async (raw: unknown, playerId?: string)
   await providerConnectionTests.cancelPlayer(playerId);
   broker.release(playerId, String(values.profileId), Number(values.revision));
 });
+
+async function prefetchProfileModels(profile: ProviderProfileSnapshot): Promise<void> {
+  const credentialEpoch = modelCredentialEpochs.get(profile.profileId) ?? 0;
+  const contextKey = profileModelContextKey(profile);
+  let apiKey: string | undefined;
+  try {
+    const secret = await credentials.getSecret(profile.profileId);
+    apiKey = secret?.apiKey;
+  } catch {
+    apiKey = undefined;
+  }
+  const models = await discoverProviderModels(
+    {
+      jobId: `models-startup-${localUuid()}`,
+      kind: profile.kind,
+      endpoint: profile.endpoint,
+      ...(apiKey ? { apiKey } : {}),
+      proxyMode: profile.proxyMode ?? "system",
+    },
+    modelTransport,
+  );
+  const current = profiles.get(profile.profileId);
+  if (
+    !current ||
+    current.revision !== profile.revision ||
+    (modelCredentialEpochs.get(profile.profileId) ?? 0) !== credentialEpoch
+  )
+    return;
+  recordProfileModelCatalog(profile.profileId, contextKey, models);
+}
+
+setTimeout(() => {
+  for (const profile of profiles.listLatest())
+    void prefetchProfileModels(profile).catch(() => undefined);
+}, 0);

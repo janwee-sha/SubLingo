@@ -1,12 +1,7 @@
 {
-  "id": "chatcmpl-fixture",
-  "choices": [
-    {
-      "finish_reason": "stop",
-      "message": {
-        "content": "{\"translations\":[{\"id\":\"c1\",\"text\":\"你好，世界！\"}]}"
-      }
-    }
-  ],
-  "usage": { "prompt_tokens": 10, "completion_tokens": 8 }
+  "object": "list",
+  "data": [
+    { "id": "gpt-4.1-mini", "owned_by": "openai" },
+    { "id": "custom/model:v2", "owned_by": "another-owner" }
+  ]
 }

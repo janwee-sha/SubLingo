@@ -79,10 +79,11 @@ open build/package/SubLingo-X.Y.Z.iinaplgz
 
 - 插件读取当前选中的外部 SRT/ASS，或当前本地媒体中的内嵌 SubRip/ASS/SSA/`mov_text` 轨；正式包无需系统 `ffmpeg`/`ffprobe`。
 - `sublingo-subtitle-extractor` 逐窗口运行，只绑定 `127.0.0.1`，临时目录使用 `0700`、结果文件使用 `0600`，解析、取消、超时或退出后清理。远程媒体和图形字幕不会提取。
-- OpenAI-compatible 和 Ollama 请求由受限 Swift helper 发出；插件运行时只连接 helper 的 `127.0.0.1` 临时端口。
-- OpenAI-compatible 凭据由 helper 写入插件私有数据目录的 `credentials.json`；目录权限为 `0700`，文件权限为 `0600`。凭据不得进入 preferences、日志、诊断、进程参数或安装包。
+- OpenAI 和 Ollama 请求由受限 Swift helper 发出；插件运行时只连接 helper 的 `127.0.0.1` 临时端口。
+- OpenAI 和 Ollama 的可选凭据由 helper 写入插件私有数据目录的 `credentials.json`；目录权限为 `0700`，文件权限为 `0600`。凭据不得进入 preferences、日志、诊断、进程参数或安装包。
 - 翻译结果仅缓存在当前视频会话中。换片、播放结束或关窗时清理，不写入持久缓存。
-- OpenAI-compatible 与 Ollama 均可使用完整 HTTP(S) endpoint。每个 Profile 可选择 macOS 系统代理或明确直连。
+- OpenAI 与 Ollama 均可使用完整 HTTP(S) endpoint。OpenAI 继续支持兼容其 API 契约的自定义服务。每个 Profile 可选择 macOS 系统代理或明确直连。
+- 已配置或正在编辑的 endpoint 可在 Select 前接收不含字幕的模型目录请求；需要认证的新 Profile 仅在用户填写 API key 并手动刷新时临时使用该 Key，自动刷新不发送未保存 Key。只有用户明确 Select 的 Profile 才会接收用于翻译的字幕正文。
 - 原字幕和视频播放不得因翻译延迟或失败而暂停。
 
 详细设计和契约见当前 SDD 产物：

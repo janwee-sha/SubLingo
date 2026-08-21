@@ -12,9 +12,9 @@ describe("IINA package manifest", () => {
     expect(manifest.globalEntry).toBe("dist/global.js");
     expect(manifest).not.toHaveProperty("global");
     expect(manifest.permissions).toEqual(["network-request", "file-system", "show-alert"]);
-    expect(manifest.version).toBe("0.3.4");
+    expect(manifest.version).toBe("0.3.5");
     expect(manifest.ghRepo).toBe("janwee-sha/SubLingo");
-    expect(manifest.ghVersion).toBe(3004);
+    expect(manifest.ghVersion).toBe(3005);
   });
 
   it("describes self-rendered translations without temporary display files", () => {
@@ -34,6 +34,32 @@ describe("IINA package manifest", () => {
     expect(manifest.permissionDescriptions["file-system"]).not.toMatch(
       /translated subtitle data|translated subtitle file/i,
     );
+  });
+
+  it("discloses subtitle-free model discovery without widening permissions", () => {
+    const manifest = JSON.parse(rootFile("Info.json")) as {
+      permissions: string[];
+      allowedDomains: string[];
+      permissionDescriptions: Record<string, string>;
+    };
+    expect(manifest.permissions).toEqual(["network-request", "file-system", "show-alert"]);
+    expect(manifest.allowedDomains).toEqual(["127.0.0.1"]);
+    expect(manifest.permissionDescriptions["network-request"]).toMatch(
+      /edited endpoints.*subtitle-free model-list requests/i,
+    );
+    expect(manifest.permissionDescriptions["network-request"]).toMatch(
+      /selected profile receives subtitle text/i,
+    );
+  });
+
+  it("rejects runtime state and sensitive material from the package", () => {
+    const verify = rootFile("scripts/verify-package.sh");
+    const pack = rootFile("scripts/pack.sh");
+    expect(verify).toMatch(/credentials\.json/);
+    expect(verify).toMatch(/@data/);
+    expect(verify).toMatch(/@tmp/);
+    expect(pack).toMatch(/node_modules.*specs.*tests.*src.*@data.*@tmp/);
+    expect(pack).toMatch(/credentials\\\.json/);
   });
 
   it("locks the exact minimal FFmpeg source and component allowlist", () => {
