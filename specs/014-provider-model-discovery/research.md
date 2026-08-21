@@ -32,9 +32,9 @@
 
 ## 凭据授权与 Ollama 扩展
 
-- **决策**：刷新消息永不携带 API Key。只有请求中的 Profile ID、revision、kind、规范化 Endpoint、fingerprint 与网络路线全部匹配 Global 权威 Profile 时，Global 才从 helper 读取该 Profile 的密钥；新建或已修改但未保存的 Endpoint 只做匿名刷新。Ollama 复用现有 `apiKey` 字段和保存、替换、状态、删除生命周期，并在 `/api/version`、`/api/tags`、`/api/chat` 统一添加可选 Bearer。
-- **理由**：密钥继续沿 Sidebar 保存 → Main 转发 → Global → helper 的单向路径；草稿地址不能获得另一个已保存 Endpoint 的密钥。现有存储已经按 Profile 隔离且只向 Sidebar 返回 `credentialConfigured`。
-- **备选方案**：把表单密钥附在刷新消息上会增加敏感数据流；为 Ollama 建新存储或写入 preferences 会扩大安全和迁移范围；强制凭据会破坏无需认证的 Ollama。
+- **决策**：常规模型刷新消息永不携带 API Key；只有请求完整匹配 Global 权威 Profile 时才从 helper 读取已保存 Key。用户填写非空未保存 Key 并手动刷新时，Sidebar 改用独立严格的草稿刷新消息，Main 只校验并转发，Global 仅为该请求构造 Bearer，不保存、不回传、不写入目录缓存；自动刷新始终忽略未保存 Key。Ollama 复用现有 `apiKey` 保存生命周期，并在 `/api/version`、`/api/tags`、`/api/chat` 统一添加可选 Bearer。
+- **理由**：认证服务的 Model ID 只能在使用 Key 后发现，而完整 Profile 又必须先有 Model ID。一次性显式草稿请求解除首次创建闭环，同时保持持久 Profile 完整、已保存凭据只写且草稿地址不能获得其他 Profile 的 Key。
+- **备选方案**：允许无 Model ID 的持久 Profile 会扩大恢复、列表、Test 与 Select 状态；Global 临时配置事务需要额外 token 生命周期；把 Key 加入常规刷新消息会模糊已保存与草稿凭据边界。
 
 ## 凭据替换与旧 Provider
 

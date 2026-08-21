@@ -1,4 +1,8 @@
-import type { ProviderModelsRequestPayload, ProviderModelsResult } from "../../domain/messages.js";
+import type {
+  ProviderModelsPreviewRequestPayload,
+  ProviderModelsRequestPayload,
+  ProviderModelsResult,
+} from "../../domain/messages.js";
 
 type SidebarModelTrigger = "open" | "endpoint" | "profile" | "credential" | "manual";
 
@@ -6,6 +10,7 @@ interface BeginInput {
   requestId: string;
   contextToken: string;
   trigger: SidebarModelTrigger;
+  cacheResult?: boolean;
 }
 
 interface WindowCatalogState {
@@ -28,6 +33,17 @@ export function modelCatalogContextToken(input: ProviderModelsRequestPayload): s
           profileRevision: input.profileRevision,
           endpointFingerprint: input.endpointFingerprint,
         }),
+  });
+}
+
+export function modelCatalogPreviewContextToken(
+  input: ProviderModelsPreviewRequestPayload,
+): string {
+  return JSON.stringify({
+    kind: input.kind,
+    endpoint: input.endpoint,
+    proxyMode: input.proxyMode,
+    draftCredentialEpoch: input.draftCredentialEpoch,
   });
 }
 
@@ -66,7 +82,7 @@ export class ModelCatalogSync {
     if (!state.owner || state.owner.requestId !== result.requestId) return false;
     if (result.ok) {
       state.catalog = { contextKey: result.contextKey, models: [...result.models] };
-      state.catalogs.set(state.contextToken, state.catalog);
+      if (state.owner.cacheResult !== false) state.catalogs.set(state.contextToken, state.catalog);
     }
     state.owner = null;
     state.lastResult = result;

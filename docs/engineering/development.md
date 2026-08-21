@@ -83,7 +83,7 @@ open build/package/SubLingo-X.Y.Z.iinaplgz
 - OpenAI 和 Ollama 的可选凭据由 helper 写入插件私有数据目录的 `credentials.json`；目录权限为 `0700`，文件权限为 `0600`。凭据不得进入 preferences、日志、诊断、进程参数或安装包。
 - 翻译结果仅缓存在当前视频会话中。换片、播放结束或关窗时清理，不写入持久缓存。
 - OpenAI 与 Ollama 均可使用完整 HTTP(S) endpoint。OpenAI 继续支持兼容其 API 契约的自定义服务。每个 Profile 可选择 macOS 系统代理或明确直连。
-- 已配置或正在编辑的 endpoint 可在 Select 前接收不含字幕的模型目录请求；只有用户明确 Select 的 Profile 才会接收用于翻译的字幕正文。
+- 已配置或正在编辑的 endpoint 可在 Select 前接收不含字幕的模型目录请求；需要认证的新 Profile 仅在用户填写 API key 并手动刷新时临时使用该 Key，自动刷新不发送未保存 Key。只有用户明确 Select 的 Profile 才会接收用于翻译的字幕正文。
 - 原字幕和视频播放不得因翻译延迟或失败而暂停。
 
 详细设计和契约见当前 SDD 产物：

@@ -94,6 +94,7 @@ export const SIDEBAR_MESSAGE_NAMES = [
   "profile:delete-request",
   "provider:test",
   "provider:models",
+  "provider:models-preview",
   "translation:set-enabled",
   "subtitle:retry-preparation",
 ] as const;
@@ -137,6 +138,7 @@ export const GLOBAL_MESSAGE_NAMES = [
   "credential:set",
   "provider:test",
   "provider:models",
+  "provider:models-preview",
   "provider:attempt",
   "provider:cancel",
   "profile:release",
@@ -232,6 +234,17 @@ export interface ProviderModelsRequestPayload {
 
 export type ProviderModelsRequest = RpcEnvelope<ProviderModelsRequestPayload>;
 
+export interface ProviderModelsPreviewRequestPayload {
+  trigger: "manual";
+  kind: "openai" | "ollama";
+  endpoint: string;
+  proxyMode: "system" | "direct";
+  draftCredentialEpoch: number;
+  credential: { apiKey: string };
+}
+
+export type ProviderModelsPreviewRequest = RpcEnvelope<ProviderModelsPreviewRequestPayload>;
+
 export function parseProviderModelsRequest(value: unknown): ProviderModelsRequest {
   const envelope = parseEnvelope(value);
   const payload = envelope.payload as Record<string, unknown>;
@@ -263,6 +276,32 @@ export function parseProviderModelsRequest(value: unknown): ProviderModelsReques
   )
     throw new Error("INVALID_MESSAGE");
   return envelope as ProviderModelsRequest;
+}
+
+export function parseProviderModelsPreviewRequest(value: unknown): ProviderModelsPreviewRequest {
+  const envelope = parseEnvelope(value);
+  const payload = envelope.payload as Record<string, unknown>;
+  const credential = payload.credential as Record<string, unknown> | undefined;
+  if (
+    Object.keys(payload).sort().join(",") !==
+      "credential,draftCredentialEpoch,endpoint,kind,proxyMode,trigger" ||
+    payload.trigger !== "manual" ||
+    (payload.kind !== "openai" && payload.kind !== "ollama") ||
+    typeof payload.endpoint !== "string" ||
+    !payload.endpoint ||
+    (payload.proxyMode !== "system" && payload.proxyMode !== "direct") ||
+    !Number.isInteger(payload.draftCredentialEpoch) ||
+    (payload.draftCredentialEpoch as number) < 1 ||
+    !credential ||
+    typeof credential !== "object" ||
+    Array.isArray(credential) ||
+    Object.keys(credential).join(",") !== "apiKey" ||
+    typeof credential.apiKey !== "string" ||
+    !credential.apiKey.trim() ||
+    credential.apiKey.length > 8_192
+  )
+    throw new Error("INVALID_MESSAGE");
+  return envelope as ProviderModelsPreviewRequest;
 }
 
 export type ProviderModelsResult =

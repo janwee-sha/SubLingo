@@ -67,7 +67,7 @@ SubLingo 0.3.3부터 IINA에서 이후 버전을 확인하고 설치할 수 있�
 
 1. 로컬 영상을 열고 지원되는 내장 텍스트 자막 또는 외부 SRT/ASS를 IINA 주 자막으로 선택합니다.
 2. **Languages**에서 모국어를 선택합니다. IINA가 자막 언어를 식별하지 못하면 직접 확인한 뒤 언어 설정을 저장합니다.
-3. **Translation service**에서 OpenAI 또는 Ollama Profile을 만들고 반환된 모델을 선택하거나 정확한 사용자 지정 Model ID를 입력합니다.
+3. **Translation service**에서 OpenAI 또는 Ollama Profile을 만듭니다. 인증이 필요하면 API key를 입력한 뒤 모델 목록을 수동으로 새로 고칩니다. 반환된 모델을 선택하거나 정확한 사용자 지정 Model ID를 입력합니다.
 4. Profile을 저장하고 테스트한 다음 **Select**를 클릭합니다. Profile 선택은 화면에 표시된 endpoint로 재생 위치 주변의 자막 텍스트를 전송하도록 SubLingo에 명시적으로 허용하는 동작입니다.
 5. **Translate**를 켭니다. 원본 자막은 IINA에서 계속 표시되고 번역된 cue는 SubLingo의 상단 중앙 오버레이에 나타납니다.
 

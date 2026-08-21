@@ -67,7 +67,7 @@ SubLingo 0.3.3以降は、IINAで後続バージョンを確認してインス�
 
 1. ローカル動画を開き、対応する埋め込みテキスト字幕または外部SRT/ASSをIINAの主字幕として選択します。
 2. **Languages**で母語を選択します。IINAが字幕言語を識別できない場合は手動で確認し、言語設定を保存します。
-3. **Translation service**でOpenAIまたはOllamaのProfileを作成し、返されたモデルを選ぶか正確なカスタムModel IDを入力します。
+3. **Translation service**でOpenAIまたはOllamaのProfileを作成します。認証が必要な場合は、API keyを入力してからモデル一覧を手動で更新します。返されたモデルを選ぶか、正確なカスタムModel IDを入力します。
 4. Profileを保存してテストし、**Select**をクリックします。Profileを選択すると、表示されたendpointへ再生位置付近の字幕テキストを送信することをSubLingoに明示的に許可します。
 5. **Translate**をオンにします。元の字幕はIINAでそのまま表示され、翻訳されたcueはSubLingoの上部中央オーバーレイに表示されます。
 

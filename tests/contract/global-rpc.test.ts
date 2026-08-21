@@ -17,6 +17,23 @@ describe("authoritative global RPC routing", () => {
   it("allows model refresh across both runtime message boundaries", () => {
     expect(SIDEBAR_MESSAGE_NAMES).toContain("provider:models");
     expect(GLOBAL_MESSAGE_NAMES).toContain("provider:models");
+    expect(SIDEBAR_MESSAGE_NAMES).toContain("provider:models-preview");
+    expect(GLOBAL_MESSAGE_NAMES).toContain("provider:models-preview");
+  });
+
+  it("routes draft credentials only through the strict preview handler", () => {
+    const source = readFileSync(new URL("../../src/global.ts", import.meta.url), "utf8");
+    const start = source.indexOf('onMessage("provider:models-preview"');
+    const end = source.indexOf('onMessage("profile:create-revision"', start);
+    const handler = source.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    expect(handler).toContain("parseProviderModelsPreviewRequest");
+    expect(handler).toContain("values.credential.apiKey");
+    expect(handler).toContain("discoverProviderModels");
+    expect(handler).not.toContain("modelCatalogs.set");
+    expect(handler).not.toContain("setSecret");
+    expect(handler).not.toContain("persistProfileMetadata");
   });
   it("routes provider model requests in the host window scope", async () => {
     const replies: Array<{ playerId: string; name: string; data: unknown }> = [];

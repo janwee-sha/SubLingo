@@ -174,6 +174,18 @@
 
 ---
 
+## 阶段 11：认证 Profile 首次模型发现收敛
+
+**目的**：解除新建认证 Profile 在保存 Key 与选择 Model ID 之间的逻辑闭环，同时保持完整 Profile、只写凭据与目录隔离边界。
+
+- [X] T053 [P] [US1] [US3] 为独立草稿凭据刷新消息、仅手动触发、字段严格性、Key 长度与安全结果补充失败优先契约及安全测试，修改 `tests/contract/ui-messages.test.ts`、`tests/contract/global-rpc.test.ts` 与 `tests/security/credential-leakage.test.ts`
+- [X] T054 [P] [US1] [US3] 为草稿 Key 代次失效、当前窗口目录隔离、空 Model ID Save 本地阻止及可操作反馈补充失败优先状态与 Sidebar 契约测试，修改 `tests/unit/model-catalog-sync.test.ts`、`tests/contract/sidebar-form.test.ts` 与 `tests/contract/sidebar-lifecycle.test.ts`
+- [X] T055 [US1] [US3] 实现严格 `provider:models-preview` 消息、逐窗口 owner 转发与 Global 一次性 Bearer 模型发现，修改 `src/domain/messages.ts`、`src/adapters/iina/model-catalog-sync.ts`、`src/main.ts` 与 `src/global.ts`
+- [X] T056 [US1] [US3] 实现 API Key 输入代次、手动草稿刷新、自动刷新凭据隔离、空 Model ID 保存引导、凭据来源反馈与当前用户说明，修改 `ui/sidebar.ts`、`ui/sidebar.html`、`ui/provider-status.ts`、`README.md`、`docs/readme/README.*.md` 与 `docs/engineering/development.md`
+- [X] T057 运行新增与 014 聚焦回归，再严格执行完整门禁、重新打包并保留 T038 为待人工验收
+
+---
+
 ## 依赖与执行顺序
 
 ### 阶段依赖

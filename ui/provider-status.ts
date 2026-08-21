@@ -18,6 +18,7 @@ interface ModelCatalogStatus {
   count?: number;
   category?: string;
   statusCode?: number;
+  credentialSource?: "saved" | "entered" | "none";
 }
 
 interface CredentialStatus {
@@ -83,7 +84,13 @@ function modelCatalogStatusMessage(result: ModelCatalogStatus): string {
     return result.count === 0
       ? "No models were returned. Custom model ID remains available."
       : "Model list refreshed.";
-  if (result.category === "authentication") return "Model refresh failed. Check the saved API key.";
+  if (result.category === "authentication") {
+    if (result.credentialSource === "entered")
+      return "Model refresh failed. Check the entered API key.";
+    if (result.credentialSource === "saved")
+      return "Model refresh failed. Check the saved API key.";
+    return "Model refresh failed. Enter an API key and refresh again.";
+  }
   if (result.category === "timeout") return "Model refresh timed out. Try again.";
   if (typeof result.statusCode === "number")
     return `Model refresh failed with HTTP ${result.statusCode}. Check the endpoint.`;

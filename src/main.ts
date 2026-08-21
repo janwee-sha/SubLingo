@@ -17,13 +17,18 @@ import { SubtitlePreparationCoordinator } from "./app/subtitle-preparation.js";
 import { LanguageDetectionCoordinator } from "./app/language-detection.js";
 import {
   parseProviderModelsRequest,
+  parseProviderModelsPreviewRequest,
   parseProviderModelsResult,
   parseRetrySubtitlePreparation,
   parseLanguageOperationError,
   parseTargetLanguageSave,
   parseTargetLanguageSaved,
 } from "./domain/messages.js";
-import { ModelCatalogSync, modelCatalogContextToken } from "./adapters/iina/model-catalog-sync.js";
+import {
+  ModelCatalogSync,
+  modelCatalogContextToken,
+  modelCatalogPreviewContextToken,
+} from "./adapters/iina/model-catalog-sync.js";
 import { TARGET_LANGUAGES } from "./domain/target-languages.js";
 import { TargetLanguagePreferences } from "./adapters/iina/target-language-preferences.js";
 import { TargetLanguageSession } from "./app/target-language-session.js";
@@ -487,6 +492,24 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
         trigger: message.payload.trigger,
       });
       if (started.forwarded) runtime.global.postMessage("provider:models", message);
+    } catch {
+      queueSidebarMessage("operation:error", {
+        requestId: (raw as { requestId?: unknown })?.requestId,
+        code: "INVALID_MESSAGE",
+        userAction: "NONE",
+      });
+    }
+  });
+  runtime.sidebar.onMessage("provider:models-preview", (raw: unknown) => {
+    try {
+      const message = parseProviderModelsPreviewRequest(raw);
+      const started = modelCatalogSync.begin(playerId, {
+        requestId: message.requestId,
+        contextToken: modelCatalogPreviewContextToken(message.payload),
+        trigger: message.payload.trigger,
+        cacheResult: false,
+      });
+      if (started.forwarded) runtime.global.postMessage("provider:models-preview", message);
     } catch {
       queueSidebarMessage("operation:error", {
         requestId: (raw as { requestId?: unknown })?.requestId,

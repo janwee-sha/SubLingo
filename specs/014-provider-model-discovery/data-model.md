@@ -29,6 +29,18 @@
 
 成功替换后取消该 Profile 的活动发现、Test 与翻译任务，清除全部 revision Provider cache 和旧目录；保存失败保持旧 epoch 与旧凭据权威。
 
+## 草稿凭据刷新
+
+仅存在于一次手动模型刷新生命周期，不属于 Provider Profile 或凭据存储。
+
+| 字段 | 约束 |
+| --- | --- |
+| `apiKey` | Sidebar 当前非空输入；最长 8192 字符，只可进入严格草稿请求与本次出站 Bearer。 |
+| `draftCredentialEpoch` | 当前窗口内从 1 单调递增；输入 Key 变化即递增，用于使旧结果失效，不含 Key 派生材料。 |
+| `requestId` | 当前窗口最新手动请求；结果只可由同一 owner 接收。 |
+
+草稿 Key 不持久化、不回显、不进入上下文摘要或模型目录缓存。草稿刷新成功只更新当前 Sidebar 的已知模型；保存完整 Profile 后仍由既有 revision 与凭据流程建立权威状态。
+
 ## 模型发现上下文
 
 一次目录请求的不可变身份。
@@ -44,7 +56,7 @@
 | `proxyMode` | `system` 或 `direct`。 |
 | `profileId` / `profileRevision` | 可选；只有与权威快照完全匹配时才授权读取凭据。 |
 | `credentialEpoch` | Global 内部值；草稿匿名上下文为 0。 |
-| `contextKey` | 上述非敏感上下文字段的摘要；不包含 Model ID、API Key、字幕或播放状态。 |
+| `contextKey` | 上述非敏感上下文字段的摘要；草稿请求可加入窗口、request ID 与 `draftCredentialEpoch`，但不包含 Model ID、API Key、字幕或播放状态。 |
 
 身份规则：Service type、Endpoint、网络路线、Profile、revision、凭据 epoch 或窗口请求所有权任一变化都会使旧操作失效。草稿上下文即使来自正在编辑的已保存 Profile，只要与权威快照不完全相同，也不得携带已保存凭据。
 

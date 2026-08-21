@@ -4,7 +4,7 @@
 
 ## 摘要
 
-为 OpenAI 与 Ollama 增加独立于翻译 Provider 的运行期模型发现层：Global 通过现有 native transport 请求当前 Endpoint，按权威 Profile 上下文读取可选凭据，保存最近一次成功目录，并用请求身份、完整上下文与凭据代次拒绝迟到结果；Main 只转发逐窗口消息并隔离窗口状态，Sidebar 以带自定义项的 Model ID 下拉控件、400 毫秒 Endpoint 防抖和手动刷新呈现目录。Ollama 沿用现有只写 `apiKey` 存储并让发现、Test 与翻译统一携带可选 Bearer，同时按 Endpoint 能力在 JSON Schema 与严格 prompt-only JSON 间选择。Profile 创建结果立即更新窗口列表，凭据刷新取代保存前请求。用户可见名称改为 OpenAI，同时保留内部 `kind: "openai"`、既有 Profile 数据和自定义 API Root 语义。
+为 OpenAI 与 Ollama 增加独立于翻译 Provider 的运行期模型发现层：Global 通过现有 native transport 请求当前 Endpoint，按权威 Profile 上下文读取可选凭据，保存最近一次成功目录，并用请求身份、完整上下文与凭据代次拒绝迟到结果；新建认证 Profile 可由用户手动发起一次性草稿凭据刷新，Key 只用于该请求且不持久化、回传或进入目录缓存。Main 只转发逐窗口消息并隔离窗口状态，Sidebar 以带自定义项的 Model ID 下拉控件、400 毫秒 Endpoint 防抖和手动刷新呈现目录。Ollama 沿用现有只写 `apiKey` 存储并让发现、Test 与翻译统一携带可选 Bearer，同时按 Endpoint 能力在 JSON Schema 与严格 prompt-only JSON 间选择。Profile 创建结果立即更新窗口列表，凭据刷新取代保存前请求。用户可见名称改为 OpenAI，同时保留内部 `kind: "openai"`、既有 Profile 数据和自定义 API Root 语义。
 
 ## 技术上下文
 
@@ -15,7 +15,7 @@
 - **目标平台**：macOS 12+，arm64 与 x86_64，IINA 1.4+；正式宿主验收使用 IINA 1.4.4。
 - **项目类型**：包含 Global、逐窗口 Main、Sidebar WebView、native helper 与发布自动化的 IINA 桌面插件。
 - **性能目标**：服务在 3 秒内返回时，至少 95% 的刷新在触发后 5 秒内呈现；目录解析与去重为响应条目数的线性操作；刷新不得阻塞播放、打开 Sidebar 或翻译调度。
-- **约束**：OpenAI 请求 `{API Root}/models` 并读取 `data[].id`；Ollama 请求 `{server root}/api/tags` 并读取每项 `model`、缺失时回退 `name`；仅 trim、过滤空值、按精确大小写首次出现顺序去重。请求沿 Profile 的 system/direct 路线，凭据只由 Global 从 helper 读取，草稿 Endpoint 不接收已保存凭据；模型请求不含字幕、译文或播放状态。自动刷新改变了 Select 前的网络副作用，必须同步更新 manifest 与用户文档披露，但不扩大权限或 `allowedDomains`。生产代码不新增注释且自然语言使用英语。
+- **约束**：OpenAI 请求 `{API Root}/models` 并读取 `data[].id`；Ollama 请求 `{server root}/api/tags` 并读取每项 `model`、缺失时回退 `name`；仅 trim、过滤空值、按精确大小写首次出现顺序去重。请求沿当前 system/direct 路线，常规刷新凭据只由 Global 从 helper 读取；非空未保存 Key 只可由用户手动触发的严格草稿请求使用一次。模型请求不含字幕、译文或播放状态。自动刷新改变了 Select 前的网络副作用，必须同步更新 manifest 与用户文档披露，但不扩大权限或 `allowedDomains`。生产代码不新增注释且自然语言使用英语。
 - **规模与范围**：两个既有 Service type、一个运行期模型目录协调器、一个 Sidebar 模型区域、四类刷新触发、现有逐 Profile 凭据存储和多窗口消息链；不增加 Provider 类型、模型管理能力、持久目录或 native 协议。
 
 ## 宪法检查

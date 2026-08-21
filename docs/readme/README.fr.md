@@ -67,7 +67,7 @@ Avec l'une ou l'autre méthode, approuvez les autorisations demandées si IINA l
 
 1. Ouvrez une vidéo locale et sélectionnez dans IINA une piste texte intégrée prise en charge ou un SRT/ASS externe comme sous-titre principal.
 2. Dans **Languages**, sélectionnez votre langue maternelle. Si IINA ne peut pas identifier la langue du sous-titre, confirmez-la manuellement, puis enregistrez les réglages.
-3. Dans **Translation service**, créez un Profile OpenAI ou Ollama, puis choisissez un modèle retourné ou saisissez un Model ID personnalisé exact.
+3. Dans **Translation service**, créez un Profile OpenAI ou Ollama. Si le service exige une authentification, saisissez son API key avant d'actualiser manuellement la liste des modèles. Choisissez ensuite un modèle retourné ou saisissez un Model ID personnalisé exact.
 4. Enregistrez et testez le Profile, puis cliquez sur **Select**. La sélection autorise explicitement SubLingo à envoyer le texte des sous-titres proches à l'endpoint affiché.
 5. Activez **Translate**. Le sous-titre d'origine reste affiché par IINA et les cue traduits apparaissent dans la surcouche de SubLingo, en haut au centre.
 

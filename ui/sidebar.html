@@ -117,9 +117,11 @@
             autocomplete="new-password"
             placeholder="Not shown after saving"
             aria-describedby="credential-hint"
+            maxlength="8192"
           />
           <small id="credential-hint"
-            >Write-only; optional when the service is unauthenticated.</small
+            >Write-only; optional when unauthenticated. Enter a key and refresh models before saving
+            a protected service.</small
           >
         </label>
         <div class="form-actions">

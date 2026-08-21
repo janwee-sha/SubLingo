@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { diagnostic } from "../../src/domain/logging.js";
 import { parseProviderModelsResult, sanitizedProfileView } from "../../src/domain/messages.js";
+import { readFileSync } from "node:fs";
 import { SubtitlePreparationCoordinator } from "../../src/app/subtitle-preparation.js";
 import { SubtitleExtractorError } from "../../src/adapters/iina/subtitle-extractor.js";
 import { detectSubtitleLanguage } from "../../src/subtitles/language-detection.js";
@@ -22,6 +23,30 @@ describe("credential and content leakage boundaries", () => {
         }),
       ).toThrow("INVALID_MESSAGE");
     }
+  });
+
+  it("keeps draft credentials out of reusable model contexts and result messages", () => {
+    const mainSource = readFileSync(new URL("../../src/main.ts", import.meta.url), "utf8");
+    const catalogSource = readFileSync(
+      new URL("../../src/adapters/iina/model-catalog-sync.ts", import.meta.url),
+      "utf8",
+    );
+    const previewTokenStart = catalogSource.indexOf("modelCatalogPreviewContextToken");
+    const previewTokenEnd = catalogSource.indexOf(
+      "export class ModelCatalogSync",
+      previewTokenStart,
+    );
+    const previewTokenSource = catalogSource.slice(previewTokenStart, previewTokenEnd);
+    const mainStart = mainSource.indexOf('onMessage("provider:models-preview"');
+    const mainEnd = mainSource.indexOf('onMessage("profile:delete-request"', mainStart);
+    const mainHandler = mainSource.slice(mainStart, mainEnd);
+
+    expect(previewTokenStart).toBeGreaterThan(-1);
+    expect(previewTokenSource).toContain("draftCredentialEpoch");
+    expect(previewTokenSource).not.toContain("apiKey");
+    expect(mainHandler).toContain("parseProviderModelsPreviewRequest");
+    expect(mainHandler).toContain("cacheResult: false");
+    expect(mainHandler).not.toContain("raw,");
   });
 
   it("keeps credentials, local paths, loopback tokens, auth headers and bodies out of views/diagnostics", () => {

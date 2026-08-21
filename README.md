@@ -68,7 +68,7 @@ After either method, approve the requested plugin permissions if prompted, make 
 
 1. Load a local video and select a supported embedded text subtitle or external SRT/ASS subtitle as the primary subtitle in IINA.
 2. Under **Languages**, select your mother language. Confirm the subtitle language if IINA cannot identify it, then save the language settings.
-3. Under **Translation service**, create an OpenAI or Ollama profile. Refresh and select a model returned by the endpoint, or enter an exact custom Model ID.
+3. Under **Translation service**, create an OpenAI or Ollama profile. If the service requires authentication, enter its API key before manually refreshing the model list. Select a returned model, or enter an exact custom Model ID.
 4. Save and test the profile, then click **Select**. Selecting a profile explicitly authorizes SubLingo to send nearby subtitle text to the displayed endpoint.
 5. Turn on **Translate**. The original subtitle remains selected in IINA; translated cues appear in SubLingo's top-center overlay.
 

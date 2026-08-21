@@ -39,6 +39,19 @@ describe("IINA sidebar bundle contract", () => {
     expect(sidebarSource).toContain(
       'document.querySelector<HTMLElement>("#credential-row")!.hidden = false',
     );
+    expect(html).toContain('maxlength="8192"');
+    expect(html).toMatch(/credential-hint[\s\S]*refresh/i);
+  });
+
+  it("uses entered credentials only for manual model preview and blocks empty-model saves", () => {
+    expect(sidebarSource).toContain('"provider:models-preview"');
+    expect(sidebarSource).toContain('trigger === "manual"');
+    expect(sidebarSource).toContain("draftCredentialEpoch");
+    expect(sidebarSource).toContain("Refresh models and choose one, or enter a custom model ID.");
+    const saveStart = sidebarSource.indexOf('saveProfileButton.addEventListener("click"');
+    const saveEnd = sidebarSource.indexOf('newProfileButton.addEventListener("click"', saveStart);
+    const saveHandler = sidebarSource.slice(saveStart, saveEnd);
+    expect(saveHandler.indexOf("if (!model)")).toBeLessThan(saveHandler.indexOf("beginOperation("));
   });
 
   it("uses the visible Service type as the savable default without a generic fallback", () => {

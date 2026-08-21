@@ -38,6 +38,8 @@ npm run test:native
 - Ollama 的 version、tags、chat 在有 Key 时使用同一 Bearer，无 Key 时不发送 Authorization；凭据替换和删除清理旧任务与 cache。
 - Ollama Test 与翻译不发送 `think`；支持 JSON Schema 的 Endpoint 使用结构化输出，不支持该能力的远程原生 API 使用 prompt-only JSON，并仍拒绝额外自然语言或错误 ID。
 - 新建带凭据 Profile 后立即显示 Profile 行；凭据触发的模型刷新取代保存前已取消请求并最终结束 busy。
+- 新建认证 Profile 可在保存前填写 Key 并手动刷新模型；自动刷新不发送该输入，草稿结果不跨 Key 代次、请求或窗口复用，选择模型后完整 Profile 与凭据才进入既有保存流程。
+- Model ID 为空时 Save 在 Sidebar 本地停止，并提示刷新选择模型或输入 Custom Model ID，不创建半成品 Profile。
 - 刷新消息、Profile view、反馈、日志、preferences 和包不含 API Key、Authorization、原始响应、完整 Endpoint、字幕、译文或播放位置。
 - 刷新不修改 Model ID、不 Select、不创建 lease、不授权或触发翻译。
 

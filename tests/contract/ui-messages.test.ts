@@ -11,6 +11,7 @@ import {
   parseLanguageOperationError,
   parseLanguageOperationResult,
   parseProviderModelsRequest,
+  parseProviderModelsPreviewRequest,
   parseProviderModelsResult,
   sanitizedProfileView,
 } from "../../src/domain/messages.js";
@@ -37,6 +38,15 @@ const credentialStatusMessage = (
     }): string;
   }
 ).sublingoCredentialStatusMessage;
+const modelCatalogStatusMessage = (
+  globalThis as typeof globalThis & {
+    sublingoModelCatalogStatusMessage(result: {
+      ok?: boolean;
+      category?: string;
+      credentialSource?: "saved" | "entered" | "none";
+    }): string;
+  }
+).sublingoModelCatalogStatusMessage;
 
 describe("Sidebar/Main/Global security messages", () => {
   const sidebarSource = readFileSync(new URL("../../ui/sidebar.ts", import.meta.url), "utf8");
@@ -164,6 +174,30 @@ describe("Sidebar/Main/Global security messages", () => {
         providerKind: "openai",
       }),
     ).toMatch(/OpenAI.*chat-completions/i);
+  });
+
+  it("distinguishes entered, saved and absent credentials in model refresh guidance", () => {
+    expect(
+      modelCatalogStatusMessage({
+        ok: false,
+        category: "authentication",
+        credentialSource: "entered",
+      }),
+    ).toMatch(/entered API key/i);
+    expect(
+      modelCatalogStatusMessage({
+        ok: false,
+        category: "authentication",
+        credentialSource: "saved",
+      }),
+    ).toMatch(/saved API key/i);
+    expect(
+      modelCatalogStatusMessage({
+        ok: false,
+        category: "authentication",
+        credentialSource: "none",
+      }),
+    ).toMatch(/enter an API key/i);
   });
 
   it("uses exact translation-selection guidance without authorization wording", () => {
@@ -304,6 +338,37 @@ describe("Sidebar/Main/Global security messages", () => {
         payload: { ...message.payload, profileRevision: undefined },
       }),
     ).toThrow(/INVALID_MESSAGE/);
+  });
+
+  it("accepts a write-only draft credential only in the manual preview message", () => {
+    const message = {
+      requestId: "models.preview.window-a.1",
+      revision: 2,
+      payload: {
+        trigger: "manual",
+        kind: "openai",
+        endpoint: "https://models.example.test/v1",
+        proxyMode: "system",
+        draftCredentialEpoch: 3,
+        credential: { apiKey: "draft-secret" },
+      },
+    };
+    expect(parseProviderModelsPreviewRequest(message)).toEqual(message);
+    expect(SIDEBAR_MESSAGE_NAMES).toContain("provider:models-preview");
+    expect(GLOBAL_MESSAGE_NAMES).toContain("provider:models-preview");
+    expect(() => parseProviderModelsRequest(message)).toThrow(/INVALID_MESSAGE/);
+    for (const invalid of [
+      { ...message.payload, trigger: "endpoint" },
+      { ...message.payload, profileId: profile.profileId },
+      { ...message.payload, model: "must-not-cross" },
+      { ...message.payload, subtitle: "must-not-cross" },
+      { ...message.payload, credential: { apiKey: "" } },
+      { ...message.payload, credential: { apiKey: "x".repeat(8_193) } },
+      { ...message.payload, credential: { apiKey: "draft-secret", token: "extra" } },
+    ])
+      expect(() => parseProviderModelsPreviewRequest({ ...message, payload: invalid })).toThrow(
+        /INVALID_MESSAGE/,
+      );
   });
 
   it("accepts only safe model refresh results", () => {

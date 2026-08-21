@@ -2,6 +2,7 @@ import { identityHash, sha256Hex } from "./domain/identity.js";
 import { normalizeProviderError } from "./domain/errors.js";
 import {
   parseProfileSelection,
+  parseProviderModelsPreviewRequest,
   parseProviderModelsRequest,
   parseSecretSet,
   parseTargetLanguageSave,
@@ -405,6 +406,67 @@ iina.global.onMessage("provider:models", async (raw: unknown, playerId?: string)
     activeModelRequests.delete(playerId);
     if (authorized && profile) recordProfileModelCatalog(profile.profileId, contextKey, models);
     else modelCatalogs.set(contextKey, models);
+    postToPlayer(playerId, "provider:models-result", {
+      requestId: message.requestId,
+      ok: true,
+      contextKey,
+      models,
+    });
+  } catch (error) {
+    const active = activeModelRequests.get(playerId);
+    if (owner && active !== owner) return;
+    if (active && active.requestId !== externalRequestId) return;
+    if (active?.requestId === externalRequestId) activeModelRequests.delete(playerId);
+    const safe = normalizeProviderError(error);
+    postToPlayer(playerId, "provider:models-result", {
+      requestId: externalRequestId,
+      ok: false,
+      contextKey,
+      category: safe.category,
+      retryable: safe.retryable,
+      ...(safe.statusCode === undefined ? {} : { statusCode: safe.statusCode }),
+      ...(safe.providerCode ? { code: safe.providerCode } : {}),
+      ...(safe.retryAfterMs === undefined ? {} : { retryAfterMs: safe.retryAfterMs }),
+      userAction: safe.userAction,
+    });
+  }
+});
+
+iina.global.onMessage("provider:models-preview", async (raw: unknown, playerId?: string) => {
+  if (!playerId) return;
+  let externalRequestId = requestId(raw);
+  let contextKey = "invalid";
+  let owner: { requestId: string; jobId: string } | null = null;
+  try {
+    const message = parseProviderModelsPreviewRequest(raw);
+    externalRequestId = message.requestId;
+    const values = message.payload;
+    const endpoint = normalizeProviderEndpoint(values.kind, values.endpoint);
+    contextKey = identityHash({
+      playerId,
+      requestId: message.requestId,
+      kind: values.kind,
+      endpoint,
+      proxyMode: values.proxyMode,
+      draftCredentialEpoch: values.draftCredentialEpoch,
+    });
+    const previous = activeModelRequests.get(playerId);
+    if (previous) await modelTransport.cancel?.(previous.jobId);
+    const jobId = `models-${localUuid()}`;
+    owner = { requestId: message.requestId, jobId };
+    activeModelRequests.set(playerId, owner);
+    const models = await discoverProviderModels(
+      {
+        jobId,
+        kind: values.kind,
+        endpoint,
+        apiKey: values.credential.apiKey,
+        proxyMode: values.proxyMode,
+      },
+      modelTransport,
+    );
+    if (activeModelRequests.get(playerId) !== owner) return;
+    activeModelRequests.delete(playerId);
     postToPlayer(playerId, "provider:models-result", {
       requestId: message.requestId,
       ok: true,

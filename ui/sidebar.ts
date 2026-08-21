@@ -149,8 +149,13 @@ let pendingLanguageSaveRequestId: string | null = null;
 let renderedLanguageCatalogSignature = "";
 let subtitleRetryAvailable = false;
 let endpointRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingModelRefresh: { requestId: string; contextSignature: string; trigger: string } | null =
-  null;
+let draftCredentialEpoch = 1;
+let pendingModelRefresh: {
+  requestId: string;
+  contextSignature: string;
+  trigger: string;
+  credentialSource: "saved" | "entered" | "none";
+} | null = null;
 
 function nextRequestId(): string {
   requestSequence += 1;
@@ -334,6 +339,7 @@ function modelContextKey(): string {
     proxyMode: providerProxyMode.value,
     profileId: editingProfile?.profileId ?? null,
     profileRevision: editingProfile?.revision ?? null,
+    draftCredentialEpoch,
   });
 }
 
@@ -386,8 +392,40 @@ function requestModels(trigger: "open" | "endpoint" | "profile" | "credential" |
   )
     return;
   const requestId = nextRequestId();
-  pendingModelRefresh = { requestId, contextSignature, trigger };
+  const enteredApiKey = providerKey.value;
+  const usesDraftCredential = trigger === "manual" && Boolean(enteredApiKey.trim());
+  const matchesSaved =
+    editingProfile?.kind === providerKind.value &&
+    editingProfile.endpoint === providerEndpoint.value.trim() &&
+    editingProfile.proxyMode === providerProxyMode.value;
+  pendingModelRefresh = {
+    requestId,
+    contextSignature,
+    trigger,
+    credentialSource: usesDraftCredential
+      ? "entered"
+      : matchesSaved && editingProfile?.credentialConfigured
+        ? "saved"
+        : "none",
+  };
   setModelRefreshFeedback("busy", "Refreshing models…");
+  if (usesDraftCredential) {
+    window.iina?.postMessage(
+      "provider:models-preview",
+      envelope(
+        {
+          trigger: "manual",
+          kind: providerKind.value,
+          endpoint: providerEndpoint.value.trim(),
+          proxyMode: providerProxyMode.value,
+          draftCredentialEpoch,
+          credential: { apiKey: enteredApiKey },
+        },
+        requestId,
+      ),
+    );
+    return;
+  }
   window.iina?.postMessage("provider:models", envelope(modelRefreshPayload(trigger), requestId));
 }
 
@@ -471,6 +509,8 @@ function applyProviderKind(): void {
 
 providerKind.addEventListener("change", () => {
   saveActiveDraft();
+  draftCredentialEpoch += 1;
+  providerKey.value = "";
   applyProviderKind();
   requestModels("profile");
 });
@@ -492,12 +532,20 @@ providerModelSelect.addEventListener("change", () => {
 providerModel.addEventListener("input", () => {
   sidebarState.inputCustomModelValue(providerModel.value);
 });
+providerKey.addEventListener("input", () => {
+  draftCredentialEpoch += 1;
+  pendingModelRefresh = null;
+  setModelContext(sidebarState.snapshot.modelControl.value);
+  setModelRefreshFeedback("idle");
+});
 profileName.addEventListener("input", () => {
   sidebarState.inputProfileName(profileName.value);
 });
 
 function loadEditor(profile: ProfileView): void {
   editingProfile = profile;
+  draftCredentialEpoch += 1;
+  providerKey.value = "";
   sidebarState.setProfileContext({
     editingProfileId: profile.profileId,
     credentialDisplayProfileId: profile.profileId,
@@ -514,7 +562,6 @@ function loadEditor(profile: ProfileView): void {
   applyProviderKind();
   setModelContext(profile.model ?? "", profile.modelCatalog);
   requestModels("profile");
-  providerKey.value = "";
   providerKey.placeholder = profile.credentialConfigured
     ? "Leave blank to keep saved key"
     : "Not shown after saving";
@@ -524,11 +571,12 @@ function loadEditor(profile: ProfileView): void {
 
 function resetEditor(): void {
   editingProfile = null;
+  draftCredentialEpoch += 1;
+  providerKey.value = "";
   sidebarState.setProfileContext({ editingProfileId: null, credentialDisplayProfileId: null });
   sidebarState.resetProfileName(selectedServiceTypeLabel());
   profileName.value = sidebarState.snapshot.profileName.value;
   providerProxyMode.value = "system";
-  providerKey.value = "";
   providerKey.placeholder = "Not shown after saving";
   saveProfileButton.textContent = "Save profile";
   newProfileButton.hidden = true;
@@ -568,6 +616,12 @@ retrySubtitleButton.addEventListener("click", () => {
 });
 
 saveProfileButton.addEventListener("click", () => {
+  const model = sidebarState.snapshot.modelControl.value.trim();
+  if (!model) {
+    setModelRefreshFeedback("error", "Refresh models and choose one, or enter a custom model ID.");
+    providerModel.focus();
+    return;
+  }
   const requestId = beginOperation(
     "profile-editor",
     "save-profile",
@@ -588,7 +642,7 @@ saveProfileButton.addEventListener("click", () => {
         kind: providerKind.value,
         endpoint: providerEndpoint.value.trim(),
         proxyMode: providerProxyMode.value,
-        model: sidebarState.snapshot.modelControl.value.trim() || undefined,
+        model,
       },
       requestId,
     ),
@@ -781,6 +835,7 @@ window.iina?.onMessage("provider:models-result", (raw: unknown) => {
     typeof result.ok !== "boolean"
   )
     return;
+  const credentialSource = pendingModelRefresh.credentialSource;
   pendingModelRefresh = null;
   if (result.ok) {
     if (!Array.isArray(result.models) || result.models.some((model) => typeof model !== "string")) {
@@ -801,6 +856,7 @@ window.iina?.onMessage("provider:models-result", (raw: unknown) => {
     ok: false,
     ...(typeof result.category === "string" ? { category: result.category } : {}),
     ...(typeof result.statusCode === "number" ? { statusCode: result.statusCode } : {}),
+    credentialSource,
   });
   setModelRefreshFeedback("error", message);
 });

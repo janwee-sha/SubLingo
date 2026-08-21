@@ -23,6 +23,13 @@ describe("IINA sidebar lifecycle contract", () => {
     expect(sidebarSource).toContain("pendingModelRefresh");
   });
 
+  it("invalidates draft model work when the entered credential changes", () => {
+    expect(sidebarSource).toContain('providerKey.addEventListener("input"');
+    expect(sidebarSource).toContain("draftCredentialEpoch += 1");
+    expect(sidebarSource).toContain('trigger === "manual"');
+    expect(sidebarSource).toContain('"provider:models-preview"');
+  });
+
   it("does not reinterpret repeated ui:ready as a model refresh", () => {
     const readyStart = mainSource.indexOf('runtime.sidebar.onMessage("ui:ready"');
     const readyEnd = mainSource.indexOf('runtime.sidebar.onMessage("ui:poll"', readyStart);

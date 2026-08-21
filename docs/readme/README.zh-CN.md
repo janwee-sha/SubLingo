@@ -67,7 +67,7 @@ SubLingo 不会下载或启动翻译模型。
 
 1. 打开本地视频，并在 IINA 中选择受支持的内嵌文本字幕或外部 SRT/ASS 作为主字幕。
 2. 在 **Languages** 中选择母语。如果 IINA 无法识别字幕语言，请手动确认，然后保存语言设置。
-3. 在 **Translation service** 中创建 OpenAI 或 Ollama Profile，刷新并选择 endpoint 返回的模型，或填写准确的自定义 Model ID。
+3. 在 **Translation service** 中创建 OpenAI 或 Ollama Profile。服务需要认证时，先填写 API key，再手动刷新模型列表；选择返回的模型，或填写准确的自定义 Model ID。
 4. 保存并测试 Profile，然后点击 **Select**。选择 Profile 即明确授权 SubLingo 向界面显示的 endpoint 发送播放位置附近的字幕文字。
 5. 打开 **Translate**。原字幕仍由 IINA 正常显示，译文会出现在 SubLingo 的顶部居中覆盖层中。
 

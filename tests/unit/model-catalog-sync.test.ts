@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ModelCatalogSync,
   modelCatalogContextToken,
+  modelCatalogPreviewContextToken,
 } from "../../src/adapters/iina/model-catalog-sync.js";
 
 describe("per-window model catalog synchronization", () => {
@@ -20,6 +21,22 @@ describe("per-window model catalog synchronization", () => {
     expect(modelCatalogContextToken({ ...base, trigger: "profile" })).not.toBe(
       modelCatalogContextToken({ ...base, trigger: "profile", profileRevision: 2 }),
     );
+  });
+
+  it("isolates draft credential epochs without accepting credential material", () => {
+    const base = {
+      trigger: "manual" as const,
+      kind: "openai" as const,
+      endpoint: "https://example.test/v1",
+      proxyMode: "system" as const,
+      draftCredentialEpoch: 1,
+      credential: { apiKey: "draft-secret" },
+    };
+    const first = modelCatalogPreviewContextToken(base);
+    const next = modelCatalogPreviewContextToken({ ...base, draftCredentialEpoch: 2 });
+
+    expect(first).not.toBe(next);
+    expect(first).not.toContain("draft-secret");
   });
 
   it("coalesces equivalent automatic requests and lets manual refresh take ownership", () => {
@@ -116,6 +133,31 @@ describe("per-window model catalog synchronization", () => {
       contextKey: "opaque-a",
       models: ["current"],
     });
+  });
+
+  it("does not reuse a preview catalog after the draft credential epoch changes", () => {
+    const sync = new ModelCatalogSync();
+    sync.begin("window-a", {
+      requestId: "preview-1",
+      contextToken: "preview-epoch-1",
+      trigger: "manual",
+      cacheResult: false,
+    });
+    sync.commit("window-a", {
+      requestId: "preview-1",
+      ok: true,
+      contextKey: "opaque-preview-1",
+      models: ["model-a"],
+    });
+    sync.begin("window-a", {
+      requestId: "preview-2",
+      contextToken: "preview-epoch-2",
+      trigger: "manual",
+    });
+
+    expect(sync.snapshot("window-a").catalog).toBeNull();
+    sync.invalidate("window-a", "preview-epoch-1");
+    expect(sync.snapshot("window-a").catalog).toBeNull();
   });
 
   it("isolates windows and accepts a successful empty catalog", () => {
