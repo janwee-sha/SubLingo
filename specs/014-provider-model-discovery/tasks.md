@@ -164,6 +164,16 @@
 
 ---
 
+## 阶段 10：Ollama Cloud 输出与凭据状态收敛
+
+**目的**：让不支持 structured outputs 的 Ollama Cloud 在 Test 与翻译中获得精确输出 Schema，并让凭据写入成功立即反映到当前窗口的 Profile 安全状态，再生成候选包供 T038 继续验收。
+
+- [X] T050 [P] [US3] 为 prompt-only 请求携带当前批次精确 JSON Schema、Ollama Cloud 实际键值对象偏差的严格拒绝，以及凭据成功立即收敛 `credentialConfigured` 补充失败优先回归，修改 `tests/contract/ollama.test.ts`、`tests/integration/us3-providers.test.ts` 与 `tests/unit/profile-list-sync.test.ts`
+- [X] T051 [US3] 在 Ollama prompt-only 消息中注入当前批次精确 JSON Schema，并在 Main 收到权威凭据成功后立即更新对应 Profile 安全状态，修改 `src/providers/ollama.ts`、`src/adapters/iina/profile-list-sync.ts` 与 `src/main.ts`
+- [X] T052 运行新增与 014 聚焦回归，使用仓库专用 Ollama 测试配置完成不泄露原始响应的黑盒验证，再严格执行完整门禁、重新打包并保留 T038 为待人工验收
+
+---
+
 ## 依赖与执行顺序
 
 ### 阶段依赖
@@ -177,6 +187,7 @@
 - **阶段 7（收尾）**：依赖计划纳入交付的全部用户故事；T036、T037 必须串行。
 - **阶段 8（人工反馈收敛）**：依赖首轮 T038 人工反馈；T039、T040、T041 的测试准备完成后按 T042 → T043 → T044 串行，最后重新执行 T038。
 - **阶段 9（远程 Ollama 与保存生命周期收敛）**：依赖阶段 8 的候选包反馈；T045、T046 完成失败优先测试后按 T047 → T048 → T049 串行，最后继续执行 T038。
+- **阶段 10（Ollama Cloud 输出与凭据状态收敛）**：依赖阶段 9 的候选包反馈；T050 完成失败优先测试后按 T051 → T052 串行，最后继续执行 T038。
 
 ### 用户故事完成顺序
 

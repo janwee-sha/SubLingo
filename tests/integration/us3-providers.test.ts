@@ -91,14 +91,21 @@ describe("US3 provider broker integration", () => {
           };
         const messages = (request.body as { messages: Array<{ content: string }> }).messages;
         const targets = JSON.parse(messages.at(-1)!.content).targets as Array<{ id: string }>;
+        const hasExactSchema =
+          messages[0]!.content.includes('"required":["translations"]') &&
+          targets.every((target) => messages[0]!.content.includes(`"${target.id}"`));
         return {
           statusCode: 200,
           headers: {},
           bodyText: JSON.stringify({
             message: {
-              content: `\`\`\`json\n${JSON.stringify({
-                translations: targets.map((target) => ({ id: target.id, text: "T" })),
-              })}\n\`\`\``,
+              content: hasExactSchema
+                ? `\`\`\`json\n${JSON.stringify({
+                    translations: targets.map((target) => ({ id: target.id, text: "T" })),
+                  })}\n\`\`\``
+                : JSON.stringify(
+                    Object.fromEntries(targets.map((target) => [target.id, "T"])),
+                  ),
             },
           }),
         };
@@ -138,6 +145,8 @@ describe("US3 provider broker integration", () => {
     for (const request of requests.filter((item) => item.body)) {
       expect(request.body).not.toHaveProperty("format");
       expect(request.body).not.toHaveProperty("think");
+      const messages = request.body!.messages as Array<{ content: string }>;
+      expect(messages[0]!.content).toContain('"required":["translations"]');
     }
   });
 

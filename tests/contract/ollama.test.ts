@@ -274,14 +274,21 @@ describe("Ollama native provider", () => {
           bodies.push(request.body as Record<string, unknown>);
           const messages = (request.body as { messages: Array<{ content: string }> }).messages;
           const targets = JSON.parse(messages.at(-1)!.content).targets as Array<{ id: string }>;
+          const hasExactSchema =
+            messages[0]!.content.includes('"required":["translations"]') &&
+            targets.every((target) => messages[0]!.content.includes(`"${target.id}"`));
           return {
             statusCode: 200,
             headers: {},
             bodyText: JSON.stringify({
               message: {
-                content: `\`\`\`json\n${JSON.stringify({
-                  translations: targets.map((target) => ({ id: target.id, text: "T" })),
-                })}\n\`\`\``,
+                content: hasExactSchema
+                  ? `\`\`\`json\n${JSON.stringify({
+                      translations: targets.map((target) => ({ id: target.id, text: "T" })),
+                    })}\n\`\`\``
+                  : JSON.stringify(
+                      Object.fromEntries(targets.map((target) => [target.id, "T"])),
+                    ),
               },
             }),
           };
@@ -299,6 +306,9 @@ describe("Ollama native provider", () => {
     for (const body of bodies) {
       expect(body).not.toHaveProperty("format");
       expect(body).not.toHaveProperty("think");
+      const messages = body.messages as Array<{ content: string }>;
+      expect(messages[0]!.content).toContain('"additionalProperties":false');
+      expect(messages[0]!.content).toContain('"required":["translations"]');
     }
   });
 

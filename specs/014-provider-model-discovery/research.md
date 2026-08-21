@@ -44,7 +44,7 @@
 
 ## Ollama 输出能力
 
-- **决策**：Ollama Test 与翻译不发送 `think`。官方 `ollama.com` 原生 API 直接使用严格提示约束的 JSON；其他 Endpoint 先探测 JSON Schema，明确不支持或响应不兼容时回退到 prompt-only JSON并在 Provider 生命周期内记忆能力。响应只接受完整 JSON 对象或包裹该对象的单一 JSON 代码块，随后继续执行精确 ID、唯一性与非空译文校验。
+- **决策**：Ollama Test 与翻译不发送 `think`。官方 `ollama.com` 原生 API 直接使用 prompt-only JSON，并在提示中携带当前批次含精确 ID 的 JSON Schema；其他 Endpoint 先探测 JSON Schema，明确不支持或响应不兼容时回退到同一 prompt-only 形式并在 Provider 生命周期内记忆能力。响应只接受完整 JSON 对象或包裹该对象的单一 JSON 代码块，随后继续执行精确 ID、唯一性与非空译文校验。
 - **理由**：Ollama Cloud 当前不支持 structured outputs，Chat API 的 `think` 也是按模型变化的可选参数；强制二者会让有效的远程原生 API 被拒绝。严格提示和本地验证保持输出安全边界，单一代码块兼容常见模型呈现而不从任意文本中猜测 JSON。
 - **备选方案**：对所有 Ollama 永久关闭 JSON Schema 会降低本地服务的确定性；按 HTTP 状态一律重试会重复认证、配额或模型错误；从自然语言中抽取首个大括号对象会接受含额外说明的不兼容响应。
 

@@ -54,3 +54,16 @@ export function upsertCreatedProfile<T extends ProfileListItem>(
   else profiles.push(profile);
   return { ...state, latestRequestId: null, profiles };
 }
+
+export function markProfileCredentialConfigured<
+  T extends ProfileListItem & { credentialConfigured?: boolean },
+>(state: ProfileListSyncState<T>, profileId: string): ProfileListSyncState<T> {
+  const profile = state.profiles.find((item) => item.profileId === profileId);
+  if (!profile || profile.credentialConfigured) return state;
+  return {
+    ...state,
+    profiles: state.profiles.map((item) =>
+      item.profileId === profileId ? { ...item, credentialConfigured: true } : item,
+    ),
+  };
+}

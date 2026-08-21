@@ -3,6 +3,7 @@ import {
   acceptProfileListResult,
   beginProfileListRequest,
   createProfileListSyncState,
+  markProfileCredentialConfigured,
   removeDeletedProfile,
   upsertCreatedProfile,
 } from "../../src/adapters/iina/profile-list-sync.js";
@@ -81,6 +82,20 @@ describe("Main profile list synchronization", () => {
     expect(state.profiles).toEqual([
       { profileId: "updated", revision: 2 },
       { profileId: "retained", revision: 1 },
+    ]);
+  });
+
+  it("immediately reflects an authoritative credential write in the current Profile view", () => {
+    const state = createProfileListSyncState([
+      { profileId: "remote", revision: 2, credentialConfigured: false },
+      { profileId: "retained", revision: 1, credentialConfigured: false },
+    ]);
+
+    const updated = markProfileCredentialConfigured(state, "remote");
+
+    expect(updated.profiles).toEqual([
+      { profileId: "remote", revision: 2, credentialConfigured: true },
+      { profileId: "retained", revision: 1, credentialConfigured: false },
     ]);
   });
 });

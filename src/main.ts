@@ -31,6 +31,7 @@ import {
   acceptProfileListResult,
   beginProfileListRequest,
   createProfileListSyncState,
+  markProfileCredentialConfigured,
   removeDeletedProfile,
   upsertCreatedProfile,
 } from "./adapters/iina/profile-list-sync.js";
@@ -104,6 +105,7 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
   const sidebarMessages: Array<{ name: string; data: unknown }> = [];
   let profileListState = createProfileListSyncState<{
     profileId: string;
+    credentialConfigured?: boolean;
     [key: string]: unknown;
   }>();
   const modelCatalogSync = new ModelCatalogSync();
@@ -574,9 +576,17 @@ function wirePlayer(runtime: MainRuntime, playerId: string): PlaybackController 
     }
     queueSidebarMessage("profile:revision-created", raw);
   });
-  runtime.global.onMessage("credential:result", (raw: unknown) =>
-    queueSidebarMessage("credential:state", raw),
-  );
+  runtime.global.onMessage("credential:result", (raw: unknown) => {
+    const profileId =
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as { profileId?: unknown }).profileId
+        : undefined;
+    if (typeof profileId === "string") {
+      profileListState = markProfileCredentialConfigured(profileListState, profileId);
+      updateSidebarState({ profiles: profileListState.profiles });
+    }
+    queueSidebarMessage("credential:state", raw);
+  });
   runtime.global.onMessage("credential:state", (raw: unknown) =>
     queueSidebarMessage("credential:state", raw),
   );
