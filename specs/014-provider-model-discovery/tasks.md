@@ -135,7 +135,7 @@
 - [X] T035 更新 Select 前无字幕模型目录请求与 Select 后字幕请求的网络披露且保持权限集合不变，修改 `Info.json` 并复核 `README.md` 与 `docs/engineering/development.md`
 - [X] T036 按 `specs/014-provider-model-discovery/quickstart.md` 运行全部聚焦 Vitest 与 `npm run test:native`，修复所有失败后再继续
 - [X] T037 严格依次运行 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build:native`、`npm run test:native`、`npm run build`、`npm run verify:package` 与 `npm run pack`，并按 `specs/014-provider-model-discovery/quickstart.md` 审计候选包架构、权限、签名、白名单和敏感材料
-- [ ] T038 由开发者一人使用同一候选 `.iinaplgz` 完成 `specs/014-provider-model-discovery/quickstart.md` 的 IINA 1.4.4 九项人工验收，仅在实际通过后将包 SHA-256、环境和结果记录到 `docs/validation/iina-matrix.md`
+- [X] T038 由开发者一人使用同一候选 `.iinaplgz` 完成 `specs/014-provider-model-discovery/quickstart.md` 的 IINA 1.4.4 九项人工验收，仅在实际通过后将包 SHA-256、环境和结果记录到 `docs/validation/iina-matrix.md`
 
 ---
 
@@ -148,7 +148,7 @@
 - [X] T041 [P] [US3] 为凭据代次变化时拒绝旧 Provider 构造结果、Ollama Test 使用新 Key 及服务专属失败提示补充失败优先回归，修改 `tests/unit/provider-cache.test.ts`、`tests/integration/us3-providers.test.ts` 与 `tests/contract/ui-messages.test.ts`
 - [X] T042 [US1] [US2] 实现显式 Custom 模式、独立模型反馈和刷新图标，修改 `ui/sidebar-state.ts`、`ui/sidebar.ts`、`ui/sidebar.html` 与 `ui/sidebar.css`
 - [X] T043 [US3] 将 Provider cache 绑定凭据代次并为 Ollama Test 提供服务专属安全反馈，修改 `src/providers/provider-cache.ts`、`src/global.ts`、`ui/provider-status.ts` 与 `ui/sidebar.ts`
-- [X] T044 运行新增与 014 聚焦回归，再严格执行完整门禁、重新打包并保留 T038 为待人工验收
+- [X] T044 运行新增与 014 聚焦回归，再严格执行完整门禁、重新打包并将候选包交付 T038 验收
 
 ---
 
@@ -160,7 +160,7 @@
 - [X] T046 [P] [US2] [US3] 为 credential 刷新取代旧自动请求、revision 创建立即 upsert Profile 且拒绝创建前迟到列表补充失败优先状态与生命周期回归，修改 `tests/unit/model-catalog-sync.test.ts`、`tests/unit/profile-list-sync.test.ts` 与 `tests/contract/sidebar-lifecycle.test.ts`
 - [X] T047 [US3] 实现 Ollama JSON Schema 能力选择、prompt-only 回退、可选参数最小化与受限 JSON 代码块解析，修改 `src/providers/ollama.ts`
 - [X] T048 [US2] [US3] 让 Sidebar/Main 的 credential 刷新取得新 owner，并让 Main 以 revision 创建结果立即收敛 Profile 列表，修改 `ui/sidebar.ts`、`src/adapters/iina/model-catalog-sync.ts`、`src/adapters/iina/profile-list-sync.ts` 与 `src/main.ts`
-- [X] T049 运行新增与 014 聚焦回归，再严格执行完整门禁、重新打包并保留 T038 为待人工验收
+- [X] T049 运行新增与 014 聚焦回归，再严格执行完整门禁、重新打包并将候选包交付 T038 验收
 
 ---
 
@@ -170,7 +170,7 @@
 
 - [X] T050 [P] [US3] 为 prompt-only 请求携带当前批次精确 JSON Schema、Ollama Cloud 实际键值对象偏差的严格拒绝，以及凭据成功立即收敛 `credentialConfigured` 补充失败优先回归，修改 `tests/contract/ollama.test.ts`、`tests/integration/us3-providers.test.ts` 与 `tests/unit/profile-list-sync.test.ts`
 - [X] T051 [US3] 在 Ollama prompt-only 消息中注入当前批次精确 JSON Schema，并在 Main 收到权威凭据成功后立即更新对应 Profile 安全状态，修改 `src/providers/ollama.ts`、`src/adapters/iina/profile-list-sync.ts` 与 `src/main.ts`
-- [X] T052 运行新增与 014 聚焦回归，使用仓库专用 Ollama 测试配置完成不泄露原始响应的黑盒验证，再严格执行完整门禁、重新打包并保留 T038 为待人工验收
+- [X] T052 运行新增与 014 聚焦回归，使用仓库专用 Ollama 测试配置完成不泄露原始响应的黑盒验证，再严格执行完整门禁、重新打包并将候选包交付 T038 验收
 
 ---
 
@@ -182,7 +182,7 @@
 - [X] T054 [P] [US1] [US3] 为草稿 Key 代次失效、当前窗口目录隔离、空 Model ID Save 本地阻止及可操作反馈补充失败优先状态与 Sidebar 契约测试，修改 `tests/unit/model-catalog-sync.test.ts`、`tests/contract/sidebar-form.test.ts` 与 `tests/contract/sidebar-lifecycle.test.ts`
 - [X] T055 [US1] [US3] 实现严格 `provider:models-preview` 消息、逐窗口 owner 转发与 Global 一次性 Bearer 模型发现，修改 `src/domain/messages.ts`、`src/adapters/iina/model-catalog-sync.ts`、`src/main.ts` 与 `src/global.ts`
 - [X] T056 [US1] [US3] 实现 API Key 输入代次、手动草稿刷新、自动刷新凭据隔离、空 Model ID 保存引导、凭据来源反馈与当前用户说明，修改 `ui/sidebar.ts`、`ui/sidebar.html`、`ui/provider-status.ts`、`README.md`、`docs/readme/README.*.md` 与 `docs/engineering/development.md`
-- [X] T057 运行新增与 014 聚焦回归，再严格执行完整门禁、重新打包并保留 T038 为待人工验收
+- [X] T057 运行新增与 014 聚焦回归，再严格执行完整门禁、重新打包并将候选包交付 T038 验收
 
 ---
 

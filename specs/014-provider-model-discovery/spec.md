@@ -2,7 +2,7 @@
 
 **功能目录**：`specs/014-provider-model-discovery`  
 **创建日期**：2026-08-21  
-**状态**：草案
+**状态**：已完成
 
 **输入**：将 OpenAI-compatible 服务类型的可见名称改为 OpenAI，保留自定义 Endpoint；为 Ollama 增加访问远程服务所需的 API Key；把两种服务的 Model ID 改为由服务端模型列表与可编辑自定义项组成的下拉列表，并支持自动、手动刷新。
 
